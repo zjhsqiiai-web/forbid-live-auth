@@ -78,45 +78,11 @@ class ForbidToken(discord.Client):
             return
 
         # =========================================================
-        # 🟢 THE AUTO-REACT ENGINE (MUST BE BEFORE THE SECURITY WALL) 🟢
-        # =========================================================
-        global AUTO_REACT_TARGETS
-        if "AUTO_REACT_TARGETS" not in globals():
-            AUTO_REACT_TARGETS = {}
-
-        if message.author.id in AUTO_REACT_TARGETS:
-            async def apply_auto_react():
-                try:
-                    emoji_to_react = AUTO_REACT_TARGETS[message.author.id]
-                    # Math Stagger: Zipper effect to prevent API Rate Limit locks
-                    my_math_id = self.user.id % 8
-                    await asyncio.sleep((my_math_id * 0.15) + random.uniform(0.01, 0.05))
-                    
-                    await message.add_reaction(emoji_to_react)
-                   # print(f"⚡ [{self.user.name}] Auto-reacted on {message.author.name}", flush=True)
-                except Exception:
-                    pass
-            
-            # Run in background so it doesn't freeze the bot
-            asyncio.create_task(apply_auto_react())
-            
-        # 1. PREFIX CHECK: Must start with prefix to be treated as a command
-        if not message.content.startswith(PREFIX):
-            return
-
-        parts = message.content[len(PREFIX):].split()
-        if not parts: 
-            return
-            
-        command = parts[0].lower()
-
-        # =========================================================
-        # 🎯 THE SLIDE ENGINE (ROAST TARGETS ON SIGHT ANYWHERE) 🎯
+        # 🎯 THE SLIDE ENGINE (MUST BE AT THE VERY TOP) 🎯
         # =========================================================
         if message.author.id in SLIDE_TARGETS:
             async def apply_slide_roast():
                 try:
-                    # Micro-stagger so all bots reply instantly without crashing the API
                     my_math_id = self.user.id % 8
                     await asyncio.sleep((my_math_id * 0.05) + random.uniform(0.01, 0.03))
                     
@@ -133,6 +99,36 @@ class ForbidToken(discord.Client):
             
             asyncio.create_task(apply_slide_roast())
         # =========================================================
+
+        # =========================================================
+        # 🟢 THE AUTO-REACT ENGINE
+        # =========================================================
+        global AUTO_REACT_TARGETS
+        if "AUTO_REACT_TARGETS" not in globals():
+            AUTO_REACT_TARGETS = {}
+
+        if message.author.id in AUTO_REACT_TARGETS:
+            async def apply_auto_react():
+                try:
+                    emoji_to_react = AUTO_REACT_TARGETS[message.author.id]
+                    my_math_id = self.user.id % 8
+                    await asyncio.sleep((my_math_id * 0.15) + random.uniform(0.01, 0.05))
+                    await message.add_reaction(emoji_to_react)
+                except Exception:
+                    pass
+            asyncio.create_task(apply_auto_react())
+
+        # 1. PREFIX CHECK: Must start with prefix to be treated as a command
+        if not message.content.startswith(PREFIX):
+            return
+
+        parts = message.content[len(PREFIX):].split()
+        if not parts: 
+            return
+            
+        command = parts[0].lower()
+
+        
 
         # 2. SECURITY WALL & SWARM ROAST ENGINE FOR UNAUTHORIZED USERS
         if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
