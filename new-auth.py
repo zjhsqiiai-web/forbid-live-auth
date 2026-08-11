@@ -111,9 +111,9 @@ class ForbidToken(discord.Client):
         command = parts[0].lower()
 
         # =========================================================
-        # 🎯 THE SLIDE ENGINE (ROAST TARGETS ON SIGHT) 🎯
+        # 🎯 THE SLIDE ENGINE (ROAST TARGETS ON SIGHT ANYWHERE) 🎯
         # =========================================================
-        if message.author.id in SLIDE_TARGETS and message.author != self.user:
+        if message.author.id in SLIDE_TARGETS:
             async def apply_slide_roast():
                 try:
                     # Micro-stagger so all bots reply instantly without crashing the API
