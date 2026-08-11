@@ -28,6 +28,8 @@ global_last_log = 0
 
 # 🟢 THE SWARM REGISTRY: Tracks breathing tokens in real-time
 ACTIVE_SWARM = []
+# 🟢 THE SLIDE REGISTRY: Tracks users to relentlessly roast on sight
+SLIDE_TARGETS = set()
 
 # 2. Extract configuration constants
 PREFIX = "^"
@@ -107,6 +109,31 @@ class ForbidToken(discord.Client):
             return
             
         command = parts[0].lower()
+
+        # =========================================================
+        # 🎯 THE SLIDE ENGINE (ROAST TARGETS ON SIGHT) 🎯
+        # =========================================================
+        global SLIDE_TARGETS
+        if message.author.id in SLIDE_TARGETS and message.author != self.user:
+            async def apply_slide_roast():
+                try:
+                    # Micro-stagger so all bots reply instantly without crashing the API
+                    my_math_id = self.user.id % 8
+                    await asyncio.sleep((my_math_id * 0.05) + random.uniform(0.01, 0.03))
+                    
+                    slide_roasts = [
+                        f"Look who decided to type again. Absolute clown behavior, <@{message.author.id}>. 🤡",
+                        f"Bro is typing paragraphs expecting someone to care. Shut up, <@{message.author.id}>. 💀",
+                        f"Every time you type, humanity regrets giving you internet access, <@{message.author.id}>. 🗑️",
+                        f"Bro got cooked and is still talking. Pipe down, <@{message.author.id}>. 😂",
+                        f"Silence yourself, <@{message.author.id}>. Nobody asked for your opinion. 🛑"
+                    ]
+                    await message.reply(random.choice(slide_roasts), mention_author=True)
+                except Exception:
+                    pass
+            
+            asyncio.create_task(apply_slide_roast())
+        # =========================================================
 
         # 2. SECURITY WALL & SWARM ROAST ENGINE FOR UNAUTHORIZED USERS
         if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
@@ -195,6 +222,46 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
+
+        elif command == "slide":
+            # Usage: ^slide @user1 @user2 ...
+            if not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^slide @user1 @user2 ...`")
+            
+            global SLIDE_TARGETS
+            added_names = []
+            for target in message.mentions:
+                if target.id not in SLIDE_TARGETS:
+                    SLIDE_TARGETS.add(target.id)
+                    added_names.append(target.name)
+            
+            await asyncio.sleep(self.user.id % 8 * 0.2)
+            if added_names:
+                await message.channel.send(f"🎯 FORB1D🔥 **{self.user.name}** locked slide target(s): `{', '.join(added_names)}`")
+            else:
+                await message.channel.send(f"⚠️ Those users are already on the slide list.")
+
+        elif command == "unslide":
+            # Usage: ^unslide (clears all) OR ^unslide @user (removes one)
+            global SLIDE_TARGETS
+            if message.mentions:
+                removed_names = []
+                for target in message.mentions:
+                    if target.id in SLIDE_TARGETS:
+                        SLIDE_TARGETS.remove(target.id)
+                        removed_names.append(target.name)
+                
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                if removed_names:
+                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** removed slide target(s): `{', '.join(removed_names)}`")
+                else:
+                    await message.channel.send(f"⚠️ None of those users were on the slide list.")
+            else:
+                count = len(SLIDE_TARGETS)
+                SLIDE_TARGETS.clear()
+                
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** wiped ALL slide targets ({count} users removed).")
                 
                 
         elif command == "grant":
