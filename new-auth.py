@@ -131,19 +131,6 @@ class ForbidToken(discord.Client):
         # 4. Your Commands!
         # (We will paste ping here next)
         
-        elif command == "grant":
-            # Usage: ^grant @user
-            if not message.mentions:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^grant @user`")
-            
-            target_user = message.mentions[0]
-            
-            if target_user.id not in AUTHORIZED_USERS:
-                AUTHORIZED_USERS.append(target_user.id)
-                await message.channel.send(f"✅ FORB1D🔥 **{target_user.name}** has been granted access to the network by **{self.user.name}**.")
-                print(f"🔑 [Security] User {target_user.id} ({target_user.name}) added to AUTHORIZED_USERS.", flush=True)
-            else:
-                await message.channel.send(f"⚠️ **{target_user.name}** is already authorized on the network.")
                 
 
         if command == "ping":
@@ -205,6 +192,21 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
+                
+                
+        elif command == "grant":
+                    # Usage: ^grant @user
+                    if not message.mentions:
+                        return await message.channel.send(f"❌ **{self.user.name}** Usage: `^grant @user`")
+                    
+                    target_user = message.mentions[0]
+                    
+                    if target_user.id not in AUTHORIZED_USERS:
+                        AUTHORIZED_USERS.append(target_user.id)
+                        await message.channel.send(f"✅ FORB1D🔥 **{target_user.name}** has been granted access to the network by **{self.user.name}**.")
+                        print(f"🔑 [Security] User {target_user.id} ({target_user.name}) added to AUTHORIZED_USERS.", flush=True)
+                    else:
+                        await message.channel.send(f"⚠️ **{target_user.name}** is already authorized on the network.")
 
         elif command == "rs":
             # Usage: !rs <text> <delay>
