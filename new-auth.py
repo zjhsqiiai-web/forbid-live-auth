@@ -87,11 +87,15 @@ class ForbidToken(discord.Client):
                     await asyncio.sleep((my_math_id * 0.05) + random.uniform(0.01, 0.03))
                     
                     slide_roasts = [
-                        f"Look who decided to type again. Absolute clown behavior, <@{message.author.id}>. 🤡",
-                        f"Bro is typing paragraphs expecting someone to care. Shut up, <@{message.author.id}>. 💀",
-                        f"Every time you type, humanity regrets giving you internet access, <@{message.author.id}>. 🗑️",
-                        f"Bro got cooked and is still talking. Pipe down, <@{message.author.id}>. 😂",
-                        f"Silence yourself, <@{message.author.id}>. Nobody asked for your opinion. 🛑"
+                        f"ƒ✿rʙÏd Aʙʙu ＄㉫ ʙħÏdéＧA?!?  çђāl ţęŗj åm̊m̊å x̊o̊d̊t̊å <@{message.author.id}> 💀",
+                        f"FФЯБID ИΞ ΓΞЯI MД CФD DI  ƒσɾɓίδ ႪႩႩႲ ♭✺ℓ <@{message.author.id}> 🔥",
+                        f"ᵒʸᵉ fσявι∂ кι gυℓαмι кя яи∂у¢є  †℮ґѦ ∂ℌ¥Ѧη  ꀘꍏꀍꍏ ꀍ ţęŗā ƒoŗbįd ābbų  ƴAħA ħ <@{message.author.id}> 🤡",
+                        f"ᠻꪮ𝘳᥇𝓲ᦔ 𝘴ꫀ ᵇʰⁱᵈᵉᵍᵃ? 🅘︎🅣︎🅝︎🅘︎ 🅐︎🅤︎🅚︎🅐︎🅣︎? ᵗᵉʳⁱ ᵇʰᵉⁿ ᵏᵒ 𝚛𝚘𝚊𝚍 𝚙𝚎 𝚌𝚘𝚍𝚞 <@{message.author.id}> ⚡",
+                        f"chαl вє ᑕᑌᗪKᗪ †℮ґѦ Ѧ♭♭ʊ ƒ◎ґ♭ї∂ ѦℊѦ¥𐌡 𝖙𝖊𝖗𝖎 𝖒𝖆 𝖓𝖊 𝖈𝖚dк𝖉 ѕuícídє ҜЯLIД <@{message.author.id}> ☠️",
+                        f"ςђคใ вє ƒ✿rʙÏd †℮ґї ѦммѦ кѦ ґ℮℘ kRǸЄ ﻝArA <@{message.author.id}> 🔱",
+                        f"ƒ◎ґ♭ї∂ ℘Ѧ℘Ѧ s̊e̊ b̊h̊åẘ lპႺႩ? ჶ  †℮ґї мѦ LUΠD ℘ḙ <@{message.author.id}> 💥",
+                        f"σує FФЯБID ҜI GЦLДMI кѦґ ℊґї♭   ᥴꫝꪊᦔ𝘬ᦔ 𝘬𝓲 ꪖꪊꪶꪶꪖᦔ <@{message.author.id}> 👑",
+                        f"ҒΩRβID TΣRΔ ΔββU ѦℊѦʏѦ †℮ґї n̊ån̊i̊ ɕհσδηε ႺႪ RტႩმ pāŗ <@{message.author.id}> 🔥"
                     ]
                     await message.reply(random.choice(slide_roasts), mention_author=True)
                 except Exception:
