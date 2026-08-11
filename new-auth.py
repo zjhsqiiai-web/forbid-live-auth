@@ -113,7 +113,6 @@ class ForbidToken(discord.Client):
         # =========================================================
         # 🎯 THE SLIDE ENGINE (ROAST TARGETS ON SIGHT) 🎯
         # =========================================================
-        global SLIDE_TARGETS
         if message.author.id in SLIDE_TARGETS and message.author != self.user:
             async def apply_slide_roast():
                 try:
@@ -228,7 +227,6 @@ class ForbidToken(discord.Client):
             if not message.mentions:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^slide @user1 @user2 ...`")
             
-            global SLIDE_TARGETS
             added_names = []
             for target in message.mentions:
                 if target.id not in SLIDE_TARGETS:
@@ -243,7 +241,6 @@ class ForbidToken(discord.Client):
 
         elif command == "unslide":
             # Usage: ^unslide (clears all) OR ^unslide @user (removes one)
-            global SLIDE_TARGETS
             if message.mentions:
                 removed_names = []
                 for target in message.mentions:
