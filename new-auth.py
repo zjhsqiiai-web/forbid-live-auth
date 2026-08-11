@@ -10,9 +10,12 @@ from keep_alive import keep_alive
 # 🔥 INJECT THE HYPER-ENGINE HERE
 import sys
 if sys.platform != "win32":
-    import uvloop
-    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-    print("🚀 [SYSTEM] UVLOOP ENGINE ENGAGED. MAXIMUM SPEED UNLOCKED.")
+    try:
+        import uvloop
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        print("🚀 [SYSTEM] UVLOOP ENGINE ENGAGED. MAXIMUM SPEED UNLOCKED.")
+    except ImportError:
+        print("⚠️ [SYSTEM] uvloop package not installed. Continuing with standard event loop.")
 
 # 1. TURN ON DISCORD X-RAY (Keeps your general boot-up info flowing)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(name)s: %(message)s')
