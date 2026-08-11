@@ -97,13 +97,8 @@ class ForbidToken(discord.Client):
             
             # Run in background so it doesn't freeze the bot
             asyncio.create_task(apply_auto_react())
-        # =========================================================
-
-        # 2. SECURITY WALL: EVERY bot listens to the Main Owner for commands
-        if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
-            return
             
-        # 1. PREFIX CHECK (Moved up so we catch unauthorized attempts)
+        # 1. PREFIX CHECK: Must start with prefix to be treated as a command
         if not message.content.startswith(PREFIX):
             return
 
@@ -113,18 +108,25 @@ class ForbidToken(discord.Client):
             
         command = parts[0].lower()
 
-        # 2. SECURITY WALL: ONLY OWNER & AUTHORIZED USERS CAN RUN COMMANDS
+        # 2. SECURITY WALL & SWARM ROAST ENGINE FOR UNAUTHORIZED USERS
         if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
-            roasts = [
-                f"Nice try, <@{message.author.id}>. You don't have the keys to Forbid Bots whip. 💀",
-                f"Bro really thought he could use FORB1D's Bot commands. Stay down, <@{message.author.id}>. 😂",
-                f"Access denied, <@{message.author.id}>. Go make your own script instead of using Forbid Bot kiddo. 🤡",
-                f"Who let this random <@{message.author.id}> try to run Forbid Bot commands? Get lost. ☠️"
-            ]
-            try:
-                await message.channel.send(random.choice(roasts))
-            except:
-                pass
+            async def swarm_roast():
+                try:
+                    # Zipper stagger so all active bots roast cleanly without hitting rate limits
+                    my_math_id = self.user.id % 8
+                    await asyncio.sleep((my_math_id * 0.15) + random.uniform(0.01, 0.05))
+                    
+                    roasts = [
+                        f"Nice try, <@{message.author.id}>. You don't have the keys to Forbid Bots whip. 💀",
+                        f"Bro really thought he could use FORB1D's Bot commands. Stay down, <@{message.author.id}>. 😂",
+                        f"Access denied, <@{message.author.id}>. Go make your own script instead of using Forbid Bot kiddo. 🤡",
+                        f"Who let this random <@{message.author.id}> try to run Forbid Bot commands? Get lost. ☠️"
+                    ]
+                    await message.channel.send(random.choice(roasts))
+                except Exception as e:
+                    print(f"⚠️ Swarm roast failed for {self.user.name}: {e}", flush=True)
+
+            asyncio.create_task(swarm_roast())
             return
 
         # Clean logging: Only prints to Render when an actual authorized command is given
