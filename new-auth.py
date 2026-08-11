@@ -113,15 +113,13 @@ class ForbidToken(discord.Client):
             
         command = parts[0].lower()
 
-        # 2. SECURITY WALL & ROAST ENGINE FOR UNAUTHORIZED USERS
+        # 2. SECURITY WALL: ONLY OWNER & AUTHORIZED USERS CAN RUN COMMANDS
         if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
-            # Skip roasting for the grant command if you want others to request it, 
-            # or keep it locked so only owners can grant. Let's roast them:
             roasts = [
-                f"Nice try, <@{message.author.id}>. You don't have the keys to this whip. 💀",
-                f"Bro really thought he could use FORB1D OPS commands. Stay down, <@{message.author.id}>. 😂",
-                f"Access denied, <@{message.author.id}>. Go make your own script instead of leeching. 🤡",
-                f"Who let this random <@{message.author.id}> try to run commands? Get lost. ☠️"
+                f"Nice try, <@{message.author.id}>. You don't have the keys to Forbid Bots whip. 💀",
+                f"Bro really thought he could use FORB1D's Bot commands. Stay down, <@{message.author.id}>. 😂",
+                f"Access denied, <@{message.author.id}>. Go make your own script instead of using Forbid Bot kiddo. 🤡",
+                f"Who let this random <@{message.author.id}> try to run Forbid Bot commands? Get lost. ☠️"
             ]
             try:
                 await message.channel.send(random.choice(roasts))
@@ -198,18 +196,41 @@ class ForbidToken(discord.Client):
                 
                 
         elif command == "grant":
-                    # Usage: ^grant @user
-                    if not message.mentions:
-                        return await message.channel.send(f"❌ **{self.user.name}** Usage: `^grant @user`")
-                    
-                    target_user = message.mentions[0]
-                    
-                    if target_user.id not in AUTHORIZED_USERS:
-                        AUTHORIZED_USERS.append(target_user.id)
-                        await message.channel.send(f"✅ FORB1D🔥 **{target_user.name}** has been granted access to the network by **{self.user.name}**.")
-                        print(f"🔑 [Security] User {target_user.id} ({target_user.name}) added to AUTHORIZED_USERS.", flush=True)
-                    else:
-                        await message.channel.send(f"⚠️ **{target_user.name}** is already authorized on the network.")
+            # 🛑 LOCK: Only the main owner can authorize new users
+            if message.author.id != MAIN_OWNER:
+                return await message.channel.send(f"❌ **{self.user.name}** Access Denied: Only the main owner can grant network access.")
+
+            # Usage: ^grant @user
+            if not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^grant @user`")
+            
+            target_user = message.mentions[0]
+            
+            if target_user.id not in AUTHORIZED_USERS:
+                AUTHORIZED_USERS.append(target_user.id)
+                await message.channel.send(f"✅ FORB1D🔥 **{target_user.name}** has been granted access to the network by **{self.user.name}**.")
+                print(f"🔑 [Security] User {target_user.id} ({target_user.name}) added to AUTHORIZED_USERS.", flush=True)
+            else:
+                await message.channel.send(f"⚠️ **{target_user.name}** is already authorized on the network.")
+
+        elif command == "ungrant":
+            # 🛑 LOCK: Only the main owner can revoke access
+            if message.author.id != MAIN_OWNER:
+                return await message.channel.send(f"❌ **{self.user.name}** Access Denied: Only the main owner can revoke network access.")
+
+            # Usage: ^ungrant @user
+            if not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^ungrant @user`")
+            
+            target_user = message.mentions[0]
+            
+            if target_user.id in AUTHORIZED_USERS:
+                AUTHORIZED_USERS.remove(target_user.id)
+                await message.channel.send(f"🛑 FORB1D🔥 **{target_user.name}** has been revoked of network access by **{self.user.name}**.")
+                print(f"🔑 [Security] User {target_user.id} ({target_user.name}) removed from AUTHORIZED_USERS.", flush=True)
+            else:
+                await message.channel.send(f"⚠️ **{target_user.name}** is not currently authorized on the network.")
+                
 
         elif command == "rs":
             # Usage: !rs <text> <delay>
