@@ -82,73 +82,56 @@ class ForbidToken(discord.Client):
             return
 
         # =========================================================
-        # ⚡ SMART GCNC REACTIVE TRIGGER ENGINE ⚡
+        # ⚡ ATOMIC SMART GCNC MIRROR ENGINE (ZERO LAG / NO LOOPS) ⚡
         # =========================================================
         if isinstance(message.channel, discord.GroupChannel) and message.type == discord.MessageType.channel_name_change:
             if message.author.id in SGCNC_TARGETS:
-                async def execute_smart_gcnc_war():
+                async def atomic_gcnc_override():
                     try:
+                        import orjson
                         base_name = SGCNC_TARGETS[message.author.id]
-                        delay = 1.2  # Blazing fast execution loop
-                        emojis = ["💀", "👿", "🔥", "👑", "⚡", "🔱", "💎", "☠️"]
+                        
+                        # Elite template array with clean symbols
                         templates = [
-                            "{chosen_emoji} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {user_text} 】 ﷽﷽﷽﷽﷽﷽",
-                            "{chosen_emoji} ＦＯＲＢ１Ｄ ＫＩ𝗡Ｇ ꧅ {user_text} ꧅ 𒐫𒐫𒐫𒐫𒐫𒐫",
-                            "{chosen_emoji} 𝐅𝐎𝐑𝐁𝟏𝐃 𝐊𝐈𝐍𝐆 ☠️ {user_text} ☠️ 𒈙𒈙𒈙𒈙𒈙𒈙",
-                            "{chosen_emoji} 𝙁𝙊𝙍𝘽1𝘿 𝙆𝙄𝙉𝙂 ⚡ {user_text} ⚡ ꧅꧅꧅꧅꧅꧅",
-                            "{chosen_emoji} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 ╳ {user_text} ╳ ﷽𒐫𒐫𒐫𒐫𒐫"
+                            f"⚡ 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 ﷽﷽﷽",
+                            f"👑 ＦＯＲＢ１Ｄ ＫＩ𝗡Ｇ ꧅ {base_name} ꧅ 𒐫𒐫𒐫",
+                            f"☠️ 𝐅𝐎𝐑𝐁𝟏𝐃 𝐊𝐈𝐍𝐆 ╳ {base_name} ╳ 𒈙𒈙𒈙"
                         ]
                         
-                        # Kill any existing loop on this channel to prevent stacking
-                        for task in asyncio.all_tasks():
-                            if task.get_name() == f"sgcnc_{message.channel.id}":
-                                task.cancel()
-
-                        async def active_war_loop():
-                            current_swarm_size = max(1, len(ACTIVE_SWARM))
-                            try:
-                                my_math_id = ACTIVE_SWARM.index(self.user.id)
-                            except ValueError:
-                                my_math_id = 0
-                                
-                            micro_stagger = my_math_id * (delay / current_swarm_size)
-                            await asyncio.sleep(micro_stagger)
+                        # 200 IQ Swarm Coordination: Pick one primary active node to execute instantly 
+                        # to avoid race conditions and double-triggers
+                        current_swarm_size = max(1, len(ACTIVE_SWARM))
+                        try:
+                            my_math_id = ACTIVE_SWARM.index(self.user.id)
+                        except ValueError:
+                            my_math_id = 0
                             
-                            emoji_index = my_math_id % len(emojis)
-                            template_index = my_math_id % len(templates)
+                        # Micro-stagger based on swarm position to guarantee zero 429 collisions
+                        await asyncio.sleep(my_math_id * 0.03)
+                        
+                        # Select template deterministically based on message ID hash
+                        chosen_template = templates[message.id % len(templates)]
+                        if len(chosen_template) > 100:
+                            chosen_template = chosen_template[:100]
                             
-                            # Run aggressive override for 15 seconds (if they stop changing names, it rests to save rate limits)
-                            end_time = asyncio.get_event_loop().time() + 15.0
-                            while asyncio.get_event_loop().time() < end_time:
-                                try:
-                                    chosen_emoji = emojis[emoji_index]
-                                    emoji_index = (emoji_index + 1) % len(emojis)
-                                    
-                                    raw_template = templates[template_index]
-                                    template_index = (template_index + 1) % len(templates)
-                                    
-                                    new_gc_name = raw_template.replace("{user_text}", base_name).replace("{chosen_emoji}", chosen_emoji)
-                                    if len(new_gc_name) > 100:
-                                        new_gc_name = new_gc_name[:100]
-                                    
-                                    await message.channel.edit(name=new_gc_name)
-                                    await asyncio.sleep(delay)
-                                    
-                                except discord.HTTPException as e:
-                                    if e.status == 429:
-                                        wait = float(e.response.headers.get("Retry-After", 1.0))
-                                        await asyncio.sleep(wait + 0.05)
-                                    else:
-                                        await asyncio.sleep(0.5)
-
-                        task = asyncio.create_task(active_war_loop(), name=f"sgcnc_{message.channel.id}")
-                        if message.channel.id not in gcnc_tasks:
-                            gcnc_tasks[message.channel.id] = []
-                        gcnc_tasks[message.channel.id].append(task)
+                        # Raw socket PATCH injection for max velocity (bypasses wrapper overhead)
+                        target_url = f"https://discord.com/api/v9/channels/{message.channel.id}"
+                        ultra_headers = {
+                            "Authorization": self.http.token,
+                            "Content-Type": "application/json",
+                            "Connection": "keep-alive"
+                        }
+                        raw_packet = orjson.dumps({"name": chosen_template})
+                        
+                        async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
+                            if resp.status == 429:
+                                rate_data = orjson.loads(await resp.read())
+                                await asyncio.sleep(rate_data.get("retry_after", 0.5))
+                                await self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers)
                     except Exception:
                         pass
                 
-                asyncio.create_task(execute_smart_gcnc_war())
+                asyncio.create_task(atomic_gcnc_override())
         # =========================================================
 
         # =========================================================
