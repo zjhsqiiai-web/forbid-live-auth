@@ -30,8 +30,8 @@ global_last_log = 0
 ACTIVE_SWARM = []
 # 🟢 THE SLIDE REGISTRY: Tracks users to relentlessly roast on sight
 SLIDE_TARGETS = set()
-# 🟢 TRIGGER SPAM REGISTRY: Targets that trigger instant multi-bot socket bursts on sight
-SPAM_TRIGGER_TARGETS = set()
+# 🟢 SMART SPAM REGISTRY: Maps target user IDs to your custom text
+SSPAM_TARGETS = {}
 
 # 2. Extract configuration constants
 PREFIX = "^"
@@ -80,21 +80,27 @@ class ForbidToken(discord.Client):
             return
 
         # =========================================================
-        # ⚡ THE BLAZING FAST TRIGGER SPAM ENGINE ⚡
+        # ⚡ CS-ENGINEERED SMART SPAM TRIGGER (DYNAMIC SWARM) ⚡
         # =========================================================
-        if message.author.id in SPAM_TRIGGER_TARGETS and message.author != self.user:
-            async def trigger_swarm_burst():
+        if message.author.id in SSPAM_TARGETS and message.author != self.user:
+            async def trigger_cs_smart_spam():
                 try:
                     import orjson
-                    # Find exact position in active swarm for micro-staggering
-                    try:
-                        my_math_id = ACTIVE_SWARM.index(self.user.id)
-                    except ValueError:
-                        my_math_id = 0
-                        
-                    # Stagger bots slightly so they don't crash Discord's gateway at the exact same microsecond
-                    await asyncio.sleep(my_math_id * 0.04)
+                    import gc
                     
+                    user_text = SSPAM_TARGETS[message.author.id]
+                    hearts = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎"]
+                    
+                    # Pre-bake payloads into raw Rust bytes using exact cs logic
+                    pre_baked_bytes = []
+                    for heart in hearts:
+                        base_text = f"# {user_text} - ({heart}) <@{message.author.id}>"
+                        spaced_text = base_text.replace(" ", " \u200B")
+                        multiplier = 1950 // max(1, len(spaced_text) + 2)
+                        final_content = "\n\n".join([spaced_text] * max(1, multiplier))
+                        pre_baked_bytes.append(orjson.dumps({"content": final_content}))
+                    
+                    local_post = self.raw_session.post
                     target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                     ultra_headers = {
                         "Authorization": self.http.token,
@@ -102,24 +108,29 @@ class ForbidToken(discord.Client):
                         "Connection": "keep-alive"
                     }
                     
-                    # High-speed rapid payload array
-                    burst_payloads = [
-                        f"🚨 SWARM BLITZ ENGAGED ON <@{message.author.id}> 💀 ﷽﷽﷽",
-                        f"⚡ GET COOKED INSTANTLY <@{message.author.id}> 🔥 ꧅꧅꧅",
-                        f"🗑️ BRO SPOKE AND GOT DELETED <@{message.author.id}> ☠️ 𒈙𒈙𒈙"
-                    ]
-                    
-                    # Blazing fast raw-socket packet injection loop
-                    for text in burst_payloads:
-                        spaced_text = text.replace(" ", " \u200B")
-                        raw_packet = orjson.dumps({"content": spaced_text})
+                    # 🧠 200 IQ Dynamic Swarm Calculation (Adapts to however many bots are active)
+                    current_swarm_size = max(1, len(ACTIVE_SWARM))
+                    try:
+                        my_math_id = ACTIVE_SWARM.index(self.user.id)
+                    except ValueError:
+                        my_math_id = 0
                         
-                        await self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers)
-                        await asyncio.sleep(0.08) # Sub-second rapid firing interval
+                    perfect_stagger = (0.04 / float(current_swarm_size)) * my_math_id
+                    await asyncio.sleep(perfect_stagger)
+                    
+                    color_index = self.user.id % len(hearts)
+                    raw_packet = pre_baked_bytes[color_index]
+                    
+                    # Fire raw socket request with garbage collection frozen for zero stutters
+                    gc.disable()
+                    try:
+                        await local_post(target_url, data=raw_packet, headers=ultra_headers)
+                    finally:
+                        gc.enable()
                 except Exception:
                     pass
             
-            asyncio.create_task(trigger_swarm_burst())
+            asyncio.create_task(trigger_cs_smart_spam())
         # =========================================================
         
 
@@ -268,43 +279,66 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
-        elif command == "tspam":
-            # Usage: ^tspam @user1 @user2 ...
-            if not message.mentions:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^tspam @user1 @user2 ...`")
+        elif command == "sspam" or command == "smartspam":
+            # Usage: ^sspam <your custom text> @user1 @user2
+            if not message.mentions or len(parts) < 2:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^sspam <your text> @user1 @user2`")
             
+            content_after_cmd = message.content[len(PREFIX) + len(command):].strip()
+            custom_text = content_after_cmd
+            for mention in message.mentions:
+                custom_text = custom_text.replace(f"<@{mention.id}>", "").replace(f"<@!{mention.id}>", "")
+            custom_text = custom_text.strip()
+            
+            if not custom_text:
+                return await message.channel.send(f"❌ **{self.user.name}** Error: You must include custom text to spam!")
+                
             added_names = []
             for target in message.mentions:
-                if target.id not in SPAM_TRIGGER_TARGETS:
-                    SPAM_TRIGGER_TARGETS.add(target.id)
-                    added_names.append(target.name)
+                SSPAM_TARGETS[target.id] = custom_text
+                added_names.append(target.name)
             
-            await asyncio.sleep(self.user.id % 8 * 0.2)
-            if added_names:
-                await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** locked Trigger Spam target(s): `{', '.join(added_names)}`")
-            else:
-                await message.channel.send(f"⚠️ Those users are already on the trigger spam list.")
+            current_swarm_size = max(1, len(ACTIVE_SWARM))
+            try:
+                my_math_id = ACTIVE_SWARM.index(self.user.id)
+            except ValueError:
+                my_math_id = 0
+            await asyncio.sleep((0.2 / current_swarm_size) * my_math_id)
+            
+            await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** locked CS-Engineered Smart Spam text: `{custom_text}` on target(s): `{', '.join(added_names)}`")
 
-        elif command == "untspam":
-            # Usage: ^untspam (clears all) OR ^untspam @user (removes one)
+        elif command == "unsspam":
+            # Usage: ^unsspam (clears all) OR ^unsspam @user (removes one)
             if message.mentions:
                 removed_names = []
                 for target in message.mentions:
-                    if target.id in SPAM_TRIGGER_TARGETS:
-                        SPAM_TRIGGER_TARGETS.remove(target.id)
+                    if target.id in SSPAM_TARGETS:
+                        del SSPAM_TARGETS[target.id]
                         removed_names.append(target.name)
                 
-                await asyncio.sleep(self.user.id % 8 * 0.2)
-                if removed_names:
-                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** removed Trigger Spam target(s): `{', '.join(removed_names)}`")
-                else:
-                    await message.channel.send(f"⚠️ None of those users were on the trigger spam list.")
-            else:
-                count = len(SPAM_TRIGGER_TARGETS)
-                SPAM_TRIGGER_TARGETS.clear()
+                current_swarm_size = max(1, len(ACTIVE_SWARM))
+                try:
+                    my_math_id = ACTIVE_SWARM.index(self.user.id)
+                except ValueError:
+                    my_math_id = 0
+                await asyncio.sleep((0.2 / current_swarm_size) * my_math_id)
                 
-                await asyncio.sleep(self.user.id % 8 * 0.2)
-                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** wiped ALL Trigger Spam targets ({count} users removed).")
+                if removed_names:
+                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** removed Smart Spam target(s): `{', '.join(removed_names)}`")
+                else:
+                    await message.channel.send(f"⚠️ None of those users were on the Smart Spam list.")
+            else:
+                count = len(SSPAM_TARGETS)
+                SSPAM_TARGETS.clear()
+                
+                current_swarm_size = max(1, len(ACTIVE_SWARM))
+                try:
+                    my_math_id = ACTIVE_SWARM.index(self.user.id)
+                except ValueError:
+                    my_math_id = 0
+                await asyncio.sleep((0.2 / current_swarm_size) * my_math_id)
+                
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** wiped ALL Smart Spam targets ({count} users removed).")
 
         elif command == "slide":
             # Usage: ^slide @user1 @user2 ...
