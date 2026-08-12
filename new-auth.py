@@ -82,70 +82,73 @@ class ForbidToken(discord.Client):
             return
 
         # =========================================================
-        # ⚡ THE SMART GCNC TRIGGER ENGINE ⚡
+        # ⚡ SMART GCNC REACTIVE TRIGGER ENGINE ⚡
         # =========================================================
-        if message.author.id in SGCNC_TARGETS and isinstance(message.channel, discord.GroupChannel):
-            async def trigger_smart_gcnc():
-                try:
-                    base_name = SGCNC_TARGETS[message.author.id]
-                    delay = 1.5  # Blazing fast loop speed
-                    emojis = ["💀", "👿", "🔥", "👑", "⚡", "🔱", "💎", "☠️"]
-                    templates = [
-                        "{chosen_emoji} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {user_text} 】 ﷽﷽﷽﷽﷽﷽",
-                        "{chosen_emoji} ＦＯＲＢ１Ｄ ＫＩＮＧ ꧅ {user_text} ꧅ 𒐫𒐫𒐫𒐫𒐫𒐫",
-                        "{chosen_emoji} 𝐅𝐎𝐑𝐁𝟏𝐃 𝐊𝐈𝐍𝐆 ☠️ {user_text} ☠️ 𒈙𒈙𒈙𒈙𒈙𒈙",
-                        "{chosen_emoji} 𝙁𝙊𝙍𝘽1𝘿 𝙆𝙄𝙉𝙂 ⚡ {user_text} ⚡ ꧅꧅꧅꧅꧅꧅",
-                        "{chosen_emoji} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 ╳ {user_text} ╳ ﷽𒐫𒐫𒐫𒐫𒐫"
-                    ]
-                    
-                    # Kill existing gcnc loop on this specific channel if already running
-                    for task in asyncio.all_tasks():
-                        if task.get_name() == f"gcnc_{message.channel.id}":
-                            task.cancel()
+        if isinstance(message.channel, discord.GroupChannel) and message.type == discord.MessageType.channel_name_change:
+            if message.author.id in SGCNC_TARGETS:
+                async def execute_smart_gcnc_war():
+                    try:
+                        base_name = SGCNC_TARGETS[message.author.id]
+                        delay = 1.2  # Blazing fast execution loop
+                        emojis = ["💀", "👿", "🔥", "👑", "⚡", "🔱", "💎", "☠️"]
+                        templates = [
+                            "{chosen_emoji} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {user_text} 】 ﷽﷽﷽﷽﷽﷽",
+                            "{chosen_emoji} ＦＯＲＢ１Ｄ ＫＩ𝗡Ｇ ꧅ {user_text} ꧅ 𒐫𒐫𒐫𒐫𒐫𒐫",
+                            "{chosen_emoji} 𝐅𝐎𝐑𝐁𝟏𝐃 𝐊𝐈𝐍𝐆 ☠️ {user_text} ☠️ 𒈙𒈙𒈙𒈙𒈙𒈙",
+                            "{chosen_emoji} 𝙁𝙊𝙍𝘽1𝘿 𝙆𝙄𝙉𝙂 ⚡ {user_text} ⚡ ꧅꧅꧅꧅꧅꧅",
+                            "{chosen_emoji} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 ╳ {user_text} ╳ ﷽𒐫𒐫𒐫𒐫𒐫"
+                        ]
+                        
+                        # Kill any existing loop on this channel to prevent stacking
+                        for task in asyncio.all_tasks():
+                            if task.get_name() == f"sgcnc_{message.channel.id}":
+                                task.cancel()
 
-                    async def sgcnc_loop():
-                        current_swarm_size = max(1, len(ACTIVE_SWARM))
-                        try:
-                            my_math_id = ACTIVE_SWARM.index(self.user.id)
-                        except ValueError:
-                            my_math_id = 0
-                            
-                        micro_stagger = my_math_id * (delay / current_swarm_size)
-                        await asyncio.sleep(micro_stagger)
-                        
-                        emoji_index = my_math_id % len(emojis)
-                        template_index = my_math_id % len(templates)
-                        
-                        while True:
+                        async def active_war_loop():
+                            current_swarm_size = max(1, len(ACTIVE_SWARM))
                             try:
-                                chosen_emoji = emojis[emoji_index]
-                                emoji_index = (emoji_index + 1) % len(emojis)
+                                my_math_id = ACTIVE_SWARM.index(self.user.id)
+                            except ValueError:
+                                my_math_id = 0
                                 
-                                raw_template = templates[template_index]
-                                template_index = (template_index + 1) % len(templates)
-                                
-                                new_gc_name = raw_template.replace("{user_text}", base_name).replace("{chosen_emoji}", chosen_emoji)
-                                if len(new_gc_name) > 100:
-                                    new_gc_name = new_gc_name[:100]
-                                
-                                await message.channel.edit(name=new_gc_name)
-                                await asyncio.sleep(delay)
-                                
-                            except discord.HTTPException as e:
-                                if e.status == 429:
-                                    wait = float(e.response.headers.get("Retry-After", 1.0))
-                                    await asyncio.sleep(wait + 0.05)
-                                else:
-                                    await asyncio.sleep(0.5)
+                            micro_stagger = my_math_id * (delay / current_swarm_size)
+                            await asyncio.sleep(micro_stagger)
+                            
+                            emoji_index = my_math_id % len(emojis)
+                            template_index = my_math_id % len(templates)
+                            
+                            # Run aggressive override for 15 seconds (if they stop changing names, it rests to save rate limits)
+                            end_time = asyncio.get_event_loop().time() + 15.0
+                            while asyncio.get_event_loop().time() < end_time:
+                                try:
+                                    chosen_emoji = emojis[emoji_index]
+                                    emoji_index = (emoji_index + 1) % len(emojis)
+                                    
+                                    raw_template = templates[template_index]
+                                    template_index = (template_index + 1) % len(templates)
+                                    
+                                    new_gc_name = raw_template.replace("{user_text}", base_name).replace("{chosen_emoji}", chosen_emoji)
+                                    if len(new_gc_name) > 100:
+                                        new_gc_name = new_gc_name[:100]
+                                    
+                                    await message.channel.edit(name=new_gc_name)
+                                    await asyncio.sleep(delay)
+                                    
+                                except discord.HTTPException as e:
+                                    if e.status == 429:
+                                        wait = float(e.response.headers.get("Retry-After", 1.0))
+                                        await asyncio.sleep(wait + 0.05)
+                                    else:
+                                        await asyncio.sleep(0.5)
 
-                    task = asyncio.create_task(sgcnc_loop(), name=f"gcnc_{message.channel.id}")
-                    if message.channel.id not in gcnc_tasks:
-                        gcnc_tasks[message.channel.id] = []
-                    gcnc_tasks[message.channel.id].append(task)
-                except Exception:
-                    pass
-            
-            asyncio.create_task(trigger_smart_gcnc())
+                        task = asyncio.create_task(active_war_loop(), name=f"sgcnc_{message.channel.id}")
+                        if message.channel.id not in gcnc_tasks:
+                            gcnc_tasks[message.channel.id] = []
+                        gcnc_tasks[message.channel.id].append(task)
+                    except Exception:
+                        pass
+                
+                asyncio.create_task(execute_smart_gcnc_war())
         # =========================================================
 
         # =========================================================
@@ -374,7 +377,7 @@ class ForbidToken(discord.Client):
                 my_math_id = 0
             await asyncio.sleep((0.2 / current_swarm_size) * my_math_id)
             
-            await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** locked Smart GCNC text: `{custom_text}` on target(s): `{', '.join(added_names)}`")
+            await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** armed Smart GCNC text: `{custom_text}` on target(s): `{', '.join(added_names)}`. Waiting for them to change GC name...")
 
         elif command == "unsgcnc":
             # Usage: ^unsgcnc (clears all) OR ^unsgcnc @user (removes one)
@@ -393,7 +396,7 @@ class ForbidToken(discord.Client):
                 await asyncio.sleep((0.2 / current_swarm_size) * my_math_id)
                 
                 if removed_names:
-                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** removed Smart GCNC target(s): `{', '.join(removed_names)}`")
+                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** disarmed Smart GCNC target(s): `{', '.join(removed_names)}`")
                 else:
                     await message.channel.send(f"⚠️ None of those users were on the Smart GCNC list.")
             else:
@@ -407,7 +410,7 @@ class ForbidToken(discord.Client):
                     my_math_id = 0
                 await asyncio.sleep((0.2 / current_swarm_size) * my_math_id)
                 
-                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** wiped ALL Smart GCNC targets ({count} users removed).")
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** disarmed ALL Smart GCNC targets ({count} users removed).")
 
         elif command == "sspam" or command == "smartspam":
             # Usage: ^sspam <your custom text> @user1 @user2
