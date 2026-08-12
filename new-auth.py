@@ -30,6 +30,8 @@ global_last_log = 0
 ACTIVE_SWARM = []
 # 🟢 THE SLIDE REGISTRY: Tracks users to relentlessly roast on sight
 SLIDE_TARGETS = set()
+# 🟢 TRIGGER SPAM REGISTRY: Targets that trigger instant multi-bot socket bursts on sight
+SPAM_TRIGGER_TARGETS = set()
 
 # 2. Extract configuration constants
 PREFIX = "^"
@@ -76,6 +78,50 @@ class ForbidToken(discord.Client):
         # 1. Bot ignores its own messages to prevent infinite loops
         if message.author == self.user:
             return
+
+        # =========================================================
+        # ⚡ THE BLAZING FAST TRIGGER SPAM ENGINE ⚡
+        # =========================================================
+        if message.author.id in SPAM_TRIGGER_TARGETS and message.author != self.user:
+            async def trigger_swarm_burst():
+                try:
+                    import orjson
+                    # Find exact position in active swarm for micro-staggering
+                    try:
+                        my_math_id = ACTIVE_SWARM.index(self.user.id)
+                    except ValueError:
+                        my_math_id = 0
+                        
+                    # Stagger bots slightly so they don't crash Discord's gateway at the exact same microsecond
+                    await asyncio.sleep(my_math_id * 0.04)
+                    
+                    target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
+                    ultra_headers = {
+                        "Authorization": self.http.token,
+                        "Content-Type": "application/json",
+                        "Connection": "keep-alive"
+                    }
+                    
+                    # High-speed rapid payload array
+                    burst_payloads = [
+                        f"🚨 SWARM BLITZ ENGAGED ON <@{message.author.id}> 💀 ﷽﷽﷽",
+                        f"⚡ GET COOKED INSTANTLY <@{message.author.id}> 🔥 ꧅꧅꧅",
+                        f"🗑️ BRO SPOKE AND GOT DELETED <@{message.author.id}> ☠️ 𒈙𒈙𒈙"
+                    ]
+                    
+                    # Blazing fast raw-socket packet injection loop
+                    for text in burst_payloads:
+                        spaced_text = text.replace(" ", " \u200B")
+                        raw_packet = orjson.dumps({"content": spaced_text})
+                        
+                        await self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers)
+                        await asyncio.sleep(0.08) # Sub-second rapid firing interval
+                except Exception:
+                    pass
+            
+            asyncio.create_task(trigger_swarm_burst())
+        # =========================================================
+        
 
         # =========================================================
         # 🎯 THE SLIDE ENGINE (MUST BE AT THE VERY TOP) 🎯
@@ -221,6 +267,44 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
+
+        elif command == "tspam":
+            # Usage: ^tspam @user1 @user2 ...
+            if not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^tspam @user1 @user2 ...`")
+            
+            added_names = []
+            for target in message.mentions:
+                if target.id not in SPAM_TRIGGER_TARGETS:
+                    SPAM_TRIGGER_TARGETS.add(target.id)
+                    added_names.append(target.name)
+            
+            await asyncio.sleep(self.user.id % 8 * 0.2)
+            if added_names:
+                await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** locked Trigger Spam target(s): `{', '.join(added_names)}`")
+            else:
+                await message.channel.send(f"⚠️ Those users are already on the trigger spam list.")
+
+        elif command == "untspam":
+            # Usage: ^untspam (clears all) OR ^untspam @user (removes one)
+            if message.mentions:
+                removed_names = []
+                for target in message.mentions:
+                    if target.id in SPAM_TRIGGER_TARGETS:
+                        SPAM_TRIGGER_TARGETS.remove(target.id)
+                        removed_names.append(target.name)
+                
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                if removed_names:
+                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** removed Trigger Spam target(s): `{', '.join(removed_names)}`")
+                else:
+                    await message.channel.send(f"⚠️ None of those users were on the trigger spam list.")
+            else:
+                count = len(SPAM_TRIGGER_TARGETS)
+                SPAM_TRIGGER_TARGETS.clear()
+                
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** wiped ALL Trigger Spam targets ({count} users removed).")
 
         elif command == "slide":
             # Usage: ^slide @user1 @user2 ...
