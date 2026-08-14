@@ -135,7 +135,7 @@ class ForbidToken(discord.Client):
         # =========================================================
 
         # =========================================================
-        # ⚡ ELITE SMART SPAM TRIGGER ENGINE (ANTI-HEURISTIC) ⚡
+        # ⚡ ELITE LOAD-BALANCED SMART SPAM TRIGGER ENGINE ⚡
         # =========================================================
         if message.author.id in SSPAM_TARGETS and message.author != self.user:
             async def trigger_safe_smart_spam():
@@ -144,8 +144,19 @@ class ForbidToken(discord.Client):
                     
                     user_text = SSPAM_TARGETS[message.author.id]
                     
-                    # HUMANIZED DELAY: Prevents Discord's instant-response anti-bot 429 trigger
-                    await asyncio.sleep(random.uniform(0.35, 0.65))
+                    current_swarm_size = max(1, len(ACTIVE_SWARM))
+                    try:
+                        my_math_id = ACTIVE_SWARM.index(self.user.id)
+                    except ValueError:
+                        my_math_id = 0
+                    
+                    # 🧠 200 IQ LOAD BALANCER: Rotate which bot replies to each message 
+                    # to completely bypass Discord's channel message rate limits
+                    if ACTIVE_SWARM and message.id % current_swarm_size != my_math_id:
+                        return
+                    
+                    # Humanized micro-delay to prevent instant bot heuristics
+                    await asyncio.sleep(random.uniform(0.15, 0.35))
                     
                     target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                     ultra_headers = {
