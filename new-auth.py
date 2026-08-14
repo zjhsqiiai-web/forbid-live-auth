@@ -140,7 +140,6 @@ class ForbidToken(discord.Client):
         if message.author.id in SSPAM_TARGETS and message.author != self.user:
             async def trigger_safe_smart_spam():
                 try:
-                    import orions if "orjson" in globals() else __import__("orjson")
                     import orjson
                     
                     user_text = SSPAM_TARGETS[message.author.id]
@@ -168,12 +167,10 @@ class ForbidToken(discord.Client):
                     
                     async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
                         if resp.status == 429:
-                            # Silent 429 sniper recovery: backs off instantly without spamming console logs
                             try:
                                 rate_data = orjson.loads(await resp.read())
                                 retry_after = float(rate_data.get("retry_after", 1.0))
                                 await asyncio.sleep(retry_after)
-                                # One clean retry after backoff
                                 await self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers)
                             except:
                                 pass
