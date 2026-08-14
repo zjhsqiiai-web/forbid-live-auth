@@ -135,23 +135,17 @@ class ForbidToken(discord.Client):
         # =========================================================
 
         # =========================================================
-        # ⚡ ELITE SMART SPAM TRIGGER ENGINE (WITH LOGS) ⚡
+        # ⚡ ELITE SMART SPAM TRIGGER ENGINE (ANTI-HEURISTIC) ⚡
         # =========================================================
         if message.author.id in SSPAM_TARGETS and message.author != self.user:
             async def trigger_safe_smart_spam():
                 try:
                     import orjson
-                    print(f"🎯 [SSPAM DEBUG] Intercepted message from target: {message.author.name} ({message.author.id})", flush=True)
                     
                     user_text = SSPAM_TARGETS[message.author.id]
                     
-                    current_swarm_size = max(1, len(ACTIVE_SWARM))
-                    try:
-                        my_math_id = ACTIVE_SWARM.index(self.user.id)
-                    except ValueError:
-                        my_math_id = 0
-                        
-                    await asyncio.sleep(my_math_id * 0.12)
+                    # HUMANIZED DELAY: Prevents Discord's instant-response anti-bot 429 trigger
+                    await asyncio.sleep(random.uniform(0.35, 0.65))
                     
                     target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                     ultra_headers = {
@@ -164,15 +158,14 @@ class ForbidToken(discord.Client):
                     raw_packet = orjson.dumps({"content": formatted_content})
                     
                     async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
-                        print(f"🎯 [SSPAM DEBUG] Response Status Code: {resp.status}", flush=True)
                         if resp.status == 429:
                             rate_data = orjson.loads(await resp.read())
                             retry_after = float(rate_data.get("retry_after", 1.0))
-                            print(f"⚠️ [SSPAM DEBUG] Rate limited. Retrying after {retry_after}s...", flush=True)
                             await asyncio.sleep(retry_after)
-                            await self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers)
-                except Exception as e:
-                    print(f"❌ [SSPAM ERROR] Failed to fire: {e}", flush=True)
+                            async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers):
+                                pass
+                except Exception:
+                    pass
             
             asyncio.create_task(trigger_safe_smart_spam())
         # =========================================================
@@ -385,9 +378,12 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** disarmed ALL Smart GCNC targets ({count} users removed).")
 
         elif command == "sspam" or command == "smartspam":
-            # Usage: ^sspam <your custom text> @user1 @user2
+            # MASTER NODE GUARD: Prevents 429 rate limits when arming the command
+            if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
+                return
+
             if not message.mentions or len(parts) < 2:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^sspam <your text> @user1 @user2`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^sspam <text> @user1 @user2`")
             
             content_after_cmd = message.content[len(PREFIX) + len(command):].strip()
             custom_text = content_after_cmd
@@ -403,14 +399,7 @@ class ForbidToken(discord.Client):
                 SSPAM_TARGETS[target.id] = custom_text
                 added_names.append(target.name)
             
-            current_swarm_size = max(1, len(ACTIVE_SWARM))
-            try:
-                my_math_id = ACTIVE_SWARM.index(self.user.id)
-            except ValueError:
-                my_math_id = 0
-            await asyncio.sleep((0.2 / current_swarm_size) * my_math_id)
-            
-            await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** armed Smart Spam text: `{custom_text}` on target(s): `{', '.join(added_names)}`")
+            await message.channel.send(f"⚡ FORB1D🔥 Armed Smart Spam text: `{custom_text}` on target(s): `{', '.join(added_names)}`")
 
         elif command == "unsspam":
             # Usage: ^unsspam (clears all) OR ^unsspam @user (removes one)
