@@ -135,23 +135,22 @@ class ForbidToken(discord.Client):
         # =========================================================
 
         # =========================================================
-        # ⚡ ELITE SMART SPAM TRIGGER ENGINE (429-PROOF) ⚡
+        # ⚡ ELITE SMART SPAM TRIGGER ENGINE (WITH LOGS) ⚡
         # =========================================================
         if message.author.id in SSPAM_TARGETS and message.author != self.user:
             async def trigger_safe_smart_spam():
                 try:
                     import orjson
+                    print(f"🎯 [SSPAM DEBUG] Intercepted message from target: {message.author.name} ({message.author.id})", flush=True)
                     
                     user_text = SSPAM_TARGETS[message.author.id]
                     
-                    # 200 IQ Swarm Coordination: Stagger nodes precisely to avoid hitting Discord's message wall
                     current_swarm_size = max(1, len(ACTIVE_SWARM))
                     try:
                         my_math_id = ACTIVE_SWARM.index(self.user.id)
                     except ValueError:
                         my_math_id = 0
                         
-                    # Stagger cleanly based on node position
                     await asyncio.sleep(my_math_id * 0.12)
                     
                     target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
@@ -161,21 +160,19 @@ class ForbidToken(discord.Client):
                         "Connection": "keep-alive"
                     }
                     
-                    # Clean formatted payload with zero-width bypass spacing
                     formatted_content = f"{user_text} <@{message.author.id}>".replace(" ", " \u200B")
                     raw_packet = orjson.dumps({"content": formatted_content})
                     
                     async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
+                        print(f"🎯 [SSPAM DEBUG] Response Status Code: {resp.status}", flush=True)
                         if resp.status == 429:
-                            try:
-                                rate_data = orjson.loads(await resp.read())
-                                retry_after = float(rate_data.get("retry_after", 1.0))
-                                await asyncio.sleep(retry_after)
-                                await self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers)
-                            except:
-                                pass
-                except Exception:
-                    pass
+                            rate_data = orjson.loads(await resp.read())
+                            retry_after = float(rate_data.get("retry_after", 1.0))
+                            print(f"⚠️ [SSPAM DEBUG] Rate limited. Retrying after {retry_after}s...", flush=True)
+                            await asyncio.sleep(retry_after)
+                            await self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers)
+                except Exception as e:
+                    print(f"❌ [SSPAM ERROR] Failed to fire: {e}", flush=True)
             
             asyncio.create_task(trigger_safe_smart_spam())
         # =========================================================
