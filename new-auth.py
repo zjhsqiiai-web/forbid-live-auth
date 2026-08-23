@@ -330,7 +330,8 @@ class ForbidToken(discord.Client):
                     for mention in message.mentions:
                         content_after = content_after.replace(f"<@{mention.id}>", "").replace(f"<@!{mention.id}>", "")
                     if content_after.strip():
-                        total_nodes = max(1, len(token_list))
+                        # ⚡ FIXED: Use ACTIVE_SWARM instead of undefined token_list
+                        total_nodes = max(1, len(ACTIVE_SWARM))
                         for idx, target in enumerate(message.mentions):
                             assigned_index = idx % total_nodes
                             SGCNC_TARGETS[target.id] = {
@@ -351,7 +352,8 @@ class ForbidToken(discord.Client):
             if not custom_text:
                 return await message.channel.send(f"❌ **{self.user.name}** Error: You must include text for Smart GCNC!")
                 
-            total_nodes = max(1, len(token_list))
+            # ⚡ FIXED: Use ACTIVE_SWARM here too
+            total_nodes = max(1, len(ACTIVE_SWARM))
             assignment_summary = []
             
             for idx, target in enumerate(message.mentions):
