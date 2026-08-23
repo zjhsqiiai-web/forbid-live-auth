@@ -48,7 +48,7 @@ active_monitors = {}
 class ForbidToken(discord.Client):
     def __init__(self, bot_index=0, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.bot_index = bot_index  # Permanent static ID (0, 1, 2, 3...)
+        self.bot_index = bot_index  # Permanent static index (0, 1, 2...)
         self.raw_session = None
 
     # 🛑 ADD THIS RIGHT AT THE TOP OF YOUR CLASS
@@ -88,7 +88,7 @@ class ForbidToken(discord.Client):
             if message.author.id in SGCNC_TARGETS:
                 target_data = SGCNC_TARGETS[message.author.id]
                 
-                # 🛑 INSTANT EXIT: If this bot isn't assigned to this user, drop out instantly
+                # Only the assigned bot executes the strike
                 if target_data["assigned_index"] != self.bot_index:
                     return
 
@@ -100,7 +100,7 @@ class ForbidToken(discord.Client):
                         base_name = target_data["text"]
                         templates = [
                             f"⚡ 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 ﷽﷽﷽",
-                            f"👑 ＦＯＲＢ１Ｄ 𝗞𝗜𝗡Ｇ ꧅ {base_name} ꧅ 𒐫𒐫𒐫",
+                            f"👑 ＦＯＲＢ１Ｄ ＫＩ𝗡Ｇ ꧅ {base_name} ꧅ 𒐫𒐫𒐫",
                             f"☠️ 𝐅𝐎𝐑𝐁𝟏𝐃 𝐊𝐈𝐍𝐆 ╳ {base_name} ╳ 𒈙𒈙𒈙"
                         ]
                         
@@ -116,7 +116,6 @@ class ForbidToken(discord.Client):
                         }
                         raw_packet = orjson.dumps({"name": chosen_template})
                         
-                        # 🔥 ZERO-DELAY RETALIATION STRIKE
                         async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
                             if resp.status == 429:
                                 rate_data = orjson.loads(await resp.read())
@@ -130,7 +129,6 @@ class ForbidToken(discord.Client):
                         pass
                 
                 asyncio.create_task(atomic_gcnc_barrage())
-        # =========================================================
 
         # =========================================================
         # ⚡ ELITE LOAD-BALANCED SMART SPAM TRIGGER ENGINE ⚡
@@ -326,14 +324,13 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "sgcnc" or command == "smartgcnc":
-            # MASTER NODE SYNC GUARD
             if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
                 if message.mentions and len(parts) >= 2:
                     content_after = message.content[len(PREFIX) + len(command):].strip()
                     for mention in message.mentions:
                         content_after = content_after.replace(f"<@{mention.id}>", "").replace(f"<@!{mention.id}>", "")
                     if content_after.strip():
-                        total_nodes = max(1, len(ACTIVE_SWARM))
+                        total_nodes = max(1, len(token_list))
                         for idx, target in enumerate(message.mentions):
                             assigned_index = idx % total_nodes
                             SGCNC_TARGETS[target.id] = {
@@ -354,7 +351,7 @@ class ForbidToken(discord.Client):
             if not custom_text:
                 return await message.channel.send(f"❌ **{self.user.name}** Error: You must include text for Smart GCNC!")
                 
-            total_nodes = max(1, len(ACTIVE_SWARM))
+            total_nodes = max(1, len(token_list))
             assignment_summary = []
             
             for idx, target in enumerate(message.mentions):
@@ -365,7 +362,7 @@ class ForbidToken(discord.Client):
                 }
                 assignment_summary.append(f"{target.name} ➔ Bot Index `{assigned_index}`")
             
-            await message.channel.send(f"⚡ FORB1D🔥 **1-to-1 Sharding Engaged**\n" + "\n".join(assignment_summary))
+            await message.channel.send(f"⚡ FORB1D🔥 **1-to-1 Sharding Active**\n" + "\n".join(assignment_summary))
             
         elif command == "unsgcnc":
             # Usage: ^unsgcnc (clears all) OR ^unsgcnc @user (removes one)
@@ -1320,15 +1317,11 @@ async def main():
 
     # Build client instances with static index assignment
     for i, token in enumerate(token_list):
-        # ⚡ Passes the loop index directly as the permanent bot identifier
-        client = ForbidToken(bot_index=i)
+        client = ForbidToken(bot_index=i)  # Assigns index 0, 1, 2...
         clients.append(safe_start(client, token))
         
-        # 🟢 THE GOD-TIER STAGGER: Spaces out logins by 15-20 seconds per token
-        # This completely cloaks your Render IP from Discord's security!
         if i < len(token_list) - 1:
             boot_delay = 15.0 + random.uniform(1.0, 5.0)
-            print(f"⏳ [System] Holding next token for {boot_delay:.1f}s to cloak IP footprint...", flush=True)
             await asyncio.sleep(boot_delay)
 
     # Fire all connections concurrently (they are already mathematically spaced out now!)
