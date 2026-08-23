@@ -82,39 +82,38 @@ class ForbidToken(discord.Client):
             return
 
         # =========================================================
-        # ⚡ ATOMIC SMART GCNC MIRROR ENGINE (ZERO LAG / NO LOOPS) ⚡
+        # ⚡ ATOMIC SMART GCNC MIRROR (RUTHLESS SWARM OVERRIDE) ⚡
         # =========================================================
         if isinstance(message.channel, discord.GroupChannel) and message.type == discord.MessageType.channel_name_change:
             if message.author.id in SGCNC_TARGETS:
-                async def atomic_gcnc_override():
+                async def atomic_gcnc_blitz():
                     try:
-                        import orjson
-                        base_name = SGCNC_TARGETS[message.author.id]
+                        import orjson, gc
                         
-                        # Elite template array with clean symbols
-                        templates = [
-                            f"⚡ 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 ﷽﷽﷽",
-                            f"👑 ＦＯＲＢ１Ｄ ＫＩ𝗡Ｇ ꧅ {base_name} ꧅ 𒐫𒐫𒐫",
-                            f"☠️ 𝐅𝐎𝐑𝐁𝟏𝐃 𝐊𝐈𝐍𝐆 ╳ {base_name} ╳ 𒈙𒈙𒈙"
-                        ]
-                        
-                        # 200 IQ Swarm Coordination: Pick one primary active node to execute instantly 
-                        # to avoid race conditions and double-triggers
                         current_swarm_size = max(1, len(ACTIVE_SWARM))
                         try:
                             my_math_id = ACTIVE_SWARM.index(self.user.id)
                         except ValueError:
                             my_math_id = 0
                             
-                        # Micro-stagger based on swarm position to guarantee zero 429 collisions
-                        await asyncio.sleep(my_math_id * 0.03)
+                        # 🧠 DETERMINISTIC LOAD BALANCER: Flawless Swarm Rotation
+                        if ACTIVE_SWARM and (message.id % current_swarm_size) != my_math_id:
+                            return
+                            
+                        # 🥶 FREEZE MEMORY GARBAGE COLLECTION: Guarantees 0ms micro-stutter
+                        gc.disable()
                         
-                        # Select template deterministically based on message ID hash
+                        base_name = SGCNC_TARGETS[message.author.id]
+                        templates = [
+                            f"⚡ 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 ﷽﷽﷽",
+                            f"👑 ＦＯＲＢ１Ｄ ＫＩ𝗡Ｇ ꧅ {base_name} ꧅ 𒐫𒐫𒐫",
+                            f"☠️ 𝐅𝐎𝐑𝐁𝟏𝐃 𝐊𝐈𝐍𝐆 ╳ {base_name} ╳ 𒈙𒈙𒈙"
+                        ]
+                        
                         chosen_template = templates[message.id % len(templates)]
                         if len(chosen_template) > 100:
                             chosen_template = chosen_template[:100]
                             
-                        # Raw socket PATCH injection for max velocity (bypasses wrapper overhead)
                         target_url = f"https://discord.com/api/v9/channels/{message.channel.id}"
                         ultra_headers = {
                             "Authorization": self.http.token,
@@ -123,15 +122,24 @@ class ForbidToken(discord.Client):
                         }
                         raw_packet = orjson.dumps({"name": chosen_template})
                         
-                        async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
-                            if resp.status == 429:
-                                rate_data = orjson.loads(await resp.read())
-                                await asyncio.sleep(rate_data.get("retry_after", 0.5))
-                                await self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers)
+                        # 🔥 FIRE & FORGET BLAST: Don't wait for Discord to reply, just shoot.
+                        async def fire_payload():
+                            try:
+                                async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
+                                    if resp.status == 429:
+                                        rate_data = orjson.loads(await resp.read())
+                                        await asyncio.sleep(float(rate_data.get("retry_after", 0.5)))
+                                        await self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers)
+                            except:
+                                pass
+                                
+                        asyncio.create_task(fire_payload())
+                        gc.enable()
                     except Exception:
+                        gc.enable()
                         pass
                 
-                asyncio.create_task(atomic_gcnc_override())
+                asyncio.create_task(atomic_gcnc_blitz())
         # =========================================================
 
         # =========================================================
@@ -328,7 +336,17 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "sgcnc" or command == "smartgcnc":
-            # Usage: ^sgcnc <text> @user1 @user2
+            # MASTER NODE GUARD: Silent Sync for Swarm. Prevents 429 crashes when arming!
+            if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
+                if message.mentions and len(parts) >= 2:
+                    content_after = message.content[len(PREFIX) + len(command):].strip()
+                    for mention in message.mentions:
+                        content_after = content_after.replace(f"<@{mention.id}>", "").replace(f"<@!{mention.id}>", "")
+                    if content_after.strip():
+                        for target in message.mentions:
+                            SGCNC_TARGETS[target.id] = content_after.strip()
+                return
+
             if not message.mentions or len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^sgcnc <text> @user1 @user2`")
             
@@ -346,15 +364,8 @@ class ForbidToken(discord.Client):
                 SGCNC_TARGETS[target.id] = custom_text
                 added_names.append(target.name)
             
-            current_swarm_size = max(1, len(ACTIVE_SWARM))
-            try:
-                my_math_id = ACTIVE_SWARM.index(self.user.id)
-            except ValueError:
-                my_math_id = 0
-            await asyncio.sleep((0.2 / current_swarm_size) * my_math_id)
+            await message.channel.send(f"⚡ FORB1D🔥 Armed Smart GCNC text: `{custom_text}` on target(s): `{', '.join(added_names)}`. Waiting for them to change GC name...")
             
-            await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** armed Smart GCNC text: `{custom_text}` on target(s): `{', '.join(added_names)}`. Waiting for them to change GC name...")
-
         elif command == "unsgcnc":
             # Usage: ^unsgcnc (clears all) OR ^unsgcnc @user (removes one)
             if message.mentions:
