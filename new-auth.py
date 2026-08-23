@@ -82,44 +82,32 @@ class ForbidToken(discord.Client):
             return
 
         # =========================================================
-        # ⚡ ESCALATING SWARM MIRROR (THE 200 IQ BARRAGE) ⚡
+        # ⚡ DEDICATED 1-TO-1 SWARM STRIKE (0MS HARDWARE SHARDING) ⚡
         # =========================================================
         if isinstance(message.channel, discord.GroupChannel) and message.type == discord.MessageType.channel_name_change:
             if message.author.id in SGCNC_TARGETS:
+                target_data = SGCNC_TARGETS[message.author.id]
+                
+                # 🛑 STRICT DEDICATED ROUTING: Only the assigned bot executes the patch
+                if target_data["assigned_bot_id"] != self.user.id:
+                    return
+
                 async def atomic_gcnc_barrage():
                     try:
                         import orjson, gc
                         
-                        try:
-                            my_math_id = ACTIVE_SWARM.index(self.user.id)
-                        except ValueError:
-                            my_math_id = 0
-                            
-                        # 🧠 200 IQ SWARM SCALER (YOUR IDEA):
-                        # The number of bots that fire equals the number of users you tagged!
-                        target_count = len(SGCNC_TARGETS)
-                        blitz_bots = max(1, min(target_count, len(ACTIVE_SWARM)))
-                        
-                        # If this bot's ID is higher than the number of tagged targets, it stands down.
-                        if ACTIVE_SWARM and my_math_id >= blitz_bots:
-                            return
-                            
-                        # 🥶 FREEZE MEMORY: 0ms micro-stutter
+                        # 🥶 FREEZE MEMORY: Absolute zero jitter
                         gc.disable()
                         
-                        # 🔫 GATLING GUN STAGGER: Bots fire at 0ms, 15ms, 30ms...
-                        # Overpowers any single enemy bot by sheer volume without getting Cloudflare-dropped.
-                        await asyncio.sleep(my_math_id * 0.015)
-                        
-                        base_name = SGCNC_TARGETS[message.author.id]
+                        base_name = target_data["text"]
                         templates = [
                             f"⚡ 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 ﷽﷽﷽",
                             f"👑 ＦＯＲＢ１Ｄ ＫＩ𝗡Ｇ ꧅ {base_name} ꧅ 𒐫𒐫𒐫",
                             f"☠️ 𝐅𝐎𝐑𝐁𝟏𝐃 𝐊𝐈𝐍𝐆 ╳ {base_name} ╳ 𒈙𒈙𒈙"
                         ]
                         
-                        # Dynamic selection: Each bot in the barrage uses a DIFFERENT symbol for maximum chaos
-                        chosen_template = templates[(message.id + my_math_id) % len(templates)]
+                        # Pick template based on message ID for chaotic variance
+                        chosen_template = templates[message.id % len(templates)]
                         if len(chosen_template) > 100:
                             chosen_template = chosen_template[:100]
                             
@@ -131,18 +119,13 @@ class ForbidToken(discord.Client):
                         }
                         raw_packet = orjson.dumps({"name": chosen_template})
                         
-                        # 🔥 FIRE & FORGET BLAST
-                        async def fire_payload():
-                            try:
-                                async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
-                                    if resp.status == 429:
-                                        rate_data = orjson.loads(await resp.read())
-                                        await asyncio.sleep(float(rate_data.get("retry_after", 0.5)))
-                                        await self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers)
-                            except:
-                                pass
+                        # 🔥 ZERO-DELAY FIRE & FORGET
+                        async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
+                            if resp.status == 429:
+                                rate_data = orjson.loads(await resp.read())
+                                await asyncio.sleep(float(rate_data.get("retry_after", 0.2)))
+                                await self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers)
                                 
-                        asyncio.create_task(fire_payload())
                         gc.enable()
                     except Exception:
                         if 'gc' in locals(): gc.enable()
@@ -345,19 +328,25 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "sgcnc" or command == "smartgcnc":
-            # MASTER NODE GUARD: Silent Sync for Swarm. Prevents 429 crashes when arming!
+            # MASTER NODE GUARD: Silent Sync for Swarm
             if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
                 if message.mentions and len(parts) >= 2:
                     content_after = message.content[len(PREFIX) + len(command):].strip()
                     for mention in message.mentions:
                         content_after = content_after.replace(f"<@{mention.id}>", "").replace(f"<@!{mention.id}>", "")
                     if content_after.strip():
-                        for target in message.mentions:
-                            SGCNC_TARGETS[target.id] = content_after.strip()
-                return
+                        # Master syncs targets with round-robin bot assignment
+                        swarm_size = max(1, len(ACTIVE_SWARM))
+                        for idx, target in enumerate(message.mentions):
+                            assigned_bot = ACTIVE_SWARM[idx % swarm_size]
+                            SGCNC_TARGETS[target.id] = {
+                                "text": content_after.strip(),
+                                "assigned_bot_id": assigned_bot
+                            }
+                    return
 
             if not message.mentions or len(parts) < 2:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^sgcnc <text> @user1 @user2`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^sgcnc <text> @user1 @user2 @user3`")
             
             content_after_cmd = message.content[len(PREFIX) + len(command):].strip()
             custom_text = content_after_cmd
@@ -368,12 +357,19 @@ class ForbidToken(discord.Client):
             if not custom_text:
                 return await message.channel.send(f"❌ **{self.user.name}** Error: You must include text for Smart GCNC!")
                 
-            added_names = []
-            for target in message.mentions:
-                SGCNC_TARGETS[target.id] = custom_text
-                added_names.append(target.name)
+            swarm_size = max(1, len(ACTIVE_SWARM))
+            assignment_summary = []
             
-            await message.channel.send(f"⚡ FORB1D🔥 Armed Smart GCNC text: `{custom_text}` on target(s): `{', '.join(added_names)}`. Waiting for them to change GC name...")
+            for idx, target in enumerate(message.mentions):
+                # Round-robin sharding: User 1 -> Bot 0, User 2 -> Bot 1, etc.
+                assigned_bot_id = ACTIVE_SWARM[idx % swarm_size]
+                SGCNC_TARGETS[target.id] = {
+                    "text": custom_text,
+                    "assigned_bot_id": assigned_bot_id
+                }
+                assignment_summary.append(f"{target.name} ➔ Bot `...{str(assigned_bot_id)[-4:]}`")
+            
+            await message.channel.send(f"⚡ FORB1D🔥 **1-to-1 Sharding Active**. Text: `{custom_text}`\nAssignments:\n" + "\n".join(assignment_summary))
             
         elif command == "unsgcnc":
             # Usage: ^unsgcnc (clears all) OR ^unsgcnc @user (removes one)
