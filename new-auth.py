@@ -46,10 +46,10 @@ spam_tasks = {}
 active_monitors = {}
 
 class ForbidToken(discord.Client):
-    def __init__(self, *args, **kwargs):
-        # 1. No intents needed for discord.py-self, just initialize directly
+    def __init__(self, bot_index=0, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.raw_session = None  # This will hold our high-speed socket
+        self.bot_index = bot_index  # Permanent static ID (0, 1, 2, 3...)
+        self.raw_session = None
 
     # 🛑 ADD THIS RIGHT AT THE TOP OF YOUR CLASS
     async def on_ready(self):
@@ -82,31 +82,28 @@ class ForbidToken(discord.Client):
             return
 
         # =========================================================
-        # ⚡ DEDICATED 1-TO-1 SWARM STRIKE (0MS HARDWARE SHARDING) ⚡
+        # ⚡ BLAZING FAST 1-TO-1 HARDWARE ROUTING ENGINE ⚡
         # =========================================================
         if isinstance(message.channel, discord.GroupChannel) and message.type == discord.MessageType.channel_name_change:
             if message.author.id in SGCNC_TARGETS:
                 target_data = SGCNC_TARGETS[message.author.id]
                 
-                # 🛑 STRICT DEDICATED ROUTING: Only the assigned bot executes the patch
-                if target_data["assigned_bot_id"] != self.user.id:
+                # 🛑 INSTANT EXIT: If this bot isn't assigned to this user, drop out instantly
+                if target_data["assigned_index"] != self.bot_index:
                     return
 
                 async def atomic_gcnc_barrage():
                     try:
                         import orjson, gc
-                        
-                        # 🥶 FREEZE MEMORY: Absolute zero jitter
                         gc.disable()
                         
                         base_name = target_data["text"]
                         templates = [
                             f"⚡ 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 ﷽﷽﷽",
-                            f"👑 ＦＯＲＢ１Ｄ ＫＩ𝗡Ｇ ꧅ {base_name} ꧅ 𒐫𒐫𒐫",
+                            f"👑 ＦＯＲＢ１Ｄ 𝗞𝗜𝗡Ｇ ꧅ {base_name} ꧅ 𒐫𒐫𒐫",
                             f"☠️ 𝐅𝐎𝐑𝐁𝟏𝐃 𝐊𝐈𝐍𝐆 ╳ {base_name} ╳ 𒈙𒈙𒈙"
                         ]
                         
-                        # Pick template based on message ID for chaotic variance
                         chosen_template = templates[message.id % len(templates)]
                         if len(chosen_template) > 100:
                             chosen_template = chosen_template[:100]
@@ -119,13 +116,14 @@ class ForbidToken(discord.Client):
                         }
                         raw_packet = orjson.dumps({"name": chosen_template})
                         
-                        # 🔥 ZERO-DELAY FIRE & FORGET
+                        # 🔥 ZERO-DELAY RETALIATION STRIKE
                         async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
                             if resp.status == 429:
                                 rate_data = orjson.loads(await resp.read())
                                 await asyncio.sleep(float(rate_data.get("retry_after", 0.2)))
-                                await self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers)
-                                
+                                async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers):
+                                    pass
+                                    
                         gc.enable()
                     except Exception:
                         if 'gc' in locals(): gc.enable()
@@ -328,20 +326,19 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "sgcnc" or command == "smartgcnc":
-            # MASTER NODE GUARD: Silent Sync for Swarm
+            # MASTER NODE SYNC GUARD
             if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
                 if message.mentions and len(parts) >= 2:
                     content_after = message.content[len(PREFIX) + len(command):].strip()
                     for mention in message.mentions:
                         content_after = content_after.replace(f"<@{mention.id}>", "").replace(f"<@!{mention.id}>", "")
                     if content_after.strip():
-                        # Master syncs targets with round-robin bot assignment
-                        swarm_size = max(1, len(ACTIVE_SWARM))
+                        total_nodes = max(1, len(ACTIVE_SWARM))
                         for idx, target in enumerate(message.mentions):
-                            assigned_bot = ACTIVE_SWARM[idx % swarm_size]
+                            assigned_index = idx % total_nodes
                             SGCNC_TARGETS[target.id] = {
                                 "text": content_after.strip(),
-                                "assigned_bot_id": assigned_bot
+                                "assigned_index": assigned_index
                             }
                     return
 
@@ -357,19 +354,18 @@ class ForbidToken(discord.Client):
             if not custom_text:
                 return await message.channel.send(f"❌ **{self.user.name}** Error: You must include text for Smart GCNC!")
                 
-            swarm_size = max(1, len(ACTIVE_SWARM))
+            total_nodes = max(1, len(ACTIVE_SWARM))
             assignment_summary = []
             
             for idx, target in enumerate(message.mentions):
-                # Round-robin sharding: User 1 -> Bot 0, User 2 -> Bot 1, etc.
-                assigned_bot_id = ACTIVE_SWARM[idx % swarm_size]
+                assigned_index = idx % total_nodes
                 SGCNC_TARGETS[target.id] = {
                     "text": custom_text,
-                    "assigned_bot_id": assigned_bot_id
+                    "assigned_index": assigned_index
                 }
-                assignment_summary.append(f"{target.name} ➔ Bot `...{str(assigned_bot_id)[-4:]}`")
+                assignment_summary.append(f"{target.name} ➔ Bot Index `{assigned_index}`")
             
-            await message.channel.send(f"⚡ FORB1D🔥 **1-to-1 Sharding Active**. Text: `{custom_text}`\nAssignments:\n" + "\n".join(assignment_summary))
+            await message.channel.send(f"⚡ FORB1D🔥 **1-to-1 Sharding Engaged**\n" + "\n".join(assignment_summary))
             
         elif command == "unsgcnc":
             # Usage: ^unsgcnc (clears all) OR ^unsgcnc @user (removes one)
@@ -1322,9 +1318,10 @@ async def main():
         except Exception as e:
             print(f"💀 DEAD TOKEN SKIPPED [{token[:10]}...]: {e}", flush=True)
 
-    # Build client instances for every token WITH THE CLOUDFLARE BYPASS
+    # Build client instances with static index assignment
     for i, token in enumerate(token_list):
-        client = ForbidToken()
+        # ⚡ Passes the loop index directly as the permanent bot identifier
+        client = ForbidToken(bot_index=i)
         clients.append(safe_start(client, token))
         
         # 🟢 THE GOD-TIER STAGGER: Spaces out logins by 15-20 seconds per token
