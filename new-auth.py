@@ -781,8 +781,6 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"❌ Critical Core Error: {e}")
 
         elif command == "fs" or command == "forwardspam":
-            # 👑 MOVE GLOBAL DECLARATION TO THE VERY TOP OF THE BLOCK
-            global spam_tasks
             
             if len(parts) < 3:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^fs <text> <delay>`")
