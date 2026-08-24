@@ -339,6 +339,113 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "fs" or command == "forwardspam":
+            # Usage: ^fs <text> <delay>
+            if len(parts) < 3:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^fs <text> <delay>`")
+            
+            try:
+                import orjson
+                import gc
+                
+                user_text = " ".join(parts[1:-1])
+                delay = float(parts[-1])
+                
+                # 🔥 ELITE FORWARD UI TEMPLATES (Simulates a native Discord forward container)
+                forward_styles = [
+                    "📦 **[ FORWARDED SYSTEM PAYLOAD ]**\n> 🔀 *Original Author: System Root*\n> ⚡ `{user_text}`",
+                    "🗂️ **[ RELAYED TRANSMISSION ]**\n> 🔄 *Forwarded via Forbid Network*\n> 👑 `{user_text}`",
+                    "📨 **[ SECURE FORWARD ]**\n> 🛡️ *Encrypted Broadcast*\n> ☠️ `{user_text}`"
+                ]
+
+                # -----------------------------------------------------------------
+                # 🔥 THE FORGE: PRE-BAKE FORWARD PAYLOADS TO RAW RUST BYTES
+                # -----------------------------------------------------------------
+                pre_baked_forward_bytes = []
+                for style in forward_styles:
+                    base_text = style.replace("{user_text}", user_text)
+                    spaced_text = base_text.replace(" ", " \u200B")
+                    multiplier = 1950 // (len(spaced_text) + 2)
+                    final_content = "\n\n".join([spaced_text] * max(1, multiplier))
+                    
+                    # Compile straight to raw JSON bytes via Rust
+                    raw_json_bytes = orjson.dumps({"content": final_content})
+                    pre_baked_forward_bytes.append(raw_json_bytes)
+
+                async def forward_loop():
+                    global global_last_log
+                    
+                    local_sleep = asyncio.sleep
+                    local_time = time.time
+                    local_post = self.raw_session.post
+                    local_bytes = pre_baked_forward_bytes
+                    local_len = len(forward_styles)
+                    
+                    current_swarm_size = max(1, len(ACTIVE_SWARM))
+                    try:
+                        my_math_id = ACTIVE_SWARM.index(self.user.id)
+                    except ValueError:
+                        my_math_id = 0
+                        
+                    perfect_stagger = (delay / float(current_swarm_size)) * my_math_id
+                    style_index = self.user.id % local_len
+                    
+                    await local_sleep(perfect_stagger)
+                    
+                    target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
+                    ultra_headers = {
+                        "Authorization": self.http.token,
+                        "Content-Type": "application/json",
+                        "Connection": "keep-alive"
+                    }
+                    
+                    gc.disable()
+                    try:
+                        while True:
+                            try:
+                                raw_packet = local_bytes[style_index]
+                                style_index = (style_index + 1) % local_len
+                                
+                                response = await local_post(target_url, data=raw_packet, headers=ultra_headers)
+                                
+                                if response.status == 429:
+                                    gc.enable()
+                                    rate_data = orjson.loads(await response.read())
+                                    retry_after = rate_data.get("retry_after", 0.5)
+                                    
+                                    if local_time() - global_last_log > 60:
+                                        print(f"⚠️ [System] Forward Rate Limit hit. Pausing Node for {retry_after}s.", flush=True)
+                                        global_last_log = local_time()
+                                        
+                                    await local_sleep(retry_after)
+                                    gc.disable()
+                                else:
+                                    if delay > 0:
+                                        await local_sleep(delay)
+                                    else:
+                                        await asyncio.sleep(0)
+                                        
+                            except Exception as e:
+                                gc.enable()
+                                print(f"⚠️ Forward Socket Exception: {e}", flush=True)
+                                await local_sleep(0.01)
+                                gc.disable()
+                    finally:
+                        gc.enable()
+
+                task = asyncio.create_task(forward_loop(), name=f"spam_{message.channel.id}")
+                
+                global spam_tasks
+                if message.channel.id not in spam_tasks:
+                    spam_tasks[message.channel.id] = []
+                spam_tasks[message.channel.id].append(task)
+                
+                if self.user.id % 8 == 0 or self.user.id % 8 == 1: 
+                    await message.channel.send(f"📦 **FORWARD ENGINE ONLINE.** Blasting forwarded layout: '{user_text}'")
+            
+            except Exception as e:
+                await message.channel.send(f"❌ Core Error: {e}")
+
         elif command == "sgcnc" or command == "smartgcnc":
             # Usage: ^sgcnc <text> @user1 @user2
             if not message.mentions or len(parts) < 2:
