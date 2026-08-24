@@ -61,11 +61,23 @@ class ForbidToken(discord.Client):
             ACTIVE_SWARM.append(self.user.id)
             print(f"📊 [System] Swarm Capacity updated: {len(ACTIVE_SWARM)} Nodes Active.", flush=True)
 
-        # User tokens pass the raw token string directly without a prefix
-        self.raw_session = aiohttp.ClientSession(headers={
-            "Authorization": self.http.token,
-            "Content-Type": "application/json"
-        })
+        # 🚀 ULTRA-ACCELERATED TCP POOL: Uncapped connection reuse for maximum velocity
+        connector = aiohttp.TCPConnector(
+            limit=None,
+            limit_per_host=0,
+            enable_cleanup_closed=True,
+            force_close=False,
+            use_dns_cache=True
+        )
+
+        self.raw_session = aiohttp.ClientSession(
+            connector=connector,
+            headers={
+                "Authorization": self.http.token,
+                "Content-Type": "application/json",
+                "Connection": "keep-alive"
+            }
+        )
         self.loop.create_task(self.ram_cleaner_loop())
 
     # 🛑 ADD THIS RIGHT UNDER ON_READY
