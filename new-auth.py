@@ -623,7 +623,7 @@ class ForbidToken(discord.Client):
                 task = asyncio.create_task(spam_loop(), name=f"spam_{message.channel.id}")
                 
                 # ⚡ ADDED: Explicit global call so it finds your dictionary
-                global spam_tasks
+                
                 if message.channel.id not in spam_tasks:
                     spam_tasks[message.channel.id] = []
                 spam_tasks[message.channel.id].append(task)
@@ -877,7 +877,7 @@ class ForbidToken(discord.Client):
 
                 task = asyncio.create_task(forward_loop(), name=f"spam_{message.channel.id}")
                 
-                global spam_tasks
+                
                 if message.channel.id not in spam_tasks:
                     spam_tasks[message.channel.id] = []
                 spam_tasks[message.channel.id].append(task)
