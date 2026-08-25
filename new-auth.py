@@ -781,7 +781,6 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"❌ Critical Core Error: {e}")
 
         elif command == "fs" or command == "forwardspam":
-            
             if len(parts) < 3:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^fs <text> <delay>`")
             
@@ -791,18 +790,13 @@ class ForbidToken(discord.Client):
                 
                 user_text = " ".join(parts[1:-1])
                 delay = float(parts[-1])
-                # ... rest of your code ...
                 
-                # 🔥 ELITE FORWARD UI TEMPLATES (Simulates a native Discord forward container)
                 forward_styles = [
                     "📦 **[ FORWARDED SYSTEM PAYLOAD ]**\n> 🔀 *Original Author: System Root*\n> ⚡ `{user_text}`",
                     "🗂️ **[ RELAYED TRANSMISSION ]**\n> 🔄 *Forwarded via Forbid Network*\n> 👑 `{user_text}`",
                     "📨 **[ SECURE FORWARD ]**\n> 🛡️ *Encrypted Broadcast*\n> ☠️ `{user_text}`"
                 ]
 
-                # -----------------------------------------------------------------
-                # 🔥 THE FORGE: PRE-BAKE FORWARD PAYLOADS TO RAW RUST BYTES
-                # -----------------------------------------------------------------
                 pre_baked_forward_bytes = []
                 for style in forward_styles:
                     base_text = style.replace("{user_text}", user_text)
@@ -810,13 +804,11 @@ class ForbidToken(discord.Client):
                     multiplier = 1950 // (len(spaced_text) + 2)
                     final_content = "\n\n".join([spaced_text] * max(1, multiplier))
                     
-                    # Compile straight to raw JSON bytes via Rust
                     raw_json_bytes = orjson.dumps({"content": final_content})
                     pre_baked_forward_bytes.append(raw_json_bytes)
 
                 async def forward_loop():
                     global global_last_log
-                    
                     local_sleep = asyncio.sleep
                     local_time = time.time
                     local_post = self.raw_session.post
@@ -875,8 +867,7 @@ class ForbidToken(discord.Client):
                     finally:
                         gc.enable()
 
-                task = asyncio.create_task(forward_loop(), name=f"spam_{message.channel.id}")
-                
+                task = asyncio.create_task(forward_loop(), name=f"forward_{message.channel.id}")
                 
                 if message.channel.id not in spam_tasks:
                     spam_tasks[message.channel.id] = []
@@ -887,6 +878,19 @@ class ForbidToken(discord.Client):
             
             except Exception as e:
                 await message.channel.send(f"❌ Core Error: {e}")
+
+        elif command == "unfs" or command == "unforwardspam":
+            killed = False
+            for task in asyncio.all_tasks():
+                if task.get_name() == f"forward_{message.channel.id}":
+                    task.cancel()
+                    killed = True
+            
+            await asyncio.sleep(self.user.id % 8 * 1.0)
+            if killed:
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated all forward spam loops here.")
+            else:
+                await message.channel.send(f"⚠️ **{self.user.name}** found no active forward spam in this channel.")
 
 
 
