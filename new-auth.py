@@ -152,7 +152,7 @@ class ForbidToken(discord.Client):
         # =========================================================
 
         # =========================================================
-        # ⚡ BLAZING-FAST QUANTUM INTERCEPT SMART SPAM ENGINE ⚡
+        # ⚡ BLAZING-FAST MINIMALIST FLOATING SMART SPAM ENGINE ⚡
         # =========================================================
         author_id_int = message.author.id
         author_id_str = str(author_id_int)
@@ -164,7 +164,7 @@ class ForbidToken(discord.Client):
             active_target_text = SSPAM_TARGETS[author_id_str]
 
         if active_target_text and message.author != self.user:
-            # 🛑 INSTANT DEDUPLICATION: Prevents double-firing and lag on a single bot
+            # 🛑 INSTANT DEDUPLICATION: Prevents a single bot from double-firing on the same message ID
             if message.id in self.processed_sspam_ids:
                 return
             self.processed_sspam_ids.add(message.id)
@@ -172,56 +172,26 @@ class ForbidToken(discord.Client):
             if len(self.processed_sspam_ids) > 500:
                 self.processed_sspam_ids.pop()
 
-            async def trigger_quantum_smart_spam():
+            async def trigger_minimal_floating_spam():
                 try:
                     import orjson
-                    
-                    # Sorted swarm routing ensures zero cross-bot token clashes
-                    stable_swarm = sorted(ACTIVE_SWARM) if ACTIVE_SWARM else [self.user.id]
-                    current_swarm_size = max(1, len(stable_swarm))
-                    
-                    try:
-                        my_math_id = stable_swarm.index(self.user.id)
-                    except ValueError:
-                        my_math_id = hash(str(self.user.id)) % current_swarm_size
-                    
-                    if message.id % current_swarm_size != my_math_id:
-                        return
                     
                     # 🔥 LETHAL HATER EMOJI POOL
                     emojis = ["💀", "👑", "⚡", "🔥", "🔪", "🗡️", "⚔️", "🩸", "☠️", "🔱"]
                     chosen_emoji = emojis[message.id % len(emojis)]
                     
-                    # 🔥 200 IQ QUANTUM INTERCEPT TEMPLATES (Massive, distinct from forward cards)
-                    sspam_templates = [
-                        (
-                            "◈ ─── ≪ 𝙁𝙊𝙍𝘽1𝘿 • 𝐐𝐔𝐀𝐍𝐓𝐔𝐌 𝐈𝐍𝐓𝐄𝐑𝐂𝐄𝐏𝐓 ≫ ─── ◈\n"
-                            "┃ ⚡ TARGET LOCKED IN THE SOVEREIGN GRID\n"
-                            "┃ 🎯 ENTITY: <@{target_id}>\n"
-                            "┃ ☠️ VERDICT: {user_text} ({emoji})\n"
-                            "◈ ───────────────────────────────────── ◈"
-                        ),
-                        (
-                            "⚡ ─── [ 𝙁𝙊𝙍𝘽1𝘿  //  𝐍𝐄𝐔𝐑𝐀𝐋  𝐎𝐕𝐄𝐑𝐑𝐈𝐃𝐄 ] ─── ⚡\n"
-                            "│ 👁️ REPLIES DETECTED & NEUTRALIZED\n"
-                            "│ 👑 CONTROLLER: FORB1D KING\n"
-                            "│ 🔪 EXECUTION: {user_text} ({emoji})\n"
-                            "⚡ ───────────────────────────────────── ⚡"
-                        ),
-                        (
-                            "👑 ═══════ ≪ 𝙁𝙊𝙍𝘽1𝘿  𝐒𝐎𝐕𝐄𝐑𝐄𝐈𝐆𝐍  𝐂𝐎𝐑𝐄 ≫ ═══════ 👑\n"
-                            "║ 🛡️ STATUS: ABSOLUTE TARGET SUBJUGATION\n"
-                            "║ ⚡ PAYLOAD: {user_text} ({emoji})\n"
-                            "║ ☠️ ENTITY: <@{target_id}>\n"
-                            "👑 ══════════════════════════════════════════ 👑"
-                        )
+                    # 🔥 SLEEK, MINIMALIST FLOATING TEMPLATES (Zero text bloat, pure punchy style)
+                    minimal_templates = [
+                        "✦ ─── 𝙁𝙊𝙍𝘽1𝘿 // {user_text} ({emoji}) ─── ✦",
+                        "✨ ─── ⟡ 𝙁𝙊𝙍𝘽1𝘿 • {user_text} ({emoji}) ⟡ ─── ✨",
+                        "👑 ─── ≪ 𝙁𝙊𝙍𝘽1𝘿 ≫ ─── 👑\n> `{user_text} ({emoji})`"
                     ]
                     
                     # Select template deterministically based on message snowflake
-                    raw_template = sspam_templates[message.id % len(sspam_templates)]
-                    base_content = raw_template.replace("{user_text}", active_target_text).replace("{emoji}", chosen_emoji).replace("{target_id}", str(message.author.id))
+                    raw_template = minimal_templates[message.id % len(minimal_templates)]
+                    base_content = raw_template.replace("{user_text}", active_target_text).replace("{emoji}", chosen_emoji)
                     
-                    # Scale it up big to fill the message block like your CS/FS engines
+                    # Scale it up cleanly to fill the message block without wall-of-text lag
                     spaced_content = base_content.replace(" ", " \u200B")
                     block_length = len(spaced_content) + 2
                     multiplier = 1950 // block_length
@@ -237,7 +207,7 @@ class ForbidToken(discord.Client):
                         "Connection": "keep-alive"
                     }
                     
-                    # 🔥 FIRE INSTANTLY AT MAXIMUM RUST SPEED
+                    # 🔥 FIRE INSTANTLY AT MAXIMUM RUST SPEED VIA KEEP-ALIVE SOCKET POOL
                     async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
                         if resp.status == 429:
                             rate_data = orjson.loads(await resp.read())
@@ -251,7 +221,7 @@ class ForbidToken(discord.Client):
                 except Exception as e:
                     print(f"⚠️ [SSPAM Critical Exception]: {e}", flush=True)
             
-            asyncio.create_task(trigger_quantum_smart_spam())
+            asyncio.create_task(trigger_minimal_floating_spam())
         
 
         # =========================================================
