@@ -151,14 +151,22 @@ class ForbidToken(discord.Client):
         # =========================================================
 
         # =========================================================
-        # ⚡ BLAZING-FAST INSTANT SMART SPAM TRIGGER ENGINE ⚡
+        # ⚡ BLAZING-FAST BULLETPROOF SMART SPAM TRIGGER ENGINE ⚡
         # =========================================================
-        if message.author.id in SSPAM_TARGETS and message.author != self.user:
+        # Check both integer and string formats to prevent key-type mismatch bugs
+        author_id_int = message.author.id
+        author_id_str = str(author_id_int)
+        
+        active_target_text = None
+        if author_id_int in SSPAM_TARGETS:
+            active_target_text = SSPAM_TARGETS[author_id_int]
+        elif author_id_str in SSPAM_TARGETS:
+            active_target_text = SSPAM_TARGETS[author_id_str]
+
+        if active_target_text and message.author != self.user:
             async def trigger_blazing_smart_spam():
                 try:
                     import orjson
-                    
-                    user_text = SSPAM_TARGETS[message.author.id]
                     
                     current_swarm_size = max(1, len(ACTIVE_SWARM))
                     try:
@@ -166,7 +174,7 @@ class ForbidToken(discord.Client):
                     except ValueError:
                         my_math_id = 0
                     
-                    # 🧠 Load balancer rotation across active nodes to prevent rate limits
+                    # 🧠 Deterministic node routing: Uses message snowflake to assign exactly ONE bot
                     if ACTIVE_SWARM and message.id % current_swarm_size != my_math_id:
                         return
                     
@@ -177,12 +185,12 @@ class ForbidToken(discord.Client):
                         "Connection": "keep-alive"
                     }
                     
-                    # Styled like your high-impact CS format (spaced out and targeting the speaker)
-                    base_content = f"👑 **[ FORB1D TARGET OVERRIDE ]** ➔ {user_text} <@{message.author.id}>"
+                    # High-impact custom format targeting the speaker directly
+                    base_content = f"👑 **[ FORB1D TARGET OVERRIDE ]** ➔ {active_target_text} <@{message.author.id}>"
                     spaced_content = base_content.replace(" ", " \u200B")
                     raw_packet = orjson.dumps({"content": spaced_content})
                     
-                    # 🔥 FIRE INSTANTLY WITH ZERO ARTIFICIAL DELAY
+                    # 🔥 FIRE INSTANTLY VIA PERSISTENT KEEP-ALIVE SOCKET POOL
                     async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
                         if resp.status == 429:
                             rate_data = orjson.loads(await resp.read())
@@ -190,8 +198,12 @@ class ForbidToken(discord.Client):
                             await asyncio.sleep(retry_after)
                             async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers):
                                 pass
+                        elif resp.status not in (200, 201):
+                            # Debug print so any API rejections show up instantly in your Render logs
+                            print(f"⚠️ [SSPAM Error] Discord rejected packet. Status: {resp.status}", flush=True)
+                            
                 except Exception as e:
-                    print(f"⚠️ SSPAM Exception: {e}", flush=True)
+                    print(f"⚠️ [SSPAM Critical Exception]: {e}", flush=True)
             
             asyncio.create_task(trigger_blazing_smart_spam())
         
