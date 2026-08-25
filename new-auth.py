@@ -54,6 +54,7 @@ class ForbidToken(discord.Client):
         # 1. No intents needed for discord.py-self, just initialize directly
         super().__init__(*args, **kwargs)
         self.raw_session = None  # This will hold our high-speed socket
+        self.processed_sspam_ids = set()  # 🟢 PREVENTS A SINGLE BOT FROM FIRING TWICE ON THE SAME MESSAGE
 
     # 🛑 ADD THIS RIGHT AT THE TOP OF YOUR CLASS
     async def on_ready(self):
@@ -151,9 +152,8 @@ class ForbidToken(discord.Client):
         # =========================================================
 
         # =========================================================
-        # ⚡ BLAZING-FAST BULLETPROOF SMART SPAM TRIGGER ENGINE ⚡
+        # ⚡ BLAZING-FAST QUANTUM INTERCEPT SMART SPAM ENGINE ⚡
         # =========================================================
-        # Check both integer and string formats to prevent key-type mismatch bugs
         author_id_int = message.author.id
         author_id_str = str(author_id_int)
         
@@ -164,19 +164,71 @@ class ForbidToken(discord.Client):
             active_target_text = SSPAM_TARGETS[author_id_str]
 
         if active_target_text and message.author != self.user:
-            async def trigger_blazing_smart_spam():
+            # 🛑 INSTANT DEDUPLICATION: Prevents double-firing and lag on a single bot
+            if message.id in self.processed_sspam_ids:
+                return
+            self.processed_sspam_ids.add(message.id)
+            
+            if len(self.processed_sspam_ids) > 500:
+                self.processed_sspam_ids.pop()
+
+            async def trigger_quantum_smart_spam():
                 try:
                     import orjson
                     
-                    current_swarm_size = max(1, len(ACTIVE_SWARM))
-                    try:
-                        my_math_id = ACTIVE_SWARM.index(self.user.id)
-                    except ValueError:
-                        my_math_id = 0
+                    # Sorted swarm routing ensures zero cross-bot token clashes
+                    stable_swarm = sorted(ACTIVE_SWARM) if ACTIVE_SWARM else [self.user.id]
+                    current_swarm_size = max(1, len(stable_swarm))
                     
-                    # 🧠 Deterministic node routing: Uses message snowflake to assign exactly ONE bot
-                    if ACTIVE_SWARM and message.id % current_swarm_size != my_math_id:
+                    try:
+                        my_math_id = stable_swarm.index(self.user.id)
+                    except ValueError:
+                        my_math_id = hash(str(self.user.id)) % current_swarm_size
+                    
+                    if message.id % current_swarm_size != my_math_id:
                         return
+                    
+                    # 🔥 LETHAL HATER EMOJI POOL
+                    emojis = ["💀", "👑", "⚡", "🔥", "🔪", "🗡️", "⚔️", "🩸", "☠️", "🔱"]
+                    chosen_emoji = emojis[message.id % len(emojis)]
+                    
+                    # 🔥 200 IQ QUANTUM INTERCEPT TEMPLATES (Massive, distinct from forward cards)
+                    sspam_templates = [
+                        (
+                            "◈ ─── ≪ 𝙁𝙊𝙍𝘽1𝘿 • 𝐐𝐔𝐀𝐍𝐓𝐔𝐌 𝐈𝐍𝐓𝐄𝐑𝐂𝐄𝐏𝐓 ≫ ─── ◈\n"
+                            "┃ ⚡ TARGET LOCKED IN THE SOVEREIGN GRID\n"
+                            "┃ 🎯 ENTITY: <@{target_id}>\n"
+                            "┃ ☠️ VERDICT: {user_text} ({emoji})\n"
+                            "◈ ───────────────────────────────────── ◈"
+                        ),
+                        (
+                            "⚡ ─── [ 𝙁𝙊𝙍𝘽1𝘿  //  𝐍𝐄𝐔𝐑𝐀𝐋  𝐎𝐕𝐄𝐑𝐑𝐈𝐃𝐄 ] ─── ⚡\n"
+                            "│ 👁️ REPLIES DETECTED & NEUTRALIZED\n"
+                            "│ 👑 CONTROLLER: FORB1D KING\n"
+                            "│ 🔪 EXECUTION: {user_text} ({emoji})\n"
+                            "⚡ ───────────────────────────────────── ⚡"
+                        ),
+                        (
+                            "👑 ═══════ ≪ 𝙁𝙊𝙍𝘽1𝘿  𝐒𝐎𝐕𝐄𝐑𝐄𝐈𝐆𝐍  𝐂𝐎𝐑𝐄 ≫ ═══════ 👑\n"
+                            "║ 🛡️ STATUS: ABSOLUTE TARGET SUBJUGATION\n"
+                            "║ ⚡ PAYLOAD: {user_text} ({emoji})\n"
+                            "║ ☠️ ENTITY: <@{target_id}>\n"
+                            "👑 ══════════════════════════════════════════ 👑"
+                        )
+                    ]
+                    
+                    # Select template deterministically based on message snowflake
+                    raw_template = sspam_templates[message.id % len(sspam_templates)]
+                    base_content = raw_template.replace("{user_text}", active_target_text).replace("{emoji}", chosen_emoji).replace("{target_id}", str(message.author.id))
+                    
+                    # Scale it up big to fill the message block like your CS/FS engines
+                    spaced_content = base_content.replace(" ", " \u200B")
+                    block_length = len(spaced_content) + 2
+                    multiplier = 1950 // block_length
+                    if multiplier < 1: multiplier = 1
+                    
+                    final_content = "\n\n".join([spaced_content] * multiplier)
+                    raw_packet = orjson.dumps({"content": final_content})
                     
                     target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                     ultra_headers = {
@@ -185,12 +237,7 @@ class ForbidToken(discord.Client):
                         "Connection": "keep-alive"
                     }
                     
-                    # High-impact custom format targeting the speaker directly
-                    base_content = f"👑 **[ FORB1D TARGET OVERRIDE ]** ➔ {active_target_text} <@{message.author.id}>"
-                    spaced_content = base_content.replace(" ", " \u200B")
-                    raw_packet = orjson.dumps({"content": spaced_content})
-                    
-                    # 🔥 FIRE INSTANTLY VIA PERSISTENT KEEP-ALIVE SOCKET POOL
+                    # 🔥 FIRE INSTANTLY AT MAXIMUM RUST SPEED
                     async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
                         if resp.status == 429:
                             rate_data = orjson.loads(await resp.read())
@@ -199,13 +246,12 @@ class ForbidToken(discord.Client):
                             async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers):
                                 pass
                         elif resp.status not in (200, 201):
-                            # Debug print so any API rejections show up instantly in your Render logs
-                            print(f"⚠️ [SSPAM Error] Discord rejected packet. Status: {resp.status}", flush=True)
+                            print(f"⚠️ [SSPAM Error] Status: {resp.status}", flush=True)
                             
                 except Exception as e:
                     print(f"⚠️ [SSPAM Critical Exception]: {e}", flush=True)
             
-            asyncio.create_task(trigger_blazing_smart_spam())
+            asyncio.create_task(trigger_quantum_smart_spam())
         
 
         # =========================================================
