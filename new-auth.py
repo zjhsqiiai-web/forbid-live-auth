@@ -180,11 +180,11 @@ class ForbidToken(discord.Client):
                     emojis = ["💀", "👑", "⚡", "🔥", "🔪", "🗡️", "⚔️", "🩸", "☠️", "🔱"]
                     chosen_emoji = emojis[message.id % len(emojis)]
                     
-                    # 🔥 ABSOLUTE STUNNING TEMPLATES (Responsive design: pristine on mobile & PC)
+                    # 🔥 CLEAN, HARD-HITTING TITLES (Zero AI fluff)
                     stunning_templates = [
-                        "👑 **𝙁𝙊𝙍𝘽1𝘿  //  𝗦𝗢𝗩𝗘𝗥𝗘𝗜𝗚𝗡  𝗢𝗩𝗘𝗥𝗥𝗜𝗗𝗘**\n> ⚡ `{user_text} ({emoji})` ➔ <@{target_id}>",
-                        "⚡ **𝙁𝙊𝙍𝘽1𝘿  //  𝗡𝗘𝗨𝗥𝗔𝗟  𝗦𝗧𝗥𝗜𝗞𝗘**\n> ☠️ `{user_text} ({emoji})` ➔ <@{target_id}>",
-                        "🔥 **𝙁𝙊𝙍𝘽1𝘿  //  𝗔𝗣𝗘𝗫  𝗣𝗥𝗘𝗗𝗔𝗧𝗢𝗥**\n> 👑 `{user_text} ({emoji})` ➔ <@{target_id}>"
+                        "👑 **𝙁𝙊𝙍𝘽1𝘿  //  𝗧𝗛𝗘  𝗞𝗜𝗡𝗚**\n> ⚡ `{user_text} ({emoji})` ➔ <@{target_id}>",
+                        "⚡ **𝙁𝙊𝙍𝘽1𝘿  //  𝗢𝗩𝗘𝗥𝗟𝗢𝗥𝗗**\n> ☠️ `{user_text} ({emoji})` ➔ <@{target_id}>",
+                        "🔥 **𝙁𝙊𝙍𝘽1𝘿  //  𝗦𝗨𝗣𝗥𝗘𝗠𝗘**\n> 👑 `{user_text} ({emoji})` ➔ <@{target_id}>"
                     ]
                     
                     # Select template deterministically based on message snowflake
