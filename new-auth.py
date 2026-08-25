@@ -794,20 +794,27 @@ class ForbidToken(discord.Client):
                 # 🔥 LETHAL HATER EMOJI POOL
                 emojis = ["💀", "👑", "⚡", "🔥", "🔪", "🗡️", "⚔️", "🩸", "☠️", "🔱"]
                 
-                # 🔥 SOVEREIGN-TIER FORWARD CONTAINERS WITH FORBID & <text> (emoji)
-                forward_templates = [
-                    "```ansi\n\u001b[0;31m╔══════════════════════════════════════════════════╗\u001b[0m\n\u001b[1;33m║      FORBID HEGEMONY // SOVEREIGN DECREE         ║\u001b[0m\n\u001b[0;31m╠══════════════════════════════════════════════════╣\u001b[0m\n\u001b[1;36m> TARGET INTEL: {user_text} ({chosen_emoji})\u001b[0m\n\u001b[0;31m╚══════════════════════════════════════════════════╝\u001b[0m```",
-                    "```ansi\n\u001b[0;35m┌──────────────────────────────────────────────────┐\u001b[0m\n\u001b[1;32m│      FORBID IMPERIUM // ABSOLUTE DOMINION        │\u001b[0m\n\u001b[0;35m├──────────────────────────────────────────────────┤\u001b[0m\n\u001b[1;37m  EXECUTION: {user_text} ({chosen_emoji})\u001b[0m\n\u001b[0;35m└──────────────────────────────────────────────────┘\u001b[0m```",
-                    "```ansi\n\u001b[1;31m█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█\u001b[0m\n\u001b[1;37m█      FORBID AUTOCRACY // SUPREME HATER CORE    █\u001b[0m\n\u001b[1;31m▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\u001b[0m\n\u001b[1;33m  VERDICT: {user_text} ({chosen_emoji})\u001b[0m```"
+                # 🔥 ELITE FORB1D SOVEREIGN SYSTEM CARD TEMPLATES
+                forward_styles = [
+                    "📦 **[ FORB1D SYSTEM CORE // QUANTUM RELAY ]**\n> 🔀 *Autonomous Sovereign Matrix*\n> ⚡ `{user_text} ({chosen_emoji})`",
+                    "🗂️ **[ FORB1D HEGEMONY // ROOT TRANSMISSION ]**\n> 🔄 *Encrypted Sovereign Pipeline*\n> 👑 `{user_text} ({chosen_emoji})`",
+                    "📨 **[ FORB1D IMPERIUM // SUPREME PROTOCOL ]**\n> 🛡️ *Paramount Neural Broadcast*\n> ☠️ `{user_text} ({chosen_emoji})`"
                 ]
 
                 # -----------------------------------------------------------------
-                # 🔥 THE FORGE: PRE-BAKE TEMPLATES + EMOJIS INTO RAW RUST BYTES
+                # 🔥 THE FORGE: PRE-BAKE STACKED FORB1D CARDS TO RAW RUST BYTES
                 # -----------------------------------------------------------------
                 pre_baked_forward_bytes = []
-                for template in forward_templates:
+                for style in forward_styles:
                     for emoji in emojis:
-                        final_content = template.replace("{user_text}", user_text).replace("{chosen_emoji}", emoji)
+                        base_text = style.replace("{user_text}", user_text).replace("{chosen_emoji}", emoji)
+                        spaced_text = base_text.replace(" ", " \u200B")
+                        
+                        # Scale it up big to fill the message block instantly
+                        multiplier = 1950 // (len(spaced_text) + 2)
+                        if multiplier < 1: multiplier = 1
+                        
+                        final_content = "\n\n".join([spaced_text] * multiplier)
                         raw_json_bytes = orjson.dumps({"content": final_content})
                         pre_baked_forward_bytes.append(raw_json_bytes)
 
@@ -878,7 +885,7 @@ class ForbidToken(discord.Client):
                 spam_tasks[message.channel.id].append(task)
                 
                 if self.user.id % 8 == 0 or self.user.id % 8 == 1: 
-                    await message.channel.send(f"👑 **FORBID SOVEREIGN FORWARD ENGINE ONLINE.**")
+                    await message.channel.send(f"📦 **FORB1D SOVEREIGN FORWARD ENGINE ONLINE.**")
             
             except Exception as e:
                 await message.channel.send(f"❌ Core Error: {e}")
@@ -1444,7 +1451,7 @@ async def main():
         # 🟢 THE GOD-TIER STAGGER: Spaces out logins by 15-20 seconds per token
         # This completely cloaks your Render IP from Discord's security!
         if i < len(token_list) - 1:
-            boot_delay = 15.0 + random.uniform(1.0, 5.0)
+            boot_delay = 1.0 + random.uniform(1.0, 5.0)
             print(f"⏳ [System] Holding next token for {boot_delay:.1f}s to cloak IP footprint...", flush=True)
             await asyncio.sleep(boot_delay)
 
