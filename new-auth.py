@@ -39,6 +39,10 @@ SGCNC_TARGETS = {}
 PREFIX = "^"
 MAIN_OWNER = 1457960499798081549
 AUTHORIZED_USERS = []
+# ⚡ FAST BOOT TOGGLE: 
+# Set to TRUE for instant local testing (1s delay).
+# Set to FALSE when deploying to Railway for full security cloak (15s+ delay).
+FAST_BOOT = True
 
 # Global dictionaries to track active tasks across all clients
 gcnc_tasks = {}
@@ -796,9 +800,9 @@ class ForbidToken(discord.Client):
                 
                 # 🔥 ELITE FORB1D SOVEREIGN SYSTEM CARD TEMPLATES
                 forward_styles = [
-                    "📦 **[ FORB1D SYSTEM CORE // QUANTUM RELAY ]**\n> 🔀 *Autonomous Sovereign Matrix*\n> ⚡ `{user_text} ({chosen_emoji})`",
-                    "🗂️ **[ FORB1D HEGEMONY // ROOT TRANSMISSION ]**\n> 🔄 *Encrypted Sovereign Pipeline*\n> 👑 `{user_text} ({chosen_emoji})`",
-                    "📨 **[ FORB1D IMPERIUM // SUPREME PROTOCOL ]**\n> 🛡️ *Paramount Neural Broadcast*\n> ☠️ `{user_text} ({chosen_emoji})`"
+                    "👑 **【 F O R B 1 D   T H E   S O V E R E I G N   K I N G 】** 👑\n> ⚡ *HEIR TO THE THRONE OF ABSOLUTE TERROR*\n> ☠️ `{user_text} ({chosen_emoji})`",
+                    "⚔️ **【 F O R B 1 D   M O N A R C H Y   R U L E 】** ⚔️\n> 🩸 *BOW DOWN TO THE KING OF KINGS*\n> 👑 `{user_text} ({chosen_emoji})`",
+                    "🔥 **【 F O R B 1 D   E M P I R E   D E C R E E 】** 🔥\n> 🔱 *THE SUPREME RULER HAS SPOKEN*\n> 💀 `{user_text} ({chosen_emoji})`"
                 ]
 
                 # -----------------------------------------------------------------
@@ -1443,16 +1447,16 @@ async def main():
         except Exception as e:
             print(f"💀 DEAD TOKEN SKIPPED [{token[:10]}...]: {e}", flush=True)
 
-    # Build client instances for every token WITH THE CLOUDFLARE BYPASS
+    # Build client instances for every token
     for i, token in enumerate(token_list):
         client = ForbidToken()
         clients.append(safe_start(client, token))
         
-        # 🟢 THE GOD-TIER STAGGER: Spaces out logins by 15-20 seconds per token
-        # This completely cloaks your Render IP from Discord's security!
         if i < len(token_list) - 1:
-            boot_delay = 1.0 + random.uniform(1.0, 5.0)
-            print(f"⏳ [System] Holding next token for {boot_delay:.1f}s to cloak IP footprint...", flush=True)
+            # FAST_BOOT = True gives a safe minimum 1s delay locally.
+            # FAST_BOOT = False gives the full 15s+ IP cloak for Railway production.
+            boot_delay = 1.0 if FAST_BOOT else (15.0 + random.uniform(1.0, 5.0))
+            print(f"⏳ [System] Holding next token for {boot_delay:.1f}s...", flush=True)
             await asyncio.sleep(boot_delay)
 
     # Fire all connections concurrently (they are already mathematically spaced out now!)
