@@ -800,9 +800,9 @@ class ForbidToken(discord.Client):
                 
                 # 🔥 ELITE FORB1D SOVEREIGN SYSTEM CARD TEMPLATES
                 forward_styles = [
-                    "👑 **【 F O R B 1 D   T H E   S O V E R E I G N   K I N G 】** 👑\n> ⚡ *HEIR TO THE THRONE OF ABSOLUTE TERROR*\n> ☠️ `{user_text} ({chosen_emoji})`",
-                    "⚔️ **【 F O R B 1 D   M O N A R C H Y   R U L E 】** ⚔️\n> 🩸 *BOW DOWN TO THE KING OF KINGS*\n> 👑 `{user_text} ({chosen_emoji})`",
-                    "🔥 **【 F O R B 1 D   E M P I R E   D E C R E E 】** 🔥\n> 🔱 *THE SUPREME RULER HAS SPOKEN*\n> 💀 `{user_text} ({chosen_emoji})`"
+                    "👑 **【 F O R B 1 D   K I N G   M A J E S T Y 】** 👑\n> ⚡ *HEIR TO THE THRONE OF ABSOLUTE TERROR*\n> ☠️ `{user_text} ({chosen_emoji})`",
+                    "⚔️ **【 F O R B 1 D   K I N G   R U L E 】** ⚔️\n> 🩸 *BOW DOWN TO THE KING OF KINGS*\n> 👑 `{user_text} ({chosen_emoji})`",
+                    "🔥 **【 F O R B 1 D   K I N G   D E C R E E 】** 🔥\n> 🔱 *THE SUPREME RULER HAS SPOKEN*\n> 💀 `{user_text} ({chosen_emoji})`"
                 ]
 
                 # -----------------------------------------------------------------
