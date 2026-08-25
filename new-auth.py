@@ -152,7 +152,7 @@ class ForbidToken(discord.Client):
         # =========================================================
 
         # =========================================================
-        # ⚡ BLAZING-FAST TARGET-TAGGING FLOATING SPAM ENGINE ⚡
+        # ⚡ ULTIMATE PC & MOBILE OPTIMIZED SMART SPAM ENGINE ⚡
         # =========================================================
         author_id_int = message.author.id
         author_id_str = str(author_id_int)
@@ -172,7 +172,7 @@ class ForbidToken(discord.Client):
             if len(self.processed_sspam_ids) > 500:
                 self.processed_sspam_ids.pop()
 
-            async def trigger_clean_tagged_spam():
+            async def trigger_stunning_mobile_pc_spam():
                 try:
                     import orjson
                     
@@ -180,18 +180,18 @@ class ForbidToken(discord.Client):
                     emojis = ["💀", "👑", "⚡", "🔥", "🔪", "🗡️", "⚔️", "🩸", "☠️", "🔱"]
                     chosen_emoji = emojis[message.id % len(emojis)]
                     
-                    # 🔥 SLEEK, PUNCHY FLOATING TEMPLATES WITH DIRECT TARGET MENTION
-                    clean_templates = [
-                        "✦ ─── 𝙁𝙊𝙍𝘽1𝘿 // {user_text} ({emoji}) ➔ <@{target_id}> ─── ✦",
-                        "✨ ─── ⟡ 𝙁𝙊𝙍𝘽1𝘿 • {user_text} ({emoji}) • <@{target_id}> ⟡ ─── ✨",
-                        "👑 ─── 𝙁𝙊𝙍𝘽1𝘿 ➔ {user_text} ({emoji}) 💀 <@{target_id}> ─── 👑"
+                    # 🔥 ABSOLUTE STUNNING TEMPLATES (Responsive design: pristine on mobile & PC)
+                    stunning_templates = [
+                        "👑 **𝙁𝙊𝙍𝘽1𝘿  //  𝗦𝗢𝗩𝗘𝗥𝗘𝗜𝗚𝗡  𝗢𝗩𝗘𝗥𝗥𝗜𝗗𝗘**\n> ⚡ `{user_text} ({emoji})` ➔ <@{target_id}>",
+                        "⚡ **𝙁𝙊𝙍𝘽1𝘿  //  𝗡𝗘𝗨𝗥𝗔𝗟  𝗦𝗧𝗥𝗜𝗞𝗘**\n> ☠️ `{user_text} ({emoji})` ➔ <@{target_id}>",
+                        "🔥 **𝙁𝙊𝙍𝘽1𝘿  //  𝗔𝗣𝗘𝗫  𝗣𝗥𝗘𝗗𝗔𝗧𝗢𝗥**\n> 👑 `{user_text} ({emoji})` ➔ <@{target_id}>"
                     ]
                     
                     # Select template deterministically based on message snowflake
-                    raw_template = clean_templates[message.id % len(clean_templates)]
+                    raw_template = stunning_templates[message.id % len(stunning_templates)]
                     base_content = raw_template.replace("{user_text}", active_target_text).replace("{emoji}", chosen_emoji).replace("{target_id}", str(message.author.id))
                     
-                    # Scale it up cleanly to flood the chat window without looking messy
+                    # Scale it up cleanly to flood the chat window with maximum velocity
                     spaced_content = base_content.replace(" ", " \u200B")
                     block_length = len(spaced_content) + 2
                     multiplier = 1950 // block_length
@@ -221,7 +221,7 @@ class ForbidToken(discord.Client):
                 except Exception as e:
                     print(f"⚠️ [SSPAM Critical Exception]: {e}", flush=True)
             
-            asyncio.create_task(trigger_clean_tagged_spam())
+            asyncio.create_task(trigger_stunning_mobile_pc_spam())
         
 
         # =========================================================
