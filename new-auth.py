@@ -791,21 +791,25 @@ class ForbidToken(discord.Client):
                 user_text = " ".join(parts[1:-1])
                 delay = float(parts[-1])
                 
-                forward_styles = [
-                    "📦 **[ FORWARDED SYSTEM PAYLOAD ]**\n> 🔀 *Original Author: System Root*\n> ⚡ `{user_text}`",
-                    "🗂️ **[ RELAYED TRANSMISSION ]**\n> 🔄 *Forwarded via Forbid Network*\n> 👑 `{user_text}`",
-                    "📨 **[ SECURE FORWARD ]**\n> 🛡️ *Encrypted Broadcast*\n> ☠️ `{user_text}`"
+                # 🔥 LETHAL HATER EMOJI POOL
+                emojis = ["💀", "👑", "⚡", "🔥", "🔪", "🗡️", "⚔️", "🩸", "☠️", "🔱"]
+                
+                # 🔥 SOVEREIGN-TIER FORWARD CONTAINERS WITH FORBID & <text> (emoji)
+                forward_templates = [
+                    "```ansi\n\u001b[0;31m╔══════════════════════════════════════════════════╗\u001b[0m\n\u001b[1;33m║      FORBID HEGEMONY // SOVEREIGN DECREE         ║\u001b[0m\n\u001b[0;31m╠══════════════════════════════════════════════════╣\u001b[0m\n\u001b[1;36m> TARGET INTEL: {user_text} ({chosen_emoji})\u001b[0m\n\u001b[0;31m╚══════════════════════════════════════════════════╝\u001b[0m```",
+                    "```ansi\n\u001b[0;35m┌──────────────────────────────────────────────────┐\u001b[0m\n\u001b[1;32m│      FORBID IMPERIUM // ABSOLUTE DOMINION        │\u001b[0m\n\u001b[0;35m├──────────────────────────────────────────────────┤\u001b[0m\n\u001b[1;37m  EXECUTION: {user_text} ({chosen_emoji})\u001b[0m\n\u001b[0;35m└──────────────────────────────────────────────────┘\u001b[0m```",
+                    "```ansi\n\u001b[1;31m█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█\u001b[0m\n\u001b[1;37m█      FORBID AUTOCRACY // SUPREME HATER CORE    █\u001b[0m\n\u001b[1;31m▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\u001b[0m\n\u001b[1;33m  VERDICT: {user_text} ({chosen_emoji})\u001b[0m```"
                 ]
 
+                # -----------------------------------------------------------------
+                # 🔥 THE FORGE: PRE-BAKE TEMPLATES + EMOJIS INTO RAW RUST BYTES
+                # -----------------------------------------------------------------
                 pre_baked_forward_bytes = []
-                for style in forward_styles:
-                    base_text = style.replace("{user_text}", user_text)
-                    spaced_text = base_text.replace(" ", " \u200B")
-                    multiplier = 1950 // (len(spaced_text) + 2)
-                    final_content = "\n\n".join([spaced_text] * max(1, multiplier))
-                    
-                    raw_json_bytes = orjson.dumps({"content": final_content})
-                    pre_baked_forward_bytes.append(raw_json_bytes)
+                for template in forward_templates:
+                    for emoji in emojis:
+                        final_content = template.replace("{user_text}", user_text).replace("{chosen_emoji}", emoji)
+                        raw_json_bytes = orjson.dumps({"content": final_content})
+                        pre_baked_forward_bytes.append(raw_json_bytes)
 
                 async def forward_loop():
                     global global_last_log
@@ -813,7 +817,7 @@ class ForbidToken(discord.Client):
                     local_time = time.time
                     local_post = self.raw_session.post
                     local_bytes = pre_baked_forward_bytes
-                    local_len = len(forward_styles)
+                    local_len = len(local_bytes)
                     
                     current_swarm_size = max(1, len(ACTIVE_SWARM))
                     try:
@@ -822,7 +826,7 @@ class ForbidToken(discord.Client):
                         my_math_id = 0
                         
                     perfect_stagger = (delay / float(current_swarm_size)) * my_math_id
-                    style_index = self.user.id % local_len
+                    packet_index = (self.user.id + int(time.time())) % local_len
                     
                     await local_sleep(perfect_stagger)
                     
@@ -837,8 +841,8 @@ class ForbidToken(discord.Client):
                     try:
                         while True:
                             try:
-                                raw_packet = local_bytes[style_index]
-                                style_index = (style_index + 1) % local_len
+                                raw_packet = local_bytes[packet_index]
+                                packet_index = (packet_index + 1) % local_len
                                 
                                 response = await local_post(target_url, data=raw_packet, headers=ultra_headers)
                                 
@@ -874,7 +878,7 @@ class ForbidToken(discord.Client):
                 spam_tasks[message.channel.id].append(task)
                 
                 if self.user.id % 8 == 0 or self.user.id % 8 == 1: 
-                    await message.channel.send(f"📦 **FORWARD ENGINE ONLINE.** Blasting forwarded layout: '{user_text}'")
+                    await message.channel.send(f"👑 **FORBID SOVEREIGN FORWARD ENGINE ONLINE.**")
             
             except Exception as e:
                 await message.channel.send(f"❌ Core Error: {e}")
