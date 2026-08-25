@@ -151,10 +151,10 @@ class ForbidToken(discord.Client):
         # =========================================================
 
         # =========================================================
-        # ⚡ ELITE LOAD-BALANCED SMART SPAM TRIGGER ENGINE ⚡
+        # ⚡ LETHAL INSTANT SMART SPAM TRIGGER ENGINE ⚡
         # =========================================================
         if message.author.id in SSPAM_TARGETS and message.author != self.user:
-            async def trigger_safe_smart_spam():
+            async def trigger_instant_smart_spam():
                 try:
                     import orjson
                     
@@ -166,13 +166,9 @@ class ForbidToken(discord.Client):
                     except ValueError:
                         my_math_id = 0
                     
-                    # 🧠 200 IQ LOAD BALANCER: Rotate which bot replies to each message 
-                    # to completely bypass Discord's channel message rate limits
+                    # Load balancer distribution across active swarm nodes
                     if ACTIVE_SWARM and message.id % current_swarm_size != my_math_id:
                         return
-                    
-                    # Humanized micro-delay to prevent instant bot heuristics
-                    await asyncio.sleep(random.uniform(0.15, 0.35))
                     
                     target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                     ultra_headers = {
@@ -181,21 +177,21 @@ class ForbidToken(discord.Client):
                         "Connection": "keep-alive"
                     }
                     
-                    formatted_content = f"{user_text} <@{message.author.id}>".replace(" ", " \u200B")
+                    formatted_content = f"{user_text} <@{message.author.id}>"
                     raw_packet = orjson.dumps({"content": formatted_content})
                     
+                    # 🔥 FIRE DIRECTLY WITHOUT ARTIFICIAL DELAYS VIA PERSISTENT SOCKET
                     async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
                         if resp.status == 429:
                             rate_data = orjson.loads(await resp.read())
-                            retry_after = float(rate_data.get("retry_after", 1.0))
+                            retry_after = float(rate_data.get("retry_after", 0.3))
                             await asyncio.sleep(retry_after)
                             async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers):
                                 pass
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"⚠️ SSPAM Exception: {e}", flush=True)
             
-            asyncio.create_task(trigger_safe_smart_spam())
-        # =========================================================
+            asyncio.create_task(trigger_instant_smart_spam())
         
 
         # =========================================================
@@ -406,10 +402,7 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** disarmed ALL Smart GCNC targets ({count} users removed).")
 
         elif command == "sspam" or command == "smartspam":
-            # MASTER NODE GUARD: Prevents 429 rate limits when arming the command
-            if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
-                return
-
+            # Usage: ^sspam <text> @user1 @user2
             if not message.mentions or len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^sspam <text> @user1 @user2`")
             
