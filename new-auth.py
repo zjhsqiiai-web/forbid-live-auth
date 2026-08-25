@@ -151,10 +151,10 @@ class ForbidToken(discord.Client):
         # =========================================================
 
         # =========================================================
-        # ⚡ LETHAL INSTANT SMART SPAM TRIGGER ENGINE ⚡
+        # ⚡ BLAZING-FAST INSTANT SMART SPAM TRIGGER ENGINE ⚡
         # =========================================================
         if message.author.id in SSPAM_TARGETS and message.author != self.user:
-            async def trigger_instant_smart_spam():
+            async def trigger_blazing_smart_spam():
                 try:
                     import orjson
                     
@@ -166,7 +166,7 @@ class ForbidToken(discord.Client):
                     except ValueError:
                         my_math_id = 0
                     
-                    # Load balancer distribution across active swarm nodes
+                    # 🧠 Load balancer rotation across active nodes to prevent rate limits
                     if ACTIVE_SWARM and message.id % current_swarm_size != my_math_id:
                         return
                     
@@ -177,10 +177,12 @@ class ForbidToken(discord.Client):
                         "Connection": "keep-alive"
                     }
                     
-                    formatted_content = f"{user_text} <@{message.author.id}>"
-                    raw_packet = orjson.dumps({"content": formatted_content})
+                    # Styled like your high-impact CS format (spaced out and targeting the speaker)
+                    base_content = f"👑 **[ FORB1D TARGET OVERRIDE ]** ➔ {user_text} <@{message.author.id}>"
+                    spaced_content = base_content.replace(" ", " \u200B")
+                    raw_packet = orjson.dumps({"content": spaced_content})
                     
-                    # 🔥 FIRE DIRECTLY WITHOUT ARTIFICIAL DELAYS VIA PERSISTENT SOCKET
+                    # 🔥 FIRE INSTANTLY WITH ZERO ARTIFICIAL DELAY
                     async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
                         if resp.status == 429:
                             rate_data = orjson.loads(await resp.read())
@@ -191,7 +193,7 @@ class ForbidToken(discord.Client):
                 except Exception as e:
                     print(f"⚠️ SSPAM Exception: {e}", flush=True)
             
-            asyncio.create_task(trigger_instant_smart_spam())
+            asyncio.create_task(trigger_blazing_smart_spam())
         
 
         # =========================================================
@@ -402,9 +404,9 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** disarmed ALL Smart GCNC targets ({count} users removed).")
 
         elif command == "sspam" or command == "smartspam":
-            # Usage: ^sspam <text> @user1 @user2
+            # 👑 REMOVED MASTER NODE GUARD SO ANY BOT CAN ARM IT INSTANTLY
             if not message.mentions or len(parts) < 2:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^sspam <text> @user1 @user2`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^sspam <text> @user1 @user2 @user3`")
             
             content_after_cmd = message.content[len(PREFIX) + len(command):].strip()
             custom_text = content_after_cmd
@@ -421,7 +423,7 @@ class ForbidToken(discord.Client):
                 added_names.append(target.name)
             
             await message.channel.send(f"⚡ FORB1D🔥 Armed Smart Spam text: `{custom_text}` on target(s): `{', '.join(added_names)}`")
-
+            
         elif command == "unsspam":
             # Usage: ^unsspam (clears all) OR ^unsspam @user (removes one)
             if message.mentions:
