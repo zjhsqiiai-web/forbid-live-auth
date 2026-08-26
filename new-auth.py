@@ -43,6 +43,17 @@ AUTHORIZED_USERS = []
 # Set to TRUE for instant local testing (1s delay).
 # Set to FALSE when deploying to Railway for full security cloak (15s+ delay).
 FAST_BOOT = True
+# 🔥 GLOBAL BROWSER HEADERS (Bypasses Cloudflare IP blocks)
+BROWSER_HEADERS = {
+    "Content-Type": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    "Sec-Ch-Ua-Mobile": "?2",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Connection": "keep-alive"
+}
 
 # Global dictionaries to track active tasks across all clients
 gcnc_tasks = {}
@@ -131,13 +142,11 @@ class ForbidToken(discord.Client):
                         if len(chosen_template) > 100:
                             chosen_template = chosen_template[:100]
                             
-                        # Raw socket PATCH injection for max velocity (bypasses wrapper overhead)
-                        target_url = f"https://discord.com/api/v9/channels/{message.channel.id}"
-                        ultra_headers = {
-                            "Authorization": self.http.token,
-                            "Content-Type": "application/json",
-                            "Connection": "keep-alive"
-                        }
+                        target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
+                    
+                    # Merge token with global browser headers
+                    ultra_headers = BROWSER_HEADERS.copy()
+                    ultra_headers["Authorization"] = self.http.token
                         raw_packet = orjson.dumps({"name": chosen_template})
                         
                         async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
@@ -201,11 +210,10 @@ class ForbidToken(discord.Client):
                     raw_packet = orjson.dumps({"content": final_content})
                     
                     target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
-                    ultra_headers = {
-                        "Authorization": self.http.token,
-                        "Content-Type": "application/json",
-                        "Connection": "keep-alive"
-                    }
+                    
+                    # Merge token with global browser headers
+                    ultra_headers = BROWSER_HEADERS.copy()
+                    ultra_headers["Authorization"] = self.http.token
                     
                     # 🔥 FIRE INSTANTLY AT MAXIMUM RUST SPEED VIA KEEP-ALIVE SOCKET POOL
                     async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
@@ -715,11 +723,9 @@ class ForbidToken(discord.Client):
                     # 🔥 SPEED HACK 1: Static string allocation OUTSIDE the loop
                     target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                     
-                    ultra_headers = {
-                        "Authorization": self.http.token,
-                        "Content-Type": "application/json",
-                        "Connection": "keep-alive"
-                    }
+                    # Merge token with global browser headers
+                    ultra_headers = BROWSER_HEADERS.copy()
+                    ultra_headers["Authorization"] = self.http.token
                     
                     gc.disable() 
                     
@@ -865,11 +871,10 @@ class ForbidToken(discord.Client):
                     await local_sleep(perfect_stagger)
                     
                     target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
-                    ultra_headers = {
-                        "Authorization": self.http.token,
-                        "Content-Type": "application/json",
-                        "Connection": "keep-alive"
-                    }
+                    
+                    # Merge token with global browser headers
+                    ultra_headers = BROWSER_HEADERS.copy()
+                    ultra_headers["Authorization"] = self.http.token
                     
                     gc.disable()
                     try:
