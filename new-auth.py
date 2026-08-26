@@ -95,6 +95,22 @@ class ForbidToken(discord.Client):
             }
         )
         self.loop.create_task(self.ram_cleaner_loop())
+        # 🔥 MOVE IT HERE: Starts safely once the event loop is running
+        self.loop.create_task(self.immortal_presence_loop())
+
+    async def immortal_presence_loop(self):
+        await self.wait_until_ready()
+        while not self.is_closed():
+            try:
+                # Forces an active session fingerprint so Discord never idles you
+                await self.change_presence(
+                    status=discord.Status.online,
+                    afk=False,
+                    activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
+                )
+            except Exception:
+                pass
+            await asyncio.sleep(45)  # Refreshes faster to lock the socket session
 
     # 🛑 ADD THIS RIGHT UNDER ON_READY
     async def on_disconnect(self):
@@ -171,6 +187,11 @@ class ForbidToken(discord.Client):
             active_target_text = SSPAM_TARGETS[author_id_int]
         elif author_id_str in SSPAM_TARGETS:
             active_target_text = SSPAM_TARGETS[author_id_str]
+
+        if active_target_text and message.author != self.user:
+            # 🛑 SERVER GUARD: Strictly block sspam in any server/guild (Only allow DMs & Group Chats)
+            if message.guild is not None:
+                return
 
         if active_target_text and message.author != self.user:
             # 🛑 INSTANT DEDUPLICATION: Prevents a single bot from double-firing on the same message ID
