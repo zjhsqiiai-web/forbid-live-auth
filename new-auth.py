@@ -144,9 +144,9 @@ class ForbidToken(discord.Client):
                             
                         target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                     
-                    # Merge token with global browser headers
-                    ultra_headers = BROWSER_HEADERS.copy()
-                    ultra_headers["Authorization"] = self.http.token
+                        # Merge token with global browser headers
+                        ultra_headers = BROWSER_HEADERS.copy()
+                        ultra_headers["Authorization"] = self.http.token
                         raw_packet = orjson.dumps({"name": chosen_template})
                         
                         async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
