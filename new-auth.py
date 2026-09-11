@@ -1481,6 +1481,7 @@ class ForbidToken(discord.Client):
 > ^unping               (Stop live latency)
 
 [ 👥 GROUP CHAT OPS ]
+> ^gcjoin <link>        (Join GC Through Link)
 > ^gcnc <name> <delay>  (GC Name Flasher)
 > ^ungcnc               (Stop flasher here)
 > ^gcleave              (Swarm leaves this GC)
@@ -1500,7 +1501,7 @@ class ForbidToken(discord.Client):
 > ^unsspam @user        (Stop Smart Spam)
 > ^unspam               (Stop Chat Spam)
 > ^slide @user1 @user2  (Auto Roaster)
-> ^unslide @user        (Precise Remover)
+> ^unslide @user @user2 (Precise Remover)
 
 [ 🎭 FLEX & PRESENCE OPS ]
 > ^grant @user          (Grant Access)
