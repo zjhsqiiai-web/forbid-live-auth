@@ -400,6 +400,58 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "gccall":
+            # 🛑 Validation: Ensure this command is only executed inside a Group Chat
+            if not isinstance(message.channel, discord.GroupChannel):
+                return await message.channel.send(f"❌ **{self.user.name}** Error: This command only works inside Group Chats.")
+
+            task_name = f"gccall_{message.channel.id}"
+            for task in asyncio.all_tasks():
+                if task.get_name() == task_name and not task.done():
+                    return await message.channel.send(f"⚠️ **{self.user.name}** Group call spam is already active in this GC.")
+
+            async def gc_call_loop():
+                import orjson
+                target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/call"
+                
+                while True:
+                    try:
+                        ultra_headers = BROWSER_HEADERS.copy()
+                        ultra_headers["Authorization"] = self.http.token
+                        
+                        # 🔥 PURE SOCKET INJECTION: Triggers the Discord group call endpoint continuously
+                        async with self.raw_session.post(target_url, headers=ultra_headers) as resp:
+                            if resp.status == 429:
+                                rate_data = orjson.loads(await resp.read())
+                                retry_after = float(rate_data.get("retry_after", 2.0))
+                                await asyncio.sleep(retry_after)
+                        
+                        # Controlled pacing delay to prevent instant account suspension
+                        await asyncio.sleep(2.0)
+                    except Exception:
+                        await asyncio.sleep(1.5)
+
+            task = asyncio.create_task(gc_call_loop(), name=task_name)
+            if message.channel.id not in gcnc_tasks:
+                gcnc_tasks[message.channel.id] = []
+            gcnc_tasks[message.channel.id].append(task)
+
+            await message.channel.send(f"📞 FORB1D🔥 **{self.user.name}** initiated continuous Group Chat call spam. Use `^ungccall` to terminate.")
+
+        elif command == "ungccall":
+            task_name = f"gccall_{message.channel.id}"
+            killed = False
+            for task in asyncio.all_tasks():
+                if task.get_name() == task_name:
+                    task.cancel()
+                    killed = True
+
+            await asyncio.sleep(self.user.id % 8 * 0.2)
+            if killed:
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated Group Chat call spam in this channel.")
+            else:
+                await message.channel.send(f"⚠️ **{self.user.name}** found no active GC call spam running here.")
+
         elif command == "reset":
             # 🛑 LOCK: Restrict reset access to owner/authorized users
             if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
