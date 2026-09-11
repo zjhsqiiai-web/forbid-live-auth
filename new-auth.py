@@ -405,18 +405,14 @@ class ForbidToken(discord.Client):
             if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
                 return await message.channel.send(f"❌ **{self.user.name}** Access Denied: You cannot reset the network.")
 
-            # Prevent multiple bots from racing to restart simultaneously
-            if self.user.id != MAIN_OWNER and len(ACTIVE_SWARM) > 0 and self.user.id != ACTIVE_SWARM[0]:
-                return
-
             # Send the initial progress tracker message
             progress_msg = await message.channel.send(
                 f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ░░░░░░░░░░ ] 0%` — Initializing core wipe..."
             )
 
             try:
-                # Step 1: Wipe all tracking registries and targets (35%)
-                await asyncio.sleep(0.3)
+                # Step 1: Wipe all tracking dictionaries and targets (40%)
+                await asyncio.sleep(0.2)
                 spam_tasks.clear()
                 gcnc_tasks.clear()
                 SLIDE_TARGETS.clear()
@@ -425,32 +421,29 @@ class ForbidToken(discord.Client):
                 ACTIVE_SWARM.clear()
                 
                 await progress_msg.edit(content=
-                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ████ ░░░░░░ ] 35%` — Purging registries & target caches..."
+                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ████ ░░░░░░ ] 40%` — Purging registries & target caches..."
                 )
 
-                # Step 2: Cancel active background threads (75%)
-                await asyncio.sleep(0.3)
-                for task in asyncio.all_tasks():
-                    if task != asyncio.current_task():
-                        task.cancel()
-                
-                await progress_msg.edit(content=
-                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ████████ ░░ ] 75%` — Terminating zombie loops..."
-                )
-
-                # Step 3: Deep RAM Garbage Collection (90%)
-                await asyncio.sleep(0.3)
+                # Step 2: Deep RAM Garbage Collection (80%)
+                await asyncio.sleep(0.2)
                 import gc
                 collected = gc.collect()
                 
                 await progress_msg.edit(content=
-                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ██████████ ] 100%` — Core clean! Freed {collected} objects. Rebooting..."
+                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ████████ ░░ ] 80%` — Core clean! Freed {collected} objects."
                 )
 
-                await asyncio.sleep(0.6)
+                await asyncio.sleep(0.4)
 
-                # Step 4: Hot-swap the Python process instance
-                os.execv(sys.executable, [sys.executable] + sys.argv)
+                await progress_msg.edit(content=
+                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ██████████ ] 100%` — Rebooting process container..."
+                )
+
+                await asyncio.sleep(0.5)
+
+                # Step 3: Clean container exit (Render will instantly auto-restart a fresh instance)
+                import os
+                os._exit(0)
 
             except Exception as e:
                 print(f"❌ [Reset Error]: {e}", flush=True)
