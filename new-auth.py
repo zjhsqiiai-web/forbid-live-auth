@@ -1428,6 +1428,8 @@ class ForbidToken(discord.Client):
 > ^gcleave              (Swarm leaves this GC)
 > ^gcleave all          (Swarm leaves ALL GCs)
 > ^gcleave @bot         (Precision GC leave)
+> ^sgcnc <text> @userx  (Fastest-GCNC!)
+> ^unsgcnc @user        (Disarms Smart GCNC targets)
 
 [ 🎯 TARGETING & SPAM OPS ]
 > ^autoreact @user 💀   (Lock-on reactions)
@@ -1435,9 +1437,16 @@ class ForbidToken(discord.Client):
 > ^unautoreact @user    (Unlock specific user)
 > ^rs <text> <delay>    (Roast Chat Spam)
 > ^cs <text> <delay>    (Custom Spam)
+> ^fs <text> <delay>    (Forwarded Spam)
+> ^sspam <text> @user1  (Fastest Smart Spam)
+> ^unsspam @user        (Stop Smart Spam)
+> ^slide @user1 @user2  (Auto Roaster)
+> ^unslide @user        (Precise Remover)
 > ^unspam               (Stop Chat Spam)
 
 [ 🎭 FLEX & PRESENCE OPS ]
+> ^grant @user          (Grant Access)
+> ^ungrant @user        (Revoke Access)
 > ^stream <text>        (Purple stream status)
 > ^stream stop          (Wipe stream status)
 > ^presence <mode> <msg>(play/listen/watch)
