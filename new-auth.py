@@ -469,6 +469,21 @@ class ForbidToken(discord.Client):
             if self.user.id % 8 == 0 or self.user.id % 8 == 1:
                 await message.channel.send(f"✅ FORB1D🔥 **Global GC Spam** initiated across all available channels.")
 
+        elif command == "ungcspamall":
+            killed_count = 0
+            
+            # Search and cancel all global gcspamall tasks across the entire event loop
+            for task in asyncio.all_tasks():
+                if task.get_name().startswith("gcspamall_"):
+                    task.cancel()
+                    killed_count += 1
+            
+            await asyncio.sleep(self.user.id % 8 * 0.2)
+            if killed_count > 0:
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated global GC spam loops across the network.")
+            else:
+                await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC spam running.")
+
         elif command == "gcncall":
             if len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcncall <text>` or `^gcncall stop`")
