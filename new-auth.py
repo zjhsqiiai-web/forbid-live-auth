@@ -401,35 +401,55 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "reset":
-            # 🛑 RESTRICT ACCESS: Only main owner or authorized users can reset the entire botnet
+            # 🛑 LOCK: Restrict reset access to owner/authorized users
             if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
                 return await message.channel.send(f"❌ **{self.user.name}** Access Denied: You cannot reset the network.")
 
-            await message.channel.send(f"🔄 FORB1D🔥 **{self.user.name}** initiating full network core reset and cache purge...")
-            print(f"🔄 [{self.user.name}] MANUAL RESET TRIGGERED. Purging caches and rebooting process...", flush=True)
+            # Prevent multiple bots from racing to restart simultaneously
+            if self.user.id != MAIN_OWNER and len(ACTIVE_SWARM) > 0 and self.user.id != ACTIVE_SWARM[0]:
+                return
+
+            # Send the initial progress tracker message
+            progress_msg = await message.channel.send(
+                f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ░░░░░░░░░░ ] 0%` — Initializing core wipe..."
+            )
 
             try:
-                # 1. Clear all active background task dictionaries and targets
+                # Step 1: Wipe all tracking registries and targets (35%)
+                await asyncio.sleep(0.3)
                 spam_tasks.clear()
                 gcnc_tasks.clear()
                 SLIDE_TARGETS.clear()
                 SSPAM_TARGETS.clear()
                 SGCNC_TARGETS.clear()
                 ACTIVE_SWARM.clear()
+                
+                await progress_msg.edit(content=
+                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ████ ░░░░░░ ] 35%` — Purging registries & target caches..."
+                )
 
-                # 2. Cancel all running background async tasks across the event loop
+                # Step 2: Cancel active background threads (75%)
+                await asyncio.sleep(0.3)
                 for task in asyncio.all_tasks():
                     if task != asyncio.current_task():
                         task.cancel()
+                
+                await progress_msg.edit(content=
+                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ████████ ░░ ] 75%` — Terminating zombie loops..."
+                )
 
-                # 3. Force deep garbage collection to free up memory caches
+                # Step 3: Deep RAM Garbage Collection (90%)
+                await asyncio.sleep(0.3)
                 import gc
-                gc.collect()
+                collected = gc.collect()
+                
+                await progress_msg.edit(content=
+                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ██████████ ] 100%` — Core clean! Freed {collected} objects. Rebooting..."
+                )
 
-                await asyncio.sleep(1.0)
-                await message.channel.send(f"✅ **{self.user.name}** Core wiped clean. Restarting process instance...")
+                await asyncio.sleep(0.6)
 
-                # 4. Completely replace the current process with a fresh instance of the script
+                # Step 4: Hot-swap the Python process instance
                 os.execv(sys.executable, [sys.executable] + sys.argv)
 
             except Exception as e:
