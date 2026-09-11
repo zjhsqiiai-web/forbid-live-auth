@@ -491,16 +491,12 @@ class ForbidToken(discord.Client):
                 if not target_gcs:
                     return
 
-                exact_template = f"⚡ 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 ﷽﷽﷽"
-                if len(exact_template) > 100:
-                    exact_template = exact_template[:100]
-
+                # 🔥 CYCLING EMOJI POOL FOR MAXIMUM VISUAL SPEED & CHAOS
+                emojis = ["💀", "👑", "⚡", "🔥", "☠️", "🔱", "💎", "💥"]
+                
                 import orjson
-                raw_packet = orjson.dumps({"name": exact_template})
-
                 while True:
                     try:
-                        # ⚡ SWARM & GC MATH: Distributes requests mathematically across active bots and channels
                         current_swarm_size = max(1, len(ACTIVE_SWARM))
                         try:
                             my_math_id = ACTIVE_SWARM.index(self.user.id)
@@ -509,8 +505,18 @@ class ForbidToken(discord.Client):
 
                         for index, gc in enumerate(target_gcs):
                             try:
-                                # Stagger each GC request dynamically using math to avoid hitting 429 limits
-                                channel_stagger = ((index + my_math_id) % current_swarm_size) * 0.15
+                                # Mathematical index shifting so each GC gets a unique emoji frame dynamically
+                                emoji_index = (index + int(time.time())) % len(emojis)
+                                chosen_emoji = emojis[emoji_index]
+
+                                # Exact template featuring leading and trailing emojis around FORBID KING
+                                exact_template = f"{chosen_emoji} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 {chosen_emoji} ﷽﷽"
+                                if len(exact_template) > 100:
+                                    exact_template = exact_template[:100]
+
+                                raw_packet = orjson.dumps({"name": exact_template})
+
+                                channel_stagger = ((index + my_math_id) % current_swarm_size) * 0.05
                                 await asyncio.sleep(channel_stagger)
 
                                 target_url = f"https://discord.com/api/v9/channels/{gc.id}"
@@ -520,15 +526,15 @@ class ForbidToken(discord.Client):
                                 async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
                                     if resp.status == 429:
                                         rate_data = orjson.loads(await resp.read())
-                                        retry_after = float(rate_data.get("retry_after", 1.0))
+                                        retry_after = float(rate_data.get("retry_after", 0.5))
                                         await asyncio.sleep(retry_after)
                                         async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers):
                                             pass
                             except Exception:
                                 pass
                                 
-                        # Brief breath between full multi-GC passes
-                        await asyncio.sleep(2.0)
+                        # Ultra-fast pacing loop cycle
+                        await asyncio.sleep(0.5)
                     except Exception:
                         await asyncio.sleep(1.0)
 
@@ -538,7 +544,7 @@ class ForbidToken(discord.Client):
             gcnc_tasks[message.channel.id].append(task)
             
             if self.user.id % 8 == 0 or self.user.id % 8 == 1:
-                await message.channel.send(f"✅ FORB1D🔥 **Mathematical Global GCNC** engaged across all GCs: `{base_name}`")
+                await message.channel.send(f"✅ FORB1D🔥 **Hyper-Speed Global GCNC** engaged across all GCs: `{base_name}`")
 
         elif command == "ungcncall":
             killed = False
