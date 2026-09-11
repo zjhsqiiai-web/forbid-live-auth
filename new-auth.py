@@ -398,6 +398,64 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "gcjoin":
+            # Usage: ^gcjoin <link> OR ^gcjoin @bot <link>
+            if len(parts) < 2:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcjoin <link>` or `^gcjoin @bot <link>`")
+            
+            try:
+                # Regex pattern matching Discord group chat or invite links
+                invite_pattern = r"(?:https?://)?(?:www\.)?(?:discord\.gg|discord\.com/invite|dsc\.gg)/([a-zA-Z0-9-]+)"
+                match = re.search(invite_pattern, message.content)
+                
+                if match:
+                    invite_code = match.group(1)
+                else:
+                    invite_code = parts[-1].split("/")[-1]
+
+                # Target locking check
+                if message.mentions:
+                    if self.user not in message.mentions:
+                        return
+                    stagger = random.uniform(0.2, 1.0)
+                else:
+                    my_math_id = self.user.id % 8 
+                    stagger = (my_math_id * 1.5) + random.uniform(0.5, 1.5)
+                
+                async def join_group_chat():
+                    await asyncio.sleep(stagger)
+                    try:
+                        # Fetch the invite object
+                        invite = await self.fetch_invite(invite_code)
+                        
+                        # Validate if the target invite is actually a Group Chat
+                        if invite.guild is not None:
+                            await message.channel.send(f"❌ **{self.user.name}** Error: That is a server invite, not a Group Chat link! Use `^serverjoin` instead.")
+                            return
+                            
+                        # Accept the group chat invite
+                        await invite.accept()
+                        print(f"✅ [{self.user.name}] Successfully joined GC invite {invite_code}", flush=True)
+                        await message.channel.send(f"✅ FORB1D🔥 Group Chat infiltrated by **{self.user.name}**.")
+                        
+                    except discord.NotFound:
+                        await message.channel.send(f"❌ **{self.user.name}** Error: Group chat invite is invalid or expired.")
+                    except discord.HTTPException as e:
+                        # Status 400/403 often indicates the group chat is full or unavailable
+                        if e.status == 400 or "maximum number of members" in str(e).lower():
+                            await message.channel.send(f"⚠️ **{self.user.name}** Failed: Group chat is completely **filled** or unavailable.")
+                        else:
+                            await message.channel.send(f"❌ Breach failed for **{self.user.name}**: {e}")
+                    except Exception as e:
+                        await message.channel.send(f"❌ Error for **{self.user.name}**: {e}")
+
+                asyncio.create_task(join_group_chat())
+
+            except Exception as e:
+                if self.user.id % 8 == 0:
+                    await message.channel.send(f"❌ Command Error: {e}")
+                    
+
         
         elif command == "sgcnc" or command == "smartgcnc":
             # Usage: ^sgcnc <text> @user1 @user2
