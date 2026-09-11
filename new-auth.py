@@ -1440,9 +1440,9 @@ class ForbidToken(discord.Client):
 > ^fs <text> <delay>    (Forwarded Spam)
 > ^sspam <text> @user1  (Fastest Smart Spam)
 > ^unsspam @user        (Stop Smart Spam)
+> ^unspam               (Stop Chat Spam)
 > ^slide @user1 @user2  (Auto Roaster)
 > ^unslide @user        (Precise Remover)
-> ^unspam               (Stop Chat Spam)
 
 [ 🎭 FLEX & PRESENCE OPS ]
 > ^grant @user          (Grant Access)
