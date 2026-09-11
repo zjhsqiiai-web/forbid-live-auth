@@ -468,18 +468,29 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"✅ FORB1D🔥 **Global GC Spam** initiated across all available channels.")
 
         elif command == "gcncall":
-            # Usage: ^gcncall <text>
             if len(parts) < 2:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcncall <text>`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcncall <text>` or `^gcncall stop`")
             
+            if parts[1].lower() == "stop":
+                killed = False
+                for task in asyncio.all_tasks():
+                    if task.get_name() == f"gcncall_{self.user.id}":
+                        task.cancel()
+                        killed = True
+                
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                if killed:
+                    return await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated global GC name flasher loops.")
+                else:
+                    return await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC name flasher running.")
+
             base_name = " ".join(parts[1:])
             
-            async def global_gcnc_loop():
+            async def math_global_gcnc_loop():
                 target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
                 if not target_gcs:
                     return
 
-                # Exact requested template format
                 exact_template = f"⚡ 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 ﷽﷽﷽"
                 if len(exact_template) > 100:
                     exact_template = exact_template[:100]
@@ -489,8 +500,19 @@ class ForbidToken(discord.Client):
 
                 while True:
                     try:
-                        for gc in target_gcs:
+                        # ⚡ SWARM & GC MATH: Distributes requests mathematically across active bots and channels
+                        current_swarm_size = max(1, len(ACTIVE_SWARM))
+                        try:
+                            my_math_id = ACTIVE_SWARM.index(self.user.id)
+                        except ValueError:
+                            my_math_id = self.user.id % current_swarm_size
+
+                        for index, gc in enumerate(target_gcs):
                             try:
+                                # Stagger each GC request dynamically using math to avoid hitting 429 limits
+                                channel_stagger = ((index + my_math_id) % current_swarm_size) * 0.15
+                                await asyncio.sleep(channel_stagger)
+
                                 target_url = f"https://discord.com/api/v9/channels/{gc.id}"
                                 ultra_headers = BROWSER_HEADERS.copy()
                                 ultra_headers["Authorization"] = self.http.token
@@ -502,37 +524,23 @@ class ForbidToken(discord.Client):
                                         await asyncio.sleep(retry_after)
                                         async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers):
                                             pass
-                                # Safe spacing between patch requests to avoid hitting account-wide rate limits
-                                await asyncio.sleep(1.5)
                             except Exception:
                                 pass
                                 
-                        await asyncio.sleep(5.0)
-                    except Exception:
+                        # Brief breath between full multi-GC passes
                         await asyncio.sleep(2.0)
+                    except Exception:
+                        await asyncio.sleep(1.0)
 
-            task = asyncio.create_task(global_gcnc_loop(), name=f"gcncall_{self.user.id}")
+            task = asyncio.create_task(math_global_gcnc_loop(), name=f"gcncall_{self.user.id}")
             if message.channel.id not in gcnc_tasks:
                 gcnc_tasks[message.channel.id] = []
             gcnc_tasks[message.channel.id].append(task)
             
             if self.user.id % 8 == 0 or self.user.id % 8 == 1:
-                await message.channel.send(f"✅ FORB1D🔥 **Global GC Name Overlord** engaged across all GCs: `{base_name}`")
+                await message.channel.send(f"✅ FORB1D🔥 **Mathematical Global GCNC** engaged across all GCs: `{base_name}`")
 
-        elif command == "ungcspamall" or (len(parts) > 1 and parts[1].lower() == "stop" and command == "gcspamall"):
-            killed = False
-            for task in asyncio.all_tasks():
-                if task.get_name() == f"gcspamall_{self.user.id}":
-                    task.cancel()
-                    killed = True
-            
-            await asyncio.sleep(self.user.id % 8 * 0.2)
-            if killed:
-                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated global GC spam loops.")
-            else:
-                await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC spam running.")
-
-        elif command == "ungcncall" or (len(parts) > 1 and parts[1].lower() == "stop" and command == "gcncall"):
+        elif command == "ungcncall":
             killed = False
             for task in asyncio.all_tasks():
                 if task.get_name() == f"gcncall_{self.user.id}":
