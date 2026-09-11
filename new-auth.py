@@ -409,28 +409,28 @@ class ForbidToken(discord.Client):
                 if task.get_name() == task_name and not task.done():
                     return await message.channel.send(f"⚠️ **{self.user.name}** Group call spam is already active in this GC.")
 
-            # 🔥 HIGH-FREQUENCY SYNCHRONIZED ASSAULT
+            # 🔥 CYBERPUNK MISSED-CALL ASSAULT NOTIFICATION
             await message.channel.send(
-                f"⚡ **[ FORB1D SWARM AUDIO ASSAULT ]** ⚡\n"
+                f"⚡ **[ FORB1D MISSED-CALL ASSAULT ]** ⚡\n"
                 f"> 📞 Target: `GROUP CHAT`\n"
-                f"> 🩸 Status: `MULTI-NODE SWARM PULSE RINGING...`\n"
+                f"> 🩸 Status: `2-SEC RING & DROP LOOP ENGAGED...`\n"
                 f"> 💀 Node: **{self.user.name}**"
             )
 
             async def gateway_call_loop():
-                # 🟢 SWARM MATHEMATICAL STAGGER: Calculate unique offset if multiple bots are in this GC
+                # 🟢 SWARM MATHEMATICAL STAGGER: Prevents collision when 4+ bots run simultaneously
                 current_swarm_size = max(1, len(ACTIVE_SWARM))
                 try:
                     my_math_id = ACTIVE_SWARM.index(self.user.id)
                 except ValueError:
                     my_math_id = self.user.id % current_swarm_size
 
-                # Offset timing so bots don't hit the websocket gateway synchronously
-                await asyncio.sleep(my_math_id * 0.25)
+                # Initial offset so bots enter the loop sequentially
+                await asyncio.sleep(my_math_id * 0.4)
 
                 while True:
                     try:
-                        # Step 1: Force join/ring signal (Opcode 4)
+                        # Step 1: Join/Ring Signal (Opcode 4)
                         payload = {
                             "op": 4,
                             "d": {
@@ -445,10 +445,10 @@ class ForbidToken(discord.Client):
                         if self.ws and self.ws.open:
                             await self.ws.send_as_json(payload)
                         
-                        # Ring duration (1.2 to 1.8 seconds)
-                        await asyncio.sleep(random.uniform(1.2, 1.8))
+                        # ⏱️ Stay connected for EXACTLY 2 seconds to initiate the ring tone
+                        await asyncio.sleep(2.0)
                         
-                        # Step 2: Instant leave/drop signal (Opcode 4 with null channel)
+                        # Step 2: Full Leave/Drop Signal (Triggers the "Missed Call" chat bubble popup)
                         drop_payload = {
                             "op": 4,
                             "d": {
@@ -462,10 +462,10 @@ class ForbidToken(discord.Client):
                         if self.ws and self.ws.open:
                             await self.ws.send_as_json(drop_payload)
                             
-                        # Micro gap before re-cycling the join-leave pulse
-                        await asyncio.sleep(0.3 + (my_math_id * 0.05))
+                        # ⏱️ Cooldown delay so Discord registers the drop and allows the missed call notification to render
+                        await asyncio.sleep(1.5 + (my_math_id * 0.1))
                     except Exception:
-                        await asyncio.sleep(1.0)
+                        await asyncio.sleep(2.0)
 
             task = asyncio.create_task(gateway_call_loop(), name=task_name)
             if message.channel.id not in gcnc_tasks:
