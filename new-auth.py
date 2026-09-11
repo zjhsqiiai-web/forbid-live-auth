@@ -405,14 +405,16 @@ class ForbidToken(discord.Client):
             if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
                 return await message.channel.send(f"❌ **{self.user.name}** Access Denied: You cannot reset the network.")
 
-            # Send the initial progress tracker message
+            # Send the initial cyberpunk-themed progress tracker message
             progress_msg = await message.channel.send(
-                f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ░░░░░░░░░░ ] 0%` — Initializing core wipe..."
+                f"⚡ **[ FORB1D CORE OVERRIDE ]** ⚡\n"
+                f"> 🔌 Status: `INITIALIZING SYSTEM PURGE...`\n"
+                f"> 📊 Progress: `[▒▒▒▒▒▒▒▒▒▒] 0%`"
             )
 
             try:
-                # Step 1: Wipe all tracking dictionaries and targets (40%)
-                await asyncio.sleep(0.2)
+                # Step 1: Wipe all global task dictionaries, hater registries, and target maps (25%)
+                await asyncio.sleep(0.25)
                 spam_tasks.clear()
                 gcnc_tasks.clear()
                 SLIDE_TARGETS.clear()
@@ -421,29 +423,51 @@ class ForbidToken(discord.Client):
                 ACTIVE_SWARM.clear()
                 
                 await progress_msg.edit(content=
-                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ████ ░░░░░░ ] 40%` — Purging registries & target caches..."
+                    f"⚡ **[ FORB1D CORE OVERRIDE ]** ⚡\n"
+                    f"> 🔌 Status: `FLUSHING MEMORY REGISTRIES...`\n"
+                    f"> 📊 Progress: `[███▒▒▒▒▒▒▒] 25%`"
                 )
 
-                # Step 2: Deep RAM Garbage Collection (80%)
-                await asyncio.sleep(0.2)
+                # Step 2: Cancel all background tracking/spam/flasher tasks across the loop (50%)
+                await asyncio.sleep(0.25)
+                cancelled_count = 0
+                for task in asyncio.all_tasks():
+                    if task != asyncio.current_task() and not task.done():
+                        task_name = task.get_name()
+                        if any(x in task_name for x in ["spam_", "gcnc_", "forward_", "gcspamall_", "gcncall_"]):
+                            task.cancel()
+                            cancelled_count += 1
+                
+                await progress_msg.edit(content=
+                    f"⚡ **[ FORB1D CORE OVERRIDE ]** ⚡\n"
+                    f"> 🔌 Status: `TERMINATING {cancelled_count} ZOMBIE THREADS...`\n"
+                    f"> 📊 Progress: `[██████▒▒▒▒] 50%`"
+                )
+
+                # Step 3: Run deep garbage collection to clear out memory fragments (75%)
+                await asyncio.sleep(0.25)
                 import gc
                 collected = gc.collect()
                 
                 await progress_msg.edit(content=
-                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ████████ ░░ ] 80%` — Core clean! Freed {collected} objects."
+                    f"⚡ **[ FORB1D CORE OVERRIDE ]** ⚡\n"
+                    f"> 🔌 Status: `PURGING {collected} FRAGMENTED OBJECTS...`\n"
+                    f"> 📊 Progress: `[█████████▒] 75%`"
                 )
 
-                await asyncio.sleep(0.4)
+                # Step 4: Re-register current bot into the active swarm safely (100%)
+                await asyncio.sleep(0.3)
+                if self.user.id not in ACTIVE_SWARM:
+                    ACTIVE_SWARM.append(self.user.id)
 
                 await progress_msg.edit(content=
-                    f"🔄 **FORB1D🔥 NETWORK RESET**\n> 📊 Progress: `[ ██████████ ] 100%` — Rebooting process container..."
+                    f"⚡ **[ FORB1D CORE OVERRIDE ]** ⚡\n"
+                    f"> 🔌 Status: `SYSTEMS RESTORED // ALL NODES GREEN`\n"
+                    f"> 📊 Progress: `[██████████] 100%`\n"
+                    f"✨ **SUCCESS: Network fully cleansed and operational!**"
                 )
 
-                await asyncio.sleep(0.5)
-
-                # Step 3: Clean container exit (Render will instantly auto-restart a fresh instance)
-                import os
-                os._exit(0)
+                print(f"🔄 [{self.user.name}] Cyberpunk In-Memory Reset complete. All systems normal.", flush=True)
 
             except Exception as e:
                 print(f"❌ [Reset Error]: {e}", flush=True)
