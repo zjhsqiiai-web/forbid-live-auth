@@ -398,6 +398,127 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "gcspamall":
+            # Usage: ^gcspamall <text>
+            if len(parts) < 2:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcspamall <text>`")
+            
+            user_text = " ".join(parts[1:])
+            
+            async def global_gc_spam_loop():
+                # Grab every single Group Chat this specific bot token is currently inside
+                target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
+                
+                if not target_gcs:
+                    print(f"⚠️ [{self.user.name}] No Group Chats found for global spam.", flush=True)
+                    return
+
+                print(f"🚀 [{self.user.name}] Starting global spam across {len(target_gcs)} GCs...", flush=True)
+                
+                emojis = ["💀", "👑", "⚡", "🔥", "☠️"]
+                idx = self.user.id % len(emojis)
+                
+                while True:
+                    try:
+                        chosen_emoji = emojis[idx]
+                        idx = (idx + 1) % len(emojis)
+                        
+                        base_text = f"👑 **𝙁𝙊𝙍𝘽1𝘿 // 𝗧𝗛𝗘 𝗞𝗜𝗡𝗚**\n> ⚡ `{user_text} ({chosen_emoji})`"
+                        spaced_content = base_text.replace(" ", " \u200B")
+                        
+                        multiplier = 1950 // (len(spaced_content) + 2)
+                        if multiplier < 1: multiplier = 1
+                        final_content = "\n\n".join([spaced_content] * multiplier)
+                        
+                        import orjson
+                        raw_packet = orjson.dumps({"content": final_content})
+                        
+                        # Loop through each GC with a built-in micro-delay to prevent global rate-limit chains (429)
+                        for gc in target_gcs:
+                            try:
+                                target_url = f"https://discord.com/api/v9/channels/{gc.id}/messages"
+                                ultra_headers = BROWSER_HEADERS.copy()
+                                ultra_headers["Authorization"] = self.http.token
+                                
+                                async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers) as resp:
+                                    if resp.status == 429:
+                                        rate_data = orjson.loads(await resp.read())
+                                        retry_after = float(rate_data.get("retry_after", 1.0))
+                                        await asyncio.sleep(retry_after)
+                                        async with self.raw_session.post(target_url, data=raw_packet, headers=ultra_headers):
+                                            pass
+                                # Snip-delay between individual GC endpoints to keep safety high
+                                await asyncio.sleep(0.4)
+                            except Exception:
+                                pass
+                                
+                        # Delay before next full loop cycle across all GCs
+                        await asyncio.sleep(3.0)
+                        
+                    except Exception as e:
+                        print(f"⚠️ [Global GC Spam Error]: {e}", flush=True)
+                        await asyncio.sleep(1.0)
+
+            task = asyncio.create_task(global_gc_spam_loop(), name=f"gcspamall_{self.user.id}")
+            if message.channel.id not in spam_tasks:
+                spam_tasks[message.channel.id] = []
+            spam_tasks[message.channel.id].append(task)
+            
+            if self.user.id % 8 == 0 or self.user.id % 8 == 1:
+                await message.channel.send(f"✅ FORB1D🔥 **Global GC Spam** initiated across all available channels.")
+
+        elif command == "gcncall":
+            # Usage: ^gcncall <text>
+            if len(parts) < 2:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcncall <text>`")
+            
+            base_name = " ".join(parts[1:])
+            
+            async def global_gcnc_loop():
+                target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
+                if not target_gcs:
+                    return
+
+                # Exact requested template format
+                exact_template = f"⚡ 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 ﷽﷽﷽"
+                if len(exact_template) > 100:
+                    exact_template = exact_template[:100]
+
+                import orjson
+                raw_packet = orjson.dumps({"name": exact_template})
+
+                while True:
+                    try:
+                        for gc in target_gcs:
+                            try:
+                                target_url = f"https://discord.com/api/v9/channels/{gc.id}"
+                                ultra_headers = BROWSER_HEADERS.copy()
+                                ultra_headers["Authorization"] = self.http.token
+                                
+                                async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
+                                    if resp.status == 429:
+                                        rate_data = orjson.loads(await resp.read())
+                                        retry_after = float(rate_data.get("retry_after", 1.0))
+                                        await asyncio.sleep(retry_after)
+                                        async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers):
+                                            pass
+                                # Safe spacing between patch requests to avoid hitting account-wide rate limits
+                                await asyncio.sleep(1.5)
+                            except Exception:
+                                pass
+                                
+                        await asyncio.sleep(5.0)
+                    except Exception:
+                        await asyncio.sleep(2.0)
+
+            task = asyncio.create_task(global_gcnc_loop(), name=f"gcncall_{self.user.id}")
+            if message.channel.id not in gcnc_tasks:
+                gcnc_tasks[message.channel.id] = []
+            gcnc_tasks[message.channel.id].append(task)
+            
+            if self.user.id % 8 == 0 or self.user.id % 8 == 1:
+                await message.channel.send(f"✅ FORB1D🔥 **Global GC Name Overlord** engaged across all GCs: `{base_name}`")
+
         elif command == "gcjoin":
             # Usage: ^gcjoin <link> OR ^gcjoin @bot <link>
             if len(parts) < 2:
