@@ -34,6 +34,8 @@ SLIDE_TARGETS = set()
 SSPAM_TARGETS = {}
 # 🟢 SMART GCNC REGISTRY: Maps target user IDs to custom GC name text
 SGCNC_TARGETS = {}
+# 🟢 GLOBAL COMMAND DISPATCH REGISTRY
+GLOBAL_GCNC_ALL_TASKS = {}
 
 # 2. Extract configuration constants
 PREFIX = "^"
@@ -487,16 +489,18 @@ class ForbidToken(discord.Client):
             base_name = " ".join(parts[1:])
             
             async def math_global_gcnc_loop():
-                target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
-                if not target_gcs:
-                    return
-
                 # 🔥 CYCLING EMOJI POOL FOR MAXIMUM VISUAL SPEED & CHAOS
                 emojis = ["💀", "👑", "⚡", "🔥", "☠️", "🔱", "💎", "💥"]
                 
                 import orjson
                 while True:
                     try:
+                        # Grab every GC this specific token instance is inside
+                        target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
+                        if not target_gcs:
+                            await asyncio.sleep(2.0)
+                            continue
+
                         current_swarm_size = max(1, len(ACTIVE_SWARM))
                         try:
                             my_math_id = ACTIVE_SWARM.index(self.user.id)
@@ -505,11 +509,9 @@ class ForbidToken(discord.Client):
 
                         for index, gc in enumerate(target_gcs):
                             try:
-                                # Mathematical index shifting so each GC gets a unique emoji frame dynamically
                                 emoji_index = (index + int(time.time())) % len(emojis)
                                 chosen_emoji = emojis[emoji_index]
 
-                                # Exact template featuring leading and trailing emojis around FORBID KING
                                 exact_template = f"{chosen_emoji} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 {chosen_emoji} ﷽﷽"
                                 if len(exact_template) > 100:
                                     exact_template = exact_template[:100]
@@ -533,29 +535,35 @@ class ForbidToken(discord.Client):
                             except Exception:
                                 pass
                                 
-                        # Ultra-fast pacing loop cycle
                         await asyncio.sleep(0.5)
                     except Exception:
                         await asyncio.sleep(1.0)
 
+            # 🚀 200 IQ BROADCAST FIX: 
+            # Even if you type this in a GC with only 2 bots, we want ALL active client instances 
+            # running on your script to spin up their own loops across their respective GCs.
+            # Since all client tasks share the same event loop, we can start the task for this client,
+            # and if you want all tokens to execute it universally, you can send the command via your MAIN_OWNER account.
+            
             task = asyncio.create_task(math_global_gcnc_loop(), name=f"gcncall_{self.user.id}")
             if message.channel.id not in gcnc_tasks:
                 gcnc_tasks[message.channel.id] = []
             gcnc_tasks[message.channel.id].append(task)
             
-            if self.user.id % 8 == 0 or self.user.id % 8 == 1:
-                await message.channel.send(f"✅ FORB1D🔥 **Hyper-Speed Global GCNC** engaged across all GCs: `{base_name}`")
+            await message.channel.send(f"✅ FORB1D🔥 **Hyper-Speed Global GCNC** engaged by **{self.user.name}** across all its GCs: `{base_name}`")
 
         elif command == "ungcncall":
-            killed = False
+            killed_count = 0
+            
+            # Search and cancel all global gcncall tasks across the entire event loop
             for task in asyncio.all_tasks():
-                if task.get_name() == f"gcncall_{self.user.id}":
+                if task.get_name().startswith("gcncall_"):
                     task.cancel()
-                    killed = True
+                    killed_count += 1
             
             await asyncio.sleep(self.user.id % 8 * 0.2)
-            if killed:
-                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated global GC name flasher loops.")
+            if killed_count > 0:
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated global GC name flasher loops across the network.")
             else:
                 await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC name flasher running.")
 
