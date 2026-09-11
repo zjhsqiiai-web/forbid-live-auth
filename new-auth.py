@@ -1842,6 +1842,7 @@ class ForbidToken(discord.Client):
 > ^serverleave @bot     (Precision leave)
 > ^ping                 (Live latency)
 > ^unping               (Stop live latency)
+> ^reset                (Refresh Whole Script)
 
 [ 👥 GROUP CHAT OPS ]
 > ^gcjoin <link>        (Join GC Through Link)
@@ -1852,6 +1853,12 @@ class ForbidToken(discord.Client):
 > ^gcleave @bot         (Precision GC leave)
 > ^sgcnc <text> @userx  (Fastest-GCNC!)
 > ^unsgcnc @user        (Disarms Smart GCNC targets)
+> ^gcspamall <text>     (Spam In Every Gc OP)
+> ^gcncall <text>       (GCNC In Every Gc OP)
+> ^ungcspamall          (Stop All Spam In Gc's)
+> ^ungcncall            (Stop All GCNC)
+> ^gccall               (Spam Call In GC)
+> ^ungccall             (Stop Spam Calls)
 
 [ 🎯 TARGETING & SPAM OPS ]
 > ^autoreact @user 💀   (Lock-on reactions)
