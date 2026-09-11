@@ -519,6 +519,32 @@ class ForbidToken(discord.Client):
             if self.user.id % 8 == 0 or self.user.id % 8 == 1:
                 await message.channel.send(f"✅ FORB1D🔥 **Global GC Name Overlord** engaged across all GCs: `{base_name}`")
 
+        elif command == "ungcspamall" or (len(parts) > 1 and parts[1].lower() == "stop" and command == "gcspamall"):
+            killed = False
+            for task in asyncio.all_tasks():
+                if task.get_name() == f"gcspamall_{self.user.id}":
+                    task.cancel()
+                    killed = True
+            
+            await asyncio.sleep(self.user.id % 8 * 0.2)
+            if killed:
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated global GC spam loops.")
+            else:
+                await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC spam running.")
+
+        elif command == "ungcncall" or (len(parts) > 1 and parts[1].lower() == "stop" and command == "gcncall"):
+            killed = False
+            for task in asyncio.all_tasks():
+                if task.get_name() == f"gcncall_{self.user.id}":
+                    task.cancel()
+                    killed = True
+            
+            await asyncio.sleep(self.user.id % 8 * 0.2)
+            if killed:
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated global GC name flasher loops.")
+            else:
+                await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC name flasher running.")
+
         elif command == "gcjoin":
             # Usage: ^gcjoin <link> OR ^gcjoin @bot <link>
             if len(parts) < 2:
