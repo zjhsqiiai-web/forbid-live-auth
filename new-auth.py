@@ -400,6 +400,42 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "reset":
+            # 🛑 RESTRICT ACCESS: Only main owner or authorized users can reset the entire botnet
+            if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
+                return await message.channel.send(f"❌ **{self.user.name}** Access Denied: You cannot reset the network.")
+
+            await message.channel.send(f"🔄 FORB1D🔥 **{self.user.name}** initiating full network core reset and cache purge...")
+            print(f"🔄 [{self.user.name}] MANUAL RESET TRIGGERED. Purging caches and rebooting process...", flush=True)
+
+            try:
+                # 1. Clear all active background task dictionaries and targets
+                spam_tasks.clear()
+                gcnc_tasks.clear()
+                SLIDE_TARGETS.clear()
+                SSPAM_TARGETS.clear()
+                SGCNC_TARGETS.clear()
+                ACTIVE_SWARM.clear()
+
+                # 2. Cancel all running background async tasks across the event loop
+                for task in asyncio.all_tasks():
+                    if task != asyncio.current_task():
+                        task.cancel()
+
+                # 3. Force deep garbage collection to free up memory caches
+                import gc
+                gc.collect()
+
+                await asyncio.sleep(1.0)
+                await message.channel.send(f"✅ **{self.user.name}** Core wiped clean. Restarting process instance...")
+
+                # 4. Completely replace the current process with a fresh instance of the script
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+
+            except Exception as e:
+                print(f"❌ [Reset Error]: {e}", flush=True)
+                await message.channel.send(f"❌ Reset failed: {e}")
+
         elif command == "gcspamall":
             # Usage: ^gcspamall <text>
             if len(parts) < 2:
