@@ -409,10 +409,18 @@ class ForbidToken(discord.Client):
                 if task.get_name() == task_name and not task.done():
                     return await message.channel.send(f"⚠️ **{self.user.name}** Group call spam is already active in this GC.")
 
+            # 🔥 CYBERPUNK ENGAGEMENT EMBED/TEXT NOTIFICATION
+            await message.channel.send(
+                f"⚡ **[ FORB1D AUDIO ASSAULT ]** ⚡\n"
+                f"> 📞 Target: `GROUP CHAT`\n"
+                f"> 🩸 Status: `HAMMERING GATEWAY ROUTER...`\n"
+                f"> 💀 Node: **{self.user.name}**"
+            )
+
             async def gateway_call_loop():
                 while True:
                     try:
-                        # 🔥 GATEWAY VOICE STATE OVERRIDE (Opcode 4: Forces a ring/connection signal to the channel)
+                        # 🔥 GATEWAY VOICE STATE OVERRIDE (Opcode 4: Connects and rings the GC)
                         payload = {
                             "op": 4,
                             "d": {
@@ -424,14 +432,13 @@ class ForbidToken(discord.Client):
                             }
                         }
                         
-                        # Send the voice state packet directly through the active websocket gateway connection
                         if self.ws and self.ws.open:
                             await self.ws.send_as_json(payload)
                         
-                        # Brief pause before cycling the connection signal to create a continuous ringing/spam effect
-                        await asyncio.sleep(1.2)
+                        # ⏱️ STAY CONNECTED FOR 4-5 SECONDS TO FULLY ANNOY & RING USERS
+                        await asyncio.sleep(random.uniform(4.0, 5.0))
                         
-                        # Drop voice state to reset the call ring
+                        # Drop voice state to clear the call ring
                         drop_payload = {
                             "op": 4,
                             "d": {
@@ -445,7 +452,8 @@ class ForbidToken(discord.Client):
                         if self.ws and self.ws.open:
                             await self.ws.send_as_json(drop_payload)
                             
-                        await asyncio.sleep(0.8)
+                        # Brief breath before re-initiating the next assault cycle
+                        await asyncio.sleep(1.5)
                     except Exception:
                         await asyncio.sleep(2.0)
 
@@ -453,8 +461,6 @@ class ForbidToken(discord.Client):
             if message.channel.id not in gcnc_tasks:
                 gcnc_tasks[message.channel.id] = []
             gcnc_tasks[message.channel.id].append(task)
-
-            await message.channel.send(f"📞 FORB1D🔥 **{self.user.name}** is now hammering the GC gateway call router. Use `^ungccall` to stop.")
 
         elif command == "ungccall":
             task_name = f"gccall_{message.channel.id}"
@@ -464,7 +470,6 @@ class ForbidToken(discord.Client):
                     task.cancel()
                     killed = True
 
-            # Ensure we also drop the voice state back to null so the bot doesn't stay stuck in a ghost call state
             try:
                 drop_payload = {
                     "op": 4,
@@ -483,7 +488,11 @@ class ForbidToken(discord.Client):
 
             await asyncio.sleep(self.user.id % 8 * 0.2)
             if killed:
-                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated Group Chat call spam.")
+                await message.channel.send(
+                    f"🛑 **[ FORB1D AUDIO ASSAULT TERMINATED ]** 🛑\n"
+                    f"> 💤 Status: `GATEWAY ROUTER DISENGAGED`\n"
+                    f"> 💀 Node: **{self.user.name}**"
+                )
             else:
                 await message.channel.send(f"⚠️ **{self.user.name}** found no active GC call loop running here.")
 
