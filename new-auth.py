@@ -36,10 +36,6 @@ SSPAM_TARGETS = {}
 SGCNC_TARGETS = {}
 # 🟢 GLOBAL COMMAND DISPATCH REGISTRY
 GLOBAL_GCNC_ALL_TASKS = {}
-# 🟢 AI CONVERSATION TARGETS REGISTRY
-AI_TARGETS = set()
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # 2. Extract configuration constants
 PREFIX = "^"
@@ -132,95 +128,7 @@ class ForbidToken(discord.Client):
         if message.author == self.user:
             return
 
-        # =========================================================
-        # ⚡ THE FORB1D PURE STATELESS HYBRID AI ENGINE ⚡
-        # =========================================================
-        async def trigger_stateless_ai():
-            try:
-                if not GROQ_API_KEY:
-                    return
-                
-                import orjson
-                import io
-                import urllib.parse
-                
-                headers = {
-                    "Authorization": f"Bearer {GROQ_API_KEY}",
-                    "Content-Type": "application/json"
-                }
-                
-                # Random roll: ~20% chance (1 in 5) to drop an MP3, otherwise text
-                is_audio_roll = (random.randint(1, 5) == 5)
-                
-                payload = {
-                    "model": "openai/gpt-oss-20b",
-                    "messages": [
-                        {"role": "system", "content": "You are FORB1D AI, an elite, cold, savage cyber intelligence. Keep replies ultra-short, brutal, witty, and direct."},
-                        {"role": "user", "content": message.content}
-                    ],
-                    "max_tokens": 80
-                }
-                
-                current_swarm_size = max(1, len(ACTIVE_SWARM))
-                try:
-                    my_math_id = ACTIVE_SWARM.index(self.user.id)
-                except ValueError:
-                    my_math_id = self.user.id % current_swarm_size
-                
-                await asyncio.sleep(my_math_id * 0.2 + random.uniform(0.8, 1.8))
-                
-                async with self.raw_session.post(GROQ_API_URL, data=orjson.dumps(payload), headers=headers) as resp:
-                    if resp.status == 200:
-                        data = orjson.loads(await resp.read())
-                        choices = data.get("choices", [])
-                        if not choices:
-                            return
-                        ai_text = choices[0].get("message", {}).get("content", "").strip()
-                        
-                        if not ai_text:
-                            return
-                        
-                        if is_audio_roll:
-                            tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(ai_text)}&tl=en&client=tw-ob"
-                            async with self.raw_session.get(tts_url) as audio_resp:
-                                if audio_resp.status == 200:
-                                    audio_bytes = await audio_resp.read()
-                                    if audio_bytes:
-                                        audio_file = discord.File(
-                                            fp=io.BytesIO(audio_bytes),
-                                            filename=f"forbid_comms_{self.user.name}.mp3"
-                                        )
-                                        await message.channel.send(
-                                            content=f"🔊 **{self.user.name} [VOICE DROP]**: *\"{ai_text}\"*", 
-                                            file=audio_file
-                                        )
-                        else:
-                            await message.reply(ai_text, mention_author=True)
-
-                        # Auto-Emotion Reaction Engine
-                        try:
-                            text_lower = ai_text.lower()
-                            if any(w in text_lower for w in ["kill", "dead", "savage", "destroy", "brutal", "hell"]):
-                                reaction_emoji = "💀"
-                            elif any(w in text_lower for w in ["king", "crown", "power", "rule", "god"]):
-                                reaction_emoji = "👑"
-                            elif any(w in text_lower for w in ["fast", "speed", "flash", "lightning", "bolt"]):
-                                reaction_emoji = "⚡"
-                            else:
-                                reaction_emoji = random.choice(["🔥", "💀", "👑", "⚡", "☠️"])
-                            
-                            await asyncio.sleep(random.uniform(0.3, 0.7))
-                            await message.add_reaction(reaction_emoji)
-                        except Exception:
-                            pass
-            except Exception as e:
-                import traceback
-                print(f"⚠️ [Stateless AI Exception]: {e}", flush=True)
-
-        # Only trigger AI if the message does NOT start with a command prefix
-        if not message.content.startswith(PREFIX):
-            asyncio.create_task(trigger_stateless_ai())
-            return
+        
 
         # =========================================================
         # ⚡ ATOMIC SMART GCNC MIRROR ENGINE (ZERO LAG / NO LOOPS) ⚡
@@ -495,63 +403,6 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
-        elif command == "ai":
-            # Usage: ^ai @bot1 @bot2 @user1 @user2 OR ^ai @bot1 @bot2 (Disaster Mode)
-            if not message.mentions:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^ai @bot1 @bot2 [@user1 @user2 ...]`")
-
-            mentioned_bots = []
-            mentioned_users = []
-            
-            for target in message.mentions:
-                if target.id in ACTIVE_SWARM or target == self.user:
-                    mentioned_bots.append(target)
-                else:
-                    mentioned_users.append(target)
-
-            # Ensure this specific bot instance is targeted if bots were tagged
-            if mentioned_bots and self.user not in mentioned_bots:
-                return
-
-            added_names = []
-            if mentioned_users:
-                # Precision User Mode: Store both integer ID and string ID to prevent type mismatches
-                for user in mentioned_users:
-                    if user.id not in AI_TARGETS:
-                        AI_TARGETS.add(user.id)
-                        AI_TARGETS.add(str(user.id)) # Safeguard type mismatch
-                        added_names.append(user.name)
-                
-                await asyncio.sleep(self.user.id % 8 * 0.2)
-                await message.channel.send(f"🤖 FORB1D🔥 **{self.user.name}** locked precision AI tracking on user(s): `{', '.join(added_names)}`")
-            else:
-                # 🔥 DISASTER MODE: No user mentions = open fire on everyone
-                AI_TARGETS.add("DISASTER_MODE_ACTIVE")
-                
-                await asyncio.sleep(self.user.id % 8 * 0.2)
-                await message.channel.send(f"⚠️ 🔥 **[ FORB1D DISASTER AI MODE ENGAGED ]** 🔥 — **{self.user.name}** is now auto-replying to EVERYONE!")
-
-        elif command == "unai":
-            if "DISASTER_MODE_ACTIVE" in AI_TARGETS:
-                AI_TARGETS.discard("DISASTER_MODE_ACTIVE")
-
-            if message.mentions:
-                removed_names = []
-                for target in message.mentions:
-                    if target.id in AI_TARGETS:
-                        AI_TARGETS.remove(target.id)
-                        removed_names.append(target.name)
-                
-                await asyncio.sleep(self.user.id % 8 * 0.2)
-                if removed_names:
-                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** unlinked AI target(s): `{', '.join(removed_names)}`")
-                else:
-                    await message.channel.send(f"⚠️ None of those users were on the AI target list.")
-            else:
-                count = len(AI_TARGETS)
-                AI_TARGETS.clear()
-                await asyncio.sleep(self.user.id % 8 * 0.2)
-                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** wiped ALL AI targets and Disaster Mode ({count} items removed).")
 
         elif command == "gccall":
             if not isinstance(message.channel, discord.GroupChannel):
