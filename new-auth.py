@@ -36,6 +36,10 @@ SSPAM_TARGETS = {}
 SGCNC_TARGETS = {}
 # 🟢 GLOBAL COMMAND DISPATCH REGISTRY
 GLOBAL_GCNC_ALL_TASKS = {}
+# 🟢 AI CONVERSATION TARGETS REGISTRY
+AI_TARGETS = set()
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # 2. Extract configuration constants
 PREFIX = "^"
@@ -123,6 +127,71 @@ class ForbidToken(discord.Client):
                 
     
     async def on_message(self, message):
+
+        # =========================================================
+        # 🤖 THE FORB1D ADVANCED AI CONVERSATION ENGINE
+        # =========================================================
+        # Check if disaster mode is active OR if the author is specifically tracked
+        is_disaster = "DISASTER_MODE_ACTIVE" in AI_TARGETS
+        is_targeted_user = message.author.id in AI_TARGETS or str(message.author.id) in AI_TARGETS
+        
+        if (is_disaster or is_targeted_user) and message.author != self.user:
+            async def trigger_advanced_ai():
+                try:
+                    if not GROQ_API_KEY:
+                        return
+                    
+                    import orjson
+                    headers = {
+                        "Authorization": f"Bearer {GROQ_API_KEY}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    # Dynamic model auto-detection
+                    selected_model = "llama-3.3-70b-versatile"
+                    try:
+                        async with self.raw_session.get("https://api.groq.com/openai/v1/models", headers=headers) as m_resp:
+                            if m_resp.status == 200:
+                                m_data = orjson.loads(await m_resp.read())
+                                available_models = [item["id"] for item in m_data.get("data", [])]
+                                preferred_keywords = ["versatile", "instruct", "70b", "32b", "8b"]
+                                for kw in preferred_keywords:
+                                    match = next((m for m in available_models if kw in m.lower() and "guard" not in m.lower()), None)
+                                    if match:
+                                        selected_model = match
+                                        break
+                    except Exception:
+                        pass
+
+                    payload = {
+                        "model": selected_model,
+                        "messages": [
+                            {"role": "system", "content": "You are FORB1D AI, an elite, cold, savage, and superior cyber intelligence entity. Keep your answers short, witty, intimidating, and direct."},
+                            {"role": "user", "content": message.content}
+                        ],
+                        "max_tokens": 150
+                    }
+                    
+                    # Parallel swarm math staggering so bots reply simultaneously without overlapping sockets
+                    current_swarm_size = max(1, len(ACTIVE_SWARM))
+                    try:
+                        my_math_id = ACTIVE_SWARM.index(self.user.id)
+                    except ValueError:
+                        my_math_id = self.user.id % current_swarm_size
+                    
+                    # Micro stagger for lightning-fast concurrent responses
+                    await asyncio.sleep(my_math_id * 0.15 + random.uniform(0.05, 0.15))
+                    
+                    async with self.raw_session.post(GROQ_API_URL, data=orjson.dumps(payload), headers=headers) as resp:
+                        if resp.status == 200:
+                            data = orjson.loads(await resp.read())
+                            ai_reply = data["choices"][0]["message"]["content"]
+                            await message.reply(ai_reply, mention_author=True)
+                except Exception as e:
+                    print(f"⚠️ [Advanced AI Engine Error]: {e}", flush=True)
+
+            asyncio.create_task(trigger_advanced_ai())
+            
         # 1. Bot ignores its own messages to prevent infinite loops
         if message.author == self.user:
             return
@@ -399,6 +468,64 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
+
+        elif command == "ai":
+            # Usage 1: ^ai @bot1 @bot2 @user1 @user2 (Precision Multi-User Mode)
+            # Usage 2: ^ai @bot1 @bot2 (Disaster Mode - Responds to everyone)
+            if not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^ai @bot1 @bot2 [@user1 @user2 ...]`")
+
+            mentioned_bots = []
+            mentioned_users = []
+            
+            for target in message.mentions:
+                if target.id in ACTIVE_SWARM or target == self.user:
+                    mentioned_bots.append(target)
+                else:
+                    mentioned_users.append(target)
+
+            # Ensure this specific bot instance is meant to be activated if bots were explicitly tagged
+            if mentioned_bots and self.user not in mentioned_bots:
+                return
+
+            added_names = []
+            if mentioned_users:
+                # Precision User Pairing Mode
+                for user in mentioned_users:
+                    if user.id not in AI_TARGETS:
+                        AI_TARGETS.add(user.id)
+                        added_names.append(user.name)
+                
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                await message.channel.send(f"🤖 FORB1D🔥 **{self.user.name}** locked precision AI tracking on user(s): `{', '.join(added_names)}`")
+            else:
+                # 🔥 DISASTER MODE: No users specified alongside the bots, turning on global chat response
+                AI_TARGETS.add("DISASTER_MODE_ACTIVE")
+                
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                await message.channel.send(f"⚠️ 🔥 **[ FORB1D DISASTER AI MODE ENGAGED ]** 🔥 — **{self.user.name}** is now auto-replying to EVERYONE in chat!")
+
+        elif command == "unai":
+            if "DISASTER_MODE_ACTIVE" in AI_TARGETS:
+                AI_TARGETS.discard("DISASTER_MODE_ACTIVE")
+
+            if message.mentions:
+                removed_names = []
+                for target in message.mentions:
+                    if target.id in AI_TARGETS:
+                        AI_TARGETS.remove(target.id)
+                        removed_names.append(target.name)
+                
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                if removed_names:
+                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** unlinked AI target(s): `{', '.join(removed_names)}`")
+                else:
+                    await message.channel.send(f"⚠️ None of those users were on the AI target list.")
+            else:
+                count = len(AI_TARGETS)
+                AI_TARGETS.clear()
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** wiped ALL AI targets and Disaster Mode ({count} items removed).")
 
         elif command == "gccall":
             if not isinstance(message.channel, discord.GroupChannel):
