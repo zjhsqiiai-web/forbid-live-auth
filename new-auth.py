@@ -156,7 +156,7 @@ class ForbidToken(discord.Client):
                     is_audio_roll = (random.randint(1, 5) == 5)
                     
                     payload = {
-                        "model": "llama-3.1-8b-instant",
+                        "model": "openai/gpt-oss-20b",  # Updated active free-tier model ID
                         "messages": [
                             {"role": "system", "content": "You are FORB1D AI, an elite, cold, savage cyber intelligence. Keep replies ultra-short, brutal, witty, and direct."},
                             {"role": "user", "content": message.content}
