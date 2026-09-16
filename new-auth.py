@@ -195,6 +195,28 @@ class ForbidToken(discord.Client):
                             else:
                                 # 💬 Normal text reply
                                 await message.reply(ai_text, mention_author=True)
+
+                # 🎯 AUTO-EMOTION REACTION ENGINE
+                            try:
+                                # Pick a fitting reaction vibe based on the text content or fallback to elite emojis
+                                text_lower = ai_text.lower()
+                                if any(w in text_lower for w in ["kill", "dead", "savage", "destroy", "brutal", "hell"]):
+                                    reaction_emoji = "💀"
+                                elif any(w in text_lower for w in ["king", "crown", "power", "rule", "god"]):
+                                    reaction_emoji = "👑"
+                                elif any(w in text_lower for w in ["fast", "speed", "flash", "lightning", "bolt"]):
+                                    reaction_emoji = "⚡"
+                                else:
+                                    reaction_emoji = random.choice(["🔥", "💀", "👑", "⚡", "☠️"])
+                                
+                                # Small natural delay before reacting so it looks like a human reading it
+                                await asyncio.sleep(random.uniform(0.3, 0.7))
+                                
+                                # If it was a text reply, react to that message. If it was an MP3, react to the original user message or bot message
+                                target_msg_to_react = message if is_audio_roll else message
+                                await target_msg_to_react.add_reaction(reaction_emoji)
+                            except Exception:
+                                pass
                                 
                 except Exception as e:
                     print(f"⚠️ [Random Hybrid AI Error]: {e}", flush=True)
