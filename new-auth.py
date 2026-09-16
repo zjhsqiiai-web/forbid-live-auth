@@ -36,6 +36,8 @@ SSPAM_TARGETS = {}
 SGCNC_TARGETS = {}
 # 🟢 GLOBAL COMMAND DISPATCH REGISTRY
 GLOBAL_GCNC_ALL_TASKS = {}
+# 🟢 STATUS OVERRIDE TOGGLE (Set to False to let custom stream/presence commands take over)
+STATUS_OVERRIDE_ACTIVE = True
 
 # 2. Extract configuration constants
 PREFIX = "^"
@@ -104,12 +106,13 @@ class ForbidToken(discord.Client):
         await self.wait_until_ready()
         while not self.is_closed():
             try:
-                # Forces an active session fingerprint so Discord never idles you
-                await self.change_presence(
-                    status=discord.Status.online,
-                    afk=False,
-                    activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
-                )
+                # 🟢 Only override with default status if a custom stream is NOT active
+                if not getattr(self, 'custom_stream_active', False):
+                    await self.change_presence(
+                        status=discord.Status.online,
+                        afk=False,
+                        activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
+                    )
             except Exception:
                 pass
             await asyncio.sleep(45)  # Refreshes faster to lock the socket session
@@ -1761,25 +1764,31 @@ class ForbidToken(discord.Client):
                     await message.channel.leave()
 
         elif command == "stream":
-            # Usage: !stream <Text> (Turns it on) | !stream stop (Turns it off)
+            # Usage: ^stream <Text> (Turns it on) | ^stream stop (Turns it off)
             if len(parts) < 2:
                 await asyncio.sleep(self.user.id % 8 * 1.0)
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `!stream <text>` or `!stream stop`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}stream <text>` or `{PREFIX}stream stop`")
 
             stream_text = " ".join(parts[1:])
             
-            # STAGGER MATH: So all 8 bots don't hit the Discord presence API at the exact same millisecond
+            # STAGGER MATH: So all bots don't hit the Discord presence API at the exact same millisecond
             stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
             await asyncio.sleep(stagger)
 
             try:
                 if stream_text.lower() == "stop":
+                    # 🟢 Resume default immortal background loop
+                    self.custom_stream_active = False
+                    
                     # Clear the rich presence (turns off the streaming status)
                     await self.change_presence(activity=None)
                     
                     await asyncio.sleep(0.5)
-                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** stopped streaming.")
+                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** stopped streaming. Default loop resumed.")
                 else:
+                    # 🟢 Pause default immortal loop so it won't overwrite your custom stream
+                    self.custom_stream_active = True
+                    
                     # Discord requires a Twitch or YT link for the purple stream icon to appear
                     twitch_url = "https://www.twitch.tv/forb1d"
                     
