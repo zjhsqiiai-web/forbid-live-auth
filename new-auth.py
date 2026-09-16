@@ -137,10 +137,11 @@ class ForbidToken(discord.Client):
             str(message.author.id) in AI_TARGETS
         )
         
-        if (is_disaster or is_targeted_user) and message.author != self.user:
+        if (is_disaster or is_targeted_user):
             async def trigger_random_hybrid_ai():
                 try:
                     if not GROQ_API_KEY:
+                        print("⚠️ [AI Error]: GROQ_API_KEY missing!", flush=True)
                         return
                     
                     import orjson
@@ -152,7 +153,6 @@ class ForbidToken(discord.Client):
                         "Content-Type": "application/json"
                     }
                     
-                    # 🎲 Random roll: roughly a 20% chance (1 in 5) to drop an MP3, otherwise text
                     is_audio_roll = (random.randint(1, 5) == 5)
                     
                     payload = {
@@ -170,7 +170,6 @@ class ForbidToken(discord.Client):
                     except ValueError:
                         my_math_id = self.user.id % current_swarm_size
                     
-                    # ⏱️ Balanced pacing: not too fast, not too slow (natural human-like typing/dropping delay)
                     await asyncio.sleep(my_math_id * 0.2 + random.uniform(0.8, 1.8))
                     
                     async with self.raw_session.post(GROQ_API_URL, data=orjson.dumps(payload), headers=headers) as resp:
@@ -179,7 +178,6 @@ class ForbidToken(discord.Client):
                             ai_text = data["choices"][0]["message"]["content"]
                             
                             if is_audio_roll:
-                                # 🎙️ Random MP3 drop
                                 tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(ai_text)}&tl=en&client=tw-ob"
                                 async with self.raw_session.get(tts_url) as audio_resp:
                                     if audio_resp.status == 200:
@@ -193,12 +191,10 @@ class ForbidToken(discord.Client):
                                             file=audio_file
                                         )
                             else:
-                                # 💬 Normal text reply
                                 await message.reply(ai_text, mention_author=True)
 
-                # 🎯 AUTO-EMOTION REACTION ENGINE
+                            # 🎯 AUTO-EMOTION REACTION ENGINE
                             try:
-                                # Pick a fitting reaction vibe based on the text content or fallback to elite emojis
                                 text_lower = ai_text.lower()
                                 if any(w in text_lower for w in ["kill", "dead", "savage", "destroy", "brutal", "hell"]):
                                     reaction_emoji = "💀"
@@ -209,15 +205,13 @@ class ForbidToken(discord.Client):
                                 else:
                                     reaction_emoji = random.choice(["🔥", "💀", "👑", "⚡", "☠️"])
                                 
-                                # Small natural delay before reacting so it looks like a human reading it
                                 await asyncio.sleep(random.uniform(0.3, 0.7))
-                                
-                                # If it was a text reply, react to that message. If it was an MP3, react to the original user message or bot message
-                                target_msg_to_react = message if is_audio_roll else message
-                                await target_msg_to_react.add_reaction(reaction_emoji)
+                                await message.add_reaction(reaction_emoji)
                             except Exception:
                                 pass
-                                
+                        else:
+                            err_txt = await resp.text()
+                            print(f"⚠️ [Groq API Error {resp.status}]: {err_txt}", flush=True)
                 except Exception as e:
                     print(f"⚠️ [Random Hybrid AI Error]: {e}", flush=True)
 
