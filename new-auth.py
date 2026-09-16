@@ -219,7 +219,9 @@ class ForbidToken(discord.Client):
                             except Exception:
                                 pass
                 except Exception as e:
-                    print(f"⚠️ [Random Hybrid AI Error]: {e}", flush=True)
+                    import traceback
+                    print(f"⚠️ [CRITICAL AI EXCEPTION]: {e}", flush=True)
+                    traceback.print_exc()
 
             asyncio.create_task(trigger_random_hybrid_ai())
             
