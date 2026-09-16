@@ -137,11 +137,10 @@ class ForbidToken(discord.Client):
             str(message.author.id) in AI_TARGETS
         )
         
-        if (is_disaster or is_targeted_user):
+        if (is_disaster or is_targeted_user) and message.author != self.user:
             async def trigger_random_hybrid_ai():
                 try:
                     if not GROQ_API_KEY:
-                        print("⚠️ [AI Error]: GROQ_API_KEY missing!", flush=True)
                         return
                     
                     import orjson
@@ -156,7 +155,7 @@ class ForbidToken(discord.Client):
                     is_audio_roll = (random.randint(1, 5) == 5)
                     
                     payload = {
-                        "model": "openai/gpt-oss-20b",  # Updated active free-tier model ID
+                        "model": "openai/gpt-oss-20b",  # Updated active free model
                         "messages": [
                             {"role": "system", "content": "You are FORB1D AI, an elite, cold, savage cyber intelligence. Keep replies ultra-short, brutal, witty, and direct."},
                             {"role": "user", "content": message.content}
@@ -175,21 +174,31 @@ class ForbidToken(discord.Client):
                     async with self.raw_session.post(GROQ_API_URL, data=orjson.dumps(payload), headers=headers) as resp:
                         if resp.status == 200:
                             data = orjson.loads(await resp.read())
-                            ai_text = data["choices"][0]["message"]["content"]
+                            
+                            # Safely extract text content
+                            choices = data.get("choices", [])
+                            if not choices:
+                                return
+                            ai_text = choices[0].get("message", {}).get("content", "").strip()
+                            
+                            # 🛑 CRITICAL SAFEGUARD: Abort if AI text is empty to prevent error 50006
+                            if not ai_text:
+                                return
                             
                             if is_audio_roll:
                                 tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(ai_text)}&tl=en&client=tw-ob"
                                 async with self.raw_session.get(tts_url) as audio_resp:
                                     if audio_resp.status == 200:
                                         audio_bytes = await audio_resp.read()
-                                        audio_file = discord.File(
-                                            fp=io.BytesIO(audio_bytes),
-                                            filename=f"forbid_comms_{self.user.name}.mp3"
-                                        )
-                                        await message.channel.send(
-                                            content=f"🔊 **{self.user.name} [VOICE DROP]**: *\"{ai_text}\"*", 
-                                            file=audio_file
-                                        )
+                                        if audio_bytes:
+                                            audio_file = discord.File(
+                                                fp=io.BytesIO(audio_bytes),
+                                                filename=f"forbid_comms_{self.user.name}.mp3"
+                                            )
+                                            await message.channel.send(
+                                                content=f"🔊 **{self.user.name} [VOICE DROP]**: *\"{ai_text}\"*", 
+                                                file=audio_file
+                                            )
                             else:
                                 await message.reply(ai_text, mention_author=True)
 
@@ -209,9 +218,6 @@ class ForbidToken(discord.Client):
                                 await message.add_reaction(reaction_emoji)
                             except Exception:
                                 pass
-                        else:
-                            err_txt = await resp.text()
-                            print(f"⚠️ [Groq API Error {resp.status}]: {err_txt}", flush=True)
                 except Exception as e:
                     print(f"⚠️ [Random Hybrid AI Error]: {e}", flush=True)
 
