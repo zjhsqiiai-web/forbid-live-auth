@@ -129,7 +129,7 @@ class ForbidToken(discord.Client):
     async def on_message(self, message):
 
         # =========================================================
-        # ⚡ THE FORB1D FREE-TIER COMPATIBLE AI ENGINE ⚡
+        # 🎲 THE FORB1D RANDOM HYBRID AI ENGINE (STATELESS & SMOOTH) 🎲
         # =========================================================
         is_disaster = "DISASTER_MODE_ACTIVE" in AI_TARGETS
         is_targeted_user = (
@@ -138,37 +138,30 @@ class ForbidToken(discord.Client):
         )
         
         if (is_disaster or is_targeted_user) and message.author != self.user:
-            async def trigger_free_tier_ai():
+            async def trigger_random_hybrid_ai():
                 try:
                     if not GROQ_API_KEY:
                         return
                     
                     import orjson
+                    import io
+                    import urllib.parse
+                    
                     headers = {
                         "Authorization": f"Bearer {GROQ_API_KEY}",
                         "Content-Type": "application/json"
                     }
                     
-                    # 🔍 Dynamically find a model your free tier key can actually use
-                    chosen_model = "llama-3.1-8b-instant" # Universal free tier fallback
-                    try:
-                        async with self.raw_session.get("https://api.groq.com/openai/v1/models", headers=headers) as m_resp:
-                            if m_resp.status == 200:
-                                m_data = orjson.loads(await m_resp.read())
-                                models = [item["id"] for item in m_data.get("data", []) if "whisper" not in item["id"].lower() and "guard" not in item["id"].lower()]
-                                if models:
-                                    # Pick the 8b instant model if available, otherwise grab the first available free model
-                                    chosen_model = next((m for m in models if "8b" in m.lower()), models[0])
-                    except Exception:
-                        pass
-
+                    # 🎲 Random roll: roughly a 20% chance (1 in 5) to drop an MP3, otherwise text
+                    is_audio_roll = (random.randint(1, 5) == 5)
+                    
                     payload = {
-                        "model": chosen_model,
+                        "model": "llama-3.1-8b-instant",
                         "messages": [
                             {"role": "system", "content": "You are FORB1D AI, an elite, cold, savage cyber intelligence. Keep replies ultra-short, brutal, witty, and direct."},
                             {"role": "user", "content": message.content}
                         ],
-                        "max_tokens": 100
+                        "max_tokens": 80
                     }
                     
                     current_swarm_size = max(1, len(ACTIVE_SWARM))
@@ -177,20 +170,36 @@ class ForbidToken(discord.Client):
                     except ValueError:
                         my_math_id = self.user.id % current_swarm_size
                     
-                    await asyncio.sleep(my_math_id * 0.05 + random.uniform(0.01, 0.05))
+                    # ⏱️ Balanced pacing: not too fast, not too slow (natural human-like typing/dropping delay)
+                    await asyncio.sleep(my_math_id * 0.2 + random.uniform(0.8, 1.8))
                     
                     async with self.raw_session.post(GROQ_API_URL, data=orjson.dumps(payload), headers=headers) as resp:
                         if resp.status == 200:
                             data = orjson.loads(await resp.read())
-                            ai_reply = data["choices"][0]["message"]["content"]
-                            await message.reply(ai_reply, mention_author=True)
-                        else:
-                            err_body = await resp.read()
-                            print(f"⚠️ [Free Tier AI Error Status {resp.status}]: {err_body}", flush=True)
+                            ai_text = data["choices"][0]["message"]["content"]
+                            
+                            if is_audio_roll:
+                                # 🎙️ Random MP3 drop
+                                tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(ai_text)}&tl=en&client=tw-ob"
+                                async with self.raw_session.get(tts_url) as audio_resp:
+                                    if audio_resp.status == 200:
+                                        audio_bytes = await audio_resp.read()
+                                        audio_file = discord.File(
+                                            fp=io.BytesIO(audio_bytes),
+                                            filename=f"forbid_comms_{self.user.name}.mp3"
+                                        )
+                                        await message.channel.send(
+                                            content=f"🔊 **{self.user.name} [VOICE DROP]**: *\"{ai_text}\"*", 
+                                            file=audio_file
+                                        )
+                            else:
+                                # 💬 Normal text reply
+                                await message.reply(ai_text, mention_author=True)
+                                
                 except Exception as e:
-                    print(f"⚠️ [Free AI Exception]: {e}", flush=True)
+                    print(f"⚠️ [Random Hybrid AI Error]: {e}", flush=True)
 
-            asyncio.create_task(trigger_free_tier_ai())
+            asyncio.create_task(trigger_random_hybrid_ai())
             
         # 1. Bot ignores its own messages to prevent infinite loops
         if message.author == self.user:
