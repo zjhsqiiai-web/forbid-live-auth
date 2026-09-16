@@ -129,7 +129,7 @@ class ForbidToken(discord.Client):
     async def on_message(self, message):
 
         # =========================================================
-        # 🤖 THE FORB1D ADVANCED AI CONVERSATION ENGINE (RANDOM AUTO-PICK)
+        # ⚡ THE FORB1D FREE-TIER COMPATIBLE AI ENGINE ⚡
         # =========================================================
         is_disaster = "DISASTER_MODE_ACTIVE" in AI_TARGETS
         is_targeted_user = (
@@ -138,41 +138,37 @@ class ForbidToken(discord.Client):
         )
         
         if (is_disaster or is_targeted_user) and message.author != self.user:
-            async def trigger_advanced_ai():
+            async def trigger_free_tier_ai():
                 try:
                     if not GROQ_API_KEY:
                         return
                     
                     import orjson
-                    import random
                     headers = {
                         "Authorization": f"Bearer {GROQ_API_KEY}",
                         "Content-Type": "application/json"
                     }
                     
-                    # 🎲 DYNAMICALLY FETCH ALL ACTIVE MODELS AND PICK ONE AT RANDOM
-                    selected_model = "llama-3.1-8b-instant" # Absolute fallback backup
+                    # 🔍 Dynamically find a model your free tier key can actually use
+                    chosen_model = "llama-3.1-8b-instant" # Universal free tier fallback
                     try:
                         async with self.raw_session.get("https://api.groq.com/openai/v1/models", headers=headers) as m_resp:
                             if m_resp.status == 200:
                                 m_data = orjson.loads(await m_resp.read())
-                                # Filter out audio/guard models, keeping only general text chat models
-                                valid_models = [
-                                    item["id"] for item in m_data.get("data", [])
-                                    if "whisper" not in item["id"].lower() and "guard" not in item["id"].lower()
-                                ]
-                                if valid_models:
-                                    selected_model = random.choice(valid_models)
+                                models = [item["id"] for item in m_data.get("data", []) if "whisper" not in item["id"].lower() and "guard" not in item["id"].lower()]
+                                if models:
+                                    # Pick the 8b instant model if available, otherwise grab the first available free model
+                                    chosen_model = next((m for m in models if "8b" in m.lower()), models[0])
                     except Exception:
                         pass
 
                     payload = {
-                        "model": selected_model,
+                        "model": chosen_model,
                         "messages": [
-                            {"role": "system", "content": "You are FORB1D AI, an elite, cold, savage, and superior cyber intelligence entity. Keep your answers short, witty, intimidating, and direct."},
+                            {"role": "system", "content": "You are FORB1D AI, an elite, cold, savage cyber intelligence. Keep replies ultra-short, brutal, witty, and direct."},
                             {"role": "user", "content": message.content}
                         ],
-                        "max_tokens": 150
+                        "max_tokens": 100
                     }
                     
                     current_swarm_size = max(1, len(ACTIVE_SWARM))
@@ -181,17 +177,20 @@ class ForbidToken(discord.Client):
                     except ValueError:
                         my_math_id = self.user.id % current_swarm_size
                     
-                    await asyncio.sleep(my_math_id * 0.15 + random.uniform(0.05, 0.15))
+                    await asyncio.sleep(my_math_id * 0.05 + random.uniform(0.01, 0.05))
                     
                     async with self.raw_session.post(GROQ_API_URL, data=orjson.dumps(payload), headers=headers) as resp:
                         if resp.status == 200:
                             data = orjson.loads(await resp.read())
                             ai_reply = data["choices"][0]["message"]["content"]
                             await message.reply(ai_reply, mention_author=True)
+                        else:
+                            err_body = await resp.read()
+                            print(f"⚠️ [Free Tier AI Error Status {resp.status}]: {err_body}", flush=True)
                 except Exception as e:
-                    print(f"⚠️ [Advanced AI Engine Error]: {e}", flush=True)
+                    print(f"⚠️ [Free AI Exception]: {e}", flush=True)
 
-            asyncio.create_task(trigger_advanced_ai())
+            asyncio.create_task(trigger_free_tier_ai())
             
         # 1. Bot ignores its own messages to prevent infinite loops
         if message.author == self.user:
