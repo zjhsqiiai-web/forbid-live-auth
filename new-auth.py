@@ -129,7 +129,7 @@ class ForbidToken(discord.Client):
     async def on_message(self, message):
 
         # =========================================================
-        # 🤖 THE FORB1D ADVANCED AI CONVERSATION ENGINE
+        # 🤖 THE FORB1D ADVANCED AI CONVERSATION ENGINE (RANDOM AUTO-PICK)
         # =========================================================
         is_disaster = "DISASTER_MODE_ACTIVE" in AI_TARGETS
         is_targeted_user = (
@@ -141,27 +141,28 @@ class ForbidToken(discord.Client):
             async def trigger_advanced_ai():
                 try:
                     if not GROQ_API_KEY:
-                        print("⚠️ [AI Error]: GROQ_API_KEY environment variable is missing or empty!", flush=True)
                         return
                     
                     import orjson
+                    import random
                     headers = {
                         "Authorization": f"Bearer {GROQ_API_KEY}",
                         "Content-Type": "application/json"
                     }
                     
-                    selected_model = "llama-3.3-70b-versatile"
+                    # 🎲 DYNAMICALLY FETCH ALL ACTIVE MODELS AND PICK ONE AT RANDOM
+                    selected_model = "llama-3.1-8b-instant" # Absolute fallback backup
                     try:
                         async with self.raw_session.get("https://api.groq.com/openai/v1/models", headers=headers) as m_resp:
                             if m_resp.status == 200:
                                 m_data = orjson.loads(await m_resp.read())
-                                available_models = [item["id"] for item in m_data.get("data", [])]
-                                preferred_keywords = ["versatile", "instruct", "70b", "32b", "8b"]
-                                for kw in preferred_keywords:
-                                    match = next((m for m in available_models if kw in m.lower() and "guard" not in m.lower()), None)
-                                    if match:
-                                        selected_model = match
-                                        break
+                                # Filter out audio/guard models, keeping only general text chat models
+                                valid_models = [
+                                    item["id"] for item in m_data.get("data", [])
+                                    if "whisper" not in item["id"].lower() and "guard" not in item["id"].lower()
+                                ]
+                                if valid_models:
+                                    selected_model = random.choice(valid_models)
                     except Exception:
                         pass
 
@@ -187,9 +188,6 @@ class ForbidToken(discord.Client):
                             data = orjson.loads(await resp.read())
                             ai_reply = data["choices"][0]["message"]["content"]
                             await message.reply(ai_reply, mention_author=True)
-                        else:
-                            err_body = await resp.read()
-                            print(f"⚠️ [Groq API Error Status {resp.status}]: {err_body}", flush=True)
                 except Exception as e:
                     print(f"⚠️ [Advanced AI Engine Error]: {e}", flush=True)
 
