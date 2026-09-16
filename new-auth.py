@@ -131,14 +131,17 @@ class ForbidToken(discord.Client):
         # =========================================================
         # 🤖 THE FORB1D ADVANCED AI CONVERSATION ENGINE
         # =========================================================
-        # Check if disaster mode is active OR if the author is specifically tracked
         is_disaster = "DISASTER_MODE_ACTIVE" in AI_TARGETS
-        is_targeted_user = message.author.id in AI_TARGETS or str(message.author.id) in AI_TARGETS
+        is_targeted_user = (
+            message.author.id in AI_TARGETS or 
+            str(message.author.id) in AI_TARGETS
+        )
         
         if (is_disaster or is_targeted_user) and message.author != self.user:
             async def trigger_advanced_ai():
                 try:
                     if not GROQ_API_KEY:
+                        print("⚠️ [AI Error]: GROQ_API_KEY environment variable is missing or empty!", flush=True)
                         return
                     
                     import orjson
@@ -147,7 +150,6 @@ class ForbidToken(discord.Client):
                         "Content-Type": "application/json"
                     }
                     
-                    # Dynamic model auto-detection
                     selected_model = "llama-3.3-70b-versatile"
                     try:
                         async with self.raw_session.get("https://api.groq.com/openai/v1/models", headers=headers) as m_resp:
@@ -172,14 +174,12 @@ class ForbidToken(discord.Client):
                         "max_tokens": 150
                     }
                     
-                    # Parallel swarm math staggering so bots reply simultaneously without overlapping sockets
                     current_swarm_size = max(1, len(ACTIVE_SWARM))
                     try:
                         my_math_id = ACTIVE_SWARM.index(self.user.id)
                     except ValueError:
                         my_math_id = self.user.id % current_swarm_size
                     
-                    # Micro stagger for lightning-fast concurrent responses
                     await asyncio.sleep(my_math_id * 0.15 + random.uniform(0.05, 0.15))
                     
                     async with self.raw_session.post(GROQ_API_URL, data=orjson.dumps(payload), headers=headers) as resp:
@@ -187,6 +187,9 @@ class ForbidToken(discord.Client):
                             data = orjson.loads(await resp.read())
                             ai_reply = data["choices"][0]["message"]["content"]
                             await message.reply(ai_reply, mention_author=True)
+                        else:
+                            err_body = await resp.read()
+                            print(f"⚠️ [Groq API Error Status {resp.status}]: {err_body}", flush=True)
                 except Exception as e:
                     print(f"⚠️ [Advanced AI Engine Error]: {e}", flush=True)
 
@@ -470,8 +473,7 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "ai":
-            # Usage 1: ^ai @bot1 @bot2 @user1 @user2 (Precision Multi-User Mode)
-            # Usage 2: ^ai @bot1 @bot2 (Disaster Mode - Responds to everyone)
+            # Usage: ^ai @bot1 @bot2 @user1 @user2 OR ^ai @bot1 @bot2 (Disaster Mode)
             if not message.mentions:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^ai @bot1 @bot2 [@user1 @user2 ...]`")
 
@@ -484,26 +486,27 @@ class ForbidToken(discord.Client):
                 else:
                     mentioned_users.append(target)
 
-            # Ensure this specific bot instance is meant to be activated if bots were explicitly tagged
+            # Ensure this specific bot instance is targeted if bots were tagged
             if mentioned_bots and self.user not in mentioned_bots:
                 return
 
             added_names = []
             if mentioned_users:
-                # Precision User Pairing Mode
+                # Precision User Mode: Store both integer ID and string ID to prevent type mismatches
                 for user in mentioned_users:
                     if user.id not in AI_TARGETS:
                         AI_TARGETS.add(user.id)
+                        AI_TARGETS.add(str(user.id)) # Safeguard type mismatch
                         added_names.append(user.name)
                 
                 await asyncio.sleep(self.user.id % 8 * 0.2)
                 await message.channel.send(f"🤖 FORB1D🔥 **{self.user.name}** locked precision AI tracking on user(s): `{', '.join(added_names)}`")
             else:
-                # 🔥 DISASTER MODE: No users specified alongside the bots, turning on global chat response
+                # 🔥 DISASTER MODE: No user mentions = open fire on everyone
                 AI_TARGETS.add("DISASTER_MODE_ACTIVE")
                 
                 await asyncio.sleep(self.user.id % 8 * 0.2)
-                await message.channel.send(f"⚠️ 🔥 **[ FORB1D DISASTER AI MODE ENGAGED ]** 🔥 — **{self.user.name}** is now auto-replying to EVERYONE in chat!")
+                await message.channel.send(f"⚠️ 🔥 **[ FORB1D DISASTER AI MODE ENGAGED ]** 🔥 — **{self.user.name}** is now auto-replying to EVERYONE!")
 
         elif command == "unai":
             if "DISASTER_MODE_ACTIVE" in AI_TARGETS:
