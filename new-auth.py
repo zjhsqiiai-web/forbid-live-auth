@@ -129,101 +129,95 @@ class ForbidToken(discord.Client):
     async def on_message(self, message):
 
         # =========================================================
-        # 🎲 THE FORB1D RANDOM HYBRID AI ENGINE (STATELESS & SMOOTH) 🎲
+        # ⚡ THE FORB1D PURE STATELESS HYBRID AI ENGINE ⚡
         # =========================================================
-        is_disaster = "DISASTER_MODE_ACTIVE" in AI_TARGETS
-        is_targeted_user = (
-            message.author.id in AI_TARGETS or 
-            str(message.author.id) in AI_TARGETS
-        )
-        
-        if (is_disaster or is_targeted_user) and message.author != self.user:
-            async def trigger_random_hybrid_ai():
+        async def trigger_stateless_ai():
+            try:
+                if not GROQ_API_KEY:
+                    return
+                
+                import orjson
+                import io
+                import urllib.parse
+                
+                headers = {
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Random roll: ~20% chance (1 in 5) to drop an MP3, otherwise text
+                is_audio_roll = (random.randint(1, 5) == 5)
+                
+                payload = {
+                    "model": "openai/gpt-oss-20b",
+                    "messages": [
+                        {"role": "system", "content": "You are FORB1D AI, an elite, cold, savage cyber intelligence. Keep replies ultra-short, brutal, witty, and direct."},
+                        {"role": "user", "content": message.content}
+                    ],
+                    "max_tokens": 80
+                }
+                
+                current_swarm_size = max(1, len(ACTIVE_SWARM))
                 try:
-                    if not GROQ_API_KEY:
-                        return
-                    
-                    import orjson
-                    import io
-                    import urllib.parse
-                    
-                    headers = {
-                        "Authorization": f"Bearer {GROQ_API_KEY}",
-                        "Content-Type": "application/json"
-                    }
-                    
-                    is_audio_roll = (random.randint(1, 5) == 5)
-                    
-                    payload = {
-                        "model": "openai/gpt-oss-20b",  # Updated active free model
-                        "messages": [
-                            {"role": "system", "content": "You are FORB1D AI, an elite, cold, savage cyber intelligence. Keep replies ultra-short, brutal, witty, and direct."},
-                            {"role": "user", "content": message.content}
-                        ],
-                        "max_tokens": 80
-                    }
-                    
-                    current_swarm_size = max(1, len(ACTIVE_SWARM))
-                    try:
-                        my_math_id = ACTIVE_SWARM.index(self.user.id)
-                    except ValueError:
-                        my_math_id = self.user.id % current_swarm_size
-                    
-                    await asyncio.sleep(my_math_id * 0.2 + random.uniform(0.8, 1.8))
-                    
-                    async with self.raw_session.post(GROQ_API_URL, data=orjson.dumps(payload), headers=headers) as resp:
-                        if resp.status == 200:
-                            data = orjson.loads(await resp.read())
-                            
-                            # Safely extract text content
-                            choices = data.get("choices", [])
-                            if not choices:
-                                return
-                            ai_text = choices[0].get("message", {}).get("content", "").strip()
-                            
-                            # 🛑 CRITICAL SAFEGUARD: Abort if AI text is empty to prevent error 50006
-                            if not ai_text:
-                                return
-                            
-                            if is_audio_roll:
-                                tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(ai_text)}&tl=en&client=tw-ob"
-                                async with self.raw_session.get(tts_url) as audio_resp:
-                                    if audio_resp.status == 200:
-                                        audio_bytes = await audio_resp.read()
-                                        if audio_bytes:
-                                            audio_file = discord.File(
-                                                fp=io.BytesIO(audio_bytes),
-                                                filename=f"forbid_comms_{self.user.name}.mp3"
-                                            )
-                                            await message.channel.send(
-                                                content=f"🔊 **{self.user.name} [VOICE DROP]**: *\"{ai_text}\"*", 
-                                                file=audio_file
-                                            )
+                    my_math_id = ACTIVE_SWARM.index(self.user.id)
+                except ValueError:
+                    my_math_id = self.user.id % current_swarm_size
+                
+                await asyncio.sleep(my_math_id * 0.2 + random.uniform(0.8, 1.8))
+                
+                async with self.raw_session.post(GROQ_API_URL, data=orjson.dumps(payload), headers=headers) as resp:
+                    if resp.status == 200:
+                        data = orjson.loads(await resp.read())
+                        choices = data.get("choices", [])
+                        if not choices:
+                            return
+                        ai_text = choices[0].get("message", {}).get("content", "").strip()
+                        
+                        if not ai_text:
+                            return
+                        
+                        if is_audio_roll:
+                            tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(ai_text)}&tl=en&client=tw-ob"
+                            async with self.raw_session.get(tts_url) as audio_resp:
+                                if audio_resp.status == 200:
+                                    audio_bytes = await audio_resp.read()
+                                    if audio_bytes:
+                                        audio_file = discord.File(
+                                            fp=io.BytesIO(audio_bytes),
+                                            filename=f"forbid_comms_{self.user.name}.mp3"
+                                        )
+                                        await message.channel.send(
+                                            content=f"🔊 **{self.user.name} [VOICE DROP]**: *\"{ai_text}\"*", 
+                                            file=audio_file
+                                        )
+                        else:
+                            await message.reply(ai_text, mention_author=True)
+
+                        # Auto-Emotion Reaction Engine
+                        try:
+                            text_lower = ai_text.lower()
+                            if any(w in text_lower for w in ["kill", "dead", "savage", "destroy", "brutal", "hell"]):
+                                reaction_emoji = "💀"
+                            elif any(w in text_lower for w in ["king", "crown", "power", "rule", "god"]):
+                                reaction_emoji = "👑"
+                            elif any(w in text_lower for w in ["fast", "speed", "flash", "lightning", "bolt"]):
+                                reaction_emoji = "⚡"
                             else:
-                                await message.reply(ai_text, mention_author=True)
+                                reaction_emoji = random.choice(["🔥", "💀", "👑", "⚡", "☠️"])
+                            
+                            await asyncio.sleep(random.uniform(0.3, 0.7))
+                            await message.add_reaction(reaction_emoji)
+                        except Exception:
+                            pass
+            except Exception as e:
+                import traceback
+                print(f"⚠️ [Stateless AI Exception]: {e}", flush=True)
 
-                            # 🎯 AUTO-EMOTION REACTION ENGINE
-                            try:
-                                text_lower = ai_text.lower()
-                                if any(w in text_lower for w in ["kill", "dead", "savage", "destroy", "brutal", "hell"]):
-                                    reaction_emoji = "💀"
-                                elif any(w in text_lower for w in ["king", "crown", "power", "rule", "god"]):
-                                    reaction_emoji = "👑"
-                                elif any(w in text_lower for w in ["fast", "speed", "flash", "lightning", "bolt"]):
-                                    reaction_emoji = "⚡"
-                                else:
-                                    reaction_emoji = random.choice(["🔥", "💀", "👑", "⚡", "☠️"])
-                                
-                                await asyncio.sleep(random.uniform(0.3, 0.7))
-                                await message.add_reaction(reaction_emoji)
-                            except Exception:
-                                pass
-                except Exception as e:
-                    import traceback
-                    print(f"⚠️ [CRITICAL AI EXCEPTION]: {e}", flush=True)
-                    traceback.print_exc()
+        asyncio.create_task(trigger_stateless_ai())
 
-            asyncio.create_task(trigger_random_hybrid_ai())
+        # 2. PREFIX CHECK: Must start with prefix to be treated as a command
+        if not message.content.startswith(PREFIX):
+            return
             
         # 1. Bot ignores its own messages to prevent infinite loops
         if message.author == self.user:
