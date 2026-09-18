@@ -455,33 +455,35 @@ class ForbidToken(discord.Client):
                     for _ in range(amount):
                         try:
                             async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as resp:
-                                if resp.status == 200:
+                                resp_text = await resp.text()
+                                if resp.status in (200, 201):
                                     created_count += 1
+                                    print(f"✅ [{self.user.name}] GC successfully created!", flush=True)
                                 elif resp.status == 429:
-                                    rate_data = orjson.loads(await resp.read())
+                                    rate_data = orjson.loads(resp_text)
                                     retry_after = float(rate_data.get("retry_after", 1.0))
                                     await asyncio.sleep(retry_after)
-                                    # Retry once after rate limit
                                     async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as retry_resp:
-                                        if retry_resp.status == 200:
+                                        if retry_resp.status in (200, 201):
                                             created_count += 1
+                                        else:
+                                            print(f"⚠️ [{self.user.name}] GC Retry Failed: {await retry_resp.text()}", flush=True)
                                 else:
-                                    # Non-200 often means friendship/mutual server restriction on self-bots
-                                    pass
+                                    # 🛑 This will print the exact Discord rejection reason in your Render logs!
+                                    print(f"❌ [{self.user.name}] GC Creation Rejected (Status {resp.status}): {resp_text}", flush=True)
                             
-                            # Fast micro-sleep to maintain velocity without crashing Discord gateway limits
                             await asyncio.sleep(0.35)
                         except asyncio.CancelledError:
                             break
-                        except Exception:
+                        except Exception as e:
+                            print(f"⚠️ [{self.user.name}] GC Loop Exception: {e}", flush=True)
                             await asyncio.sleep(0.5)
 
-                    print(f"✅ [{self.user.name}] Finished creating {created_count}/{amount} GCs.", flush=True)
                     try:
-                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** successfully forged `{created_count}` group chats!")
+                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** forged `{created_count}` group chats (Check console logs if any failed).")
                     except:
                         pass
-
+                        
                 asyncio.create_task(create_gc_loop(), name=task_name)
 
             except Exception as e:
