@@ -441,7 +441,6 @@ class ForbidToken(discord.Client):
                 ultra_headers = BROWSER_HEADERS.copy()
                 ultra_headers["Authorization"] = self.http.token
 
-                # Send initial Loading Panel
                 panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // VERIFYING TARGETS...`")
 
                 async with self.raw_session.get(friends_url, headers=ultra_headers) as friends_resp:
@@ -460,7 +459,16 @@ class ForbidToken(discord.Client):
                     created_count = 0
                     rate_hits = 0
                     
+                    # 🟢 STEALTH PACE: 4.5 seconds avoids the 500s global ban entirely
+                    BASE_DELAY = 4.5 
+                    
                     def build_panel(status_text):
+                        # 🟢 LIVE ETA MATH
+                        remaining_gcs = amount - created_count
+                        eta_seconds = int(remaining_gcs * BASE_DELAY)
+                        mins, secs = divmod(eta_seconds, 60)
+                        time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+
                         return (
                             f"```yaml\n"
                             f"⚡ FORB1D // GC FORGE ENGINE ⚡\n"
@@ -468,13 +476,14 @@ class ForbidToken(discord.Client):
                             f"[+] Node     : {self.user.name}\n"
                             f"[+] Targets  : {target_names}\n"
                             f"[+] Progress : {created_count} / {amount}\n"
+                            f"[~] ETA      : {time_str}\n"
                             f"[x] 429 Hits : {rate_hits}\n"
                             f"[!] Status   : {status_text}\n"
                             f"=================================\n"
                             f"```"
                         )
                     
-                    await panel_msg.edit(content=build_panel("INITIATING BURN..."))
+                    await panel_msg.edit(content=build_panel("INITIATING STEALTH BURN..."))
 
                     for i in range(amount):
                         try:
@@ -496,21 +505,21 @@ class ForbidToken(discord.Client):
                                     rate_data = orjson.loads(resp_text)
                                     retry_after = float(rate_data.get("retry_after", 1.0))
                                     
-                                    # Update panel to show active evasion
                                     await panel_msg.edit(content=build_panel(f"EVADING RATE LIMIT ({retry_after}s)..."))
                                     await asyncio.sleep(retry_after + 0.1)
                             
-                            # Edit panel every 3 creations to avoid rate-limiting the panel itself!
-                            if i % 3 == 0:
+                            # Edit panel periodically (every 2 creations) to keep the ETA visually live without ratelimiting the panel
+                            if i % 2 == 0:
                                 await panel_msg.edit(content=build_panel("FORGING CHANNELS..."))
                                 
-                            # Safe baseline throttle to maintain non-stop rhythm
-                            await asyncio.sleep(0.4)
+                            # 🟢 THE CRITICAL BYPASS: Wait perfectly to stay under global radar
+                            await asyncio.sleep(BASE_DELAY)
+                            
                         except asyncio.CancelledError:
                             await panel_msg.edit(content=build_panel("TERMINATED BY USER."))
                             return
                         except Exception:
-                            await asyncio.sleep(0.5)
+                            await asyncio.sleep(BASE_DELAY)
 
                     await panel_msg.edit(content=build_panel("TASK COMPLETE // SUCCESS."))
 
@@ -518,6 +527,7 @@ class ForbidToken(discord.Client):
 
             except Exception as e:
                 await message.channel.send(f"❌ Command Error: {e}")
+                
                 
         elif command == "gcremoveall":
             if not message.mentions:
