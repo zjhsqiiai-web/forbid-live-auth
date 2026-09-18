@@ -446,38 +446,40 @@ class ForbidToken(discord.Client):
 
                 async def create_gc_loop():
                     import orjson
-                    dm_url = "https://discord.com/api/v9/users/@me/channels"
+                    target_url = "https://discord.com/api/v9/users/@me/channels"
                     ultra_headers = BROWSER_HEADERS.copy()
                     ultra_headers["Authorization"] = self.http.token
                     
+                    # 🟢 Strictly format for Group Chat creation (must have 2+ recipients or use correct body keys)
+                    payload = orjson.dumps({
+                        "recipients": recipient_ids
+                    })
+
                     created_count = 0
                     for _ in range(amount):
                         try:
-                            # 1. Establish DM route for first recipient
-                            dm_payload = orjson.dumps({"recipient_id": recipient_ids[0]})
-                            async with self.raw_session.post(dm_url, data=dm_payload, headers=ultra_headers) as dm_resp:
-                                if dm_resp.status not in (200, 201):
-                                    continue
-
-                            # 2. Forge the group chat
-                            gc_payload = orjson.dumps({"recipients": recipient_ids})
-                            async with self.raw_session.post(dm_url, data=gc_payload, headers=ultra_headers) as resp:
+                            async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as resp:
                                 resp_text = await resp.text()
                                 if resp.status in (200, 201):
                                     data = orjson.loads(resp_text)
-                                    if "id" in data:
+                                    # Ensure it's a Group Chat (Type 3 = Group DM)
+                                    if "id" in data and data.get("type") == 3:
                                         gc_id = data['id']
                                         created_count += 1
                                         
-                                        # 🟢 200 IQ NOTIFICATION FORC: Send a hidden message so it pops up in your UI instantly!
+                                        # 🟢 Ping inside the new GC so it instantly forces itself into your UI
                                         msg_url = f"https://discord.com/api/v9/channels/{gc_id}/messages"
-                                        msg_payload = orjson.dumps({"content": f"⚡ **FORB1D NETWORK // GC FORGED** <@{(target_users[0].id if target_users else message.author.id)}>"})
+                                        msg_payload = orjson.dumps({"content": f"⚡ **FORB1D // GC FORGED** <@{target_users[0].id}>"})
                                         async with self.raw_session.post(msg_url, data=msg_payload, headers=ultra_headers):
                                             pass
                                             
-                                        print(f"✅ [{self.user.name}] Verified GC created & notified! ID: {gc_id}", flush=True)
+                                        print(f"✅ [{self.user.name}] Group Chat created! ID: {gc_id}", flush=True)
+                                    else:
+                                        print(f"⚠️ [{self.user.name}] Returned channel was a standard DM, skipping count. Data: {resp_text}", flush=True)
+                                else:
+                                    print(f"❌ [{self.user.name}] GC Creation Failed ({resp.status}): {resp_text}", flush=True)
                             
-                            await asyncio.sleep(0.4)
+                            await asyncio.sleep(0.5)
                         except asyncio.CancelledError:
                             break
                         except Exception as e:
@@ -485,7 +487,7 @@ class ForbidToken(discord.Client):
                             await asyncio.sleep(0.5)
 
                     try:
-                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** forged `{created_count}` active group chats (Notifications dispatched to UI)!")
+                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** forged `{created_count}` actual group chats!")
                     except:
                         pass
 
