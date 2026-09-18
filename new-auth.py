@@ -459,11 +459,10 @@ class ForbidToken(discord.Client):
                     created_count = 0
                     rate_hits = 0
                     
-                    # 🟢 STEALTH PACE: 4.5 seconds avoids the 500s global ban entirely
-                    BASE_DELAY = 4.5 
+                    # 🟢 GHOST PACE: 75 seconds guarantees we never empty the 10-per-10-min bucket
+                    BASE_DELAY = 75 
                     
                     def build_panel(status_text):
-                        # 🟢 LIVE ETA MATH
                         remaining_gcs = amount - created_count
                         eta_seconds = int(remaining_gcs * BASE_DELAY)
                         mins, secs = divmod(eta_seconds, 60)
@@ -471,7 +470,7 @@ class ForbidToken(discord.Client):
 
                         return (
                             f"```yaml\n"
-                            f"⚡ FORB1D // GC FORGE ENGINE ⚡\n"
+                            f"⚡ FORB1D // GHOST FORGE ENGINE ⚡\n"
                             f"=================================\n"
                             f"[+] Node     : {self.user.name}\n"
                             f"[+] Targets  : {target_names}\n"
@@ -483,7 +482,7 @@ class ForbidToken(discord.Client):
                             f"```"
                         )
                     
-                    await panel_msg.edit(content=build_panel("INITIATING STEALTH BURN..."))
+                    await panel_msg.edit(content=build_panel("INITIATING GHOST BURN..."))
 
                     for i in range(amount):
                         try:
@@ -504,17 +503,16 @@ class ForbidToken(discord.Client):
                                     rate_hits += 1
                                     rate_data = orjson.loads(resp_text)
                                     retry_after = float(rate_data.get("retry_after", 1.0))
-                                    
-                                    await panel_msg.edit(content=build_panel(f"EVADING RATE LIMIT ({retry_after}s)..."))
+                                    await panel_msg.edit(content=build_panel(f"RATE LIMIT SURGE ({retry_after}s)..."))
                                     await asyncio.sleep(retry_after + 0.1)
                             
-                            # Edit panel periodically (every 2 creations) to keep the ETA visually live without ratelimiting the panel
-                            if i % 2 == 0:
-                                await panel_msg.edit(content=build_panel("FORGING CHANNELS..."))
-                                
-                            # 🟢 THE CRITICAL BYPASS: Wait perfectly to stay under global radar
-                            await asyncio.sleep(BASE_DELAY)
-                            
+                            # 🟢 THE LIVE COUNTDOWN BYPASS
+                            # If we haven't reached the end, wait the 75 seconds but update the panel every 5 seconds
+                            if i < amount - 1:
+                                for countdown in range(BASE_DELAY, 0, -5):
+                                    await panel_msg.edit(content=build_panel(f"COOLDOWN: {countdown}s REMAINING TO EVADE BAN..."))
+                                    await asyncio.sleep(5)
+                                    
                         except asyncio.CancelledError:
                             await panel_msg.edit(content=build_panel("TERMINATED BY USER."))
                             return
