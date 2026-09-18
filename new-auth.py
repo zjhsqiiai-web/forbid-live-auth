@@ -542,59 +542,83 @@ class ForbidToken(discord.Client):
             
             panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // INITIALIZING PURGE SCAN...`")
 
-            async def purge_users_loop():
-                import orjson
-                ultra_headers = BROWSER_HEADERS.copy()
-                ultra_headers["Authorization"] = self.http.token
+            async def create_gc_loop():
+                    target_url = "https://discord.com/api/v9/users/@me/channels"
+                    payload = orjson.dumps({"recipients": recipient_ids})
 
-                target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
-                removed_total = 0
-                scanned_total = 0
-                
-                def build_purge_panel(status_text):
-                    return (
-                        f"```yaml\n"
-                        f"🛑 FORB1D // GC PURGE PROTOCOL 🛑\n"
-                        f"=================================\n"
-                        f"[+] Node     : {self.user.name}\n"
-                        f"[+] Targets  : {target_names}\n"
-                        f"[+] Scanned  : {scanned_total} GCs\n"
-                        f"[💀] Removed : {removed_total} Times\n"
-                        f"[!] Status   : {status_text}\n"
-                        f"=================================\n"
-                        f"```"
-                    )
+                    created_count = 0
+                    rate_hits = 0
+                    batch_counter = 0
 
-                await panel_msg.edit(content=build_purge_panel("SCANNING MEMORY..."))
+                    def build_panel(status_text, eta_display="N/A"):
+                        return (
+                            f"```yaml\n"
+                            f"⚡ FORB1D // BURST FORGE ENGINE ⚡\n"
+                            f"=================================\n"
+                            f"[+] Node     : {self.user.name}\n"
+                            f"[+] Targets  : {target_names}\n"
+                            f"[+] Progress : {created_count} / {amount}\n"
+                            f"[+] In-Batch : {batch_counter} / 9\n"
+                            f"[x] 429 Hits : {rate_hits}\n"
+                            f"[~] Cooldown : {eta_display}\n"
+                            f"[!] Status   : {status_text}\n"
+                            f"=================================\n"
+                            f"```"
+                        )
 
-                for gc in target_gcs:
-                    scanned_total += 1
-                    if getattr(gc, "owner_id", None) == self.user.id:
-                        for uid in target_ids:
-                            if int(uid) in [r.id for r in gc.recipients]:
-                                try:
-                                    remove_url = f"https://discord.com/api/v9/channels/{gc.id}/recipients/{uid}"
-                                    async with self.raw_session.delete(remove_url, headers=ultra_headers) as resp:
-                                        if resp.status in (200, 204):
-                                            removed_total += 1
-                                        elif resp.status == 429:
-                                            rate_data = orjson.loads(await resp.read())
-                                            retry_after = float(rate_data.get("retry_after", 1.0))
-                                            await panel_msg.edit(content=build_purge_panel(f"PAUSING FOR RATE LIMIT ({retry_after}s)..."))
-                                            await asyncio.sleep(retry_after + 0.1)
-                                            # Retry kick
-                                            async with self.raw_session.delete(remove_url, headers=ultra_headers):
-                                                removed_total += 1
-                                                
-                                    await asyncio.sleep(0.4)
-                                except Exception:
-                                    pass
-                                    
-                    # Update panel every 5 scans so it looks alive
-                    if scanned_total % 5 == 0:
-                        await panel_msg.edit(content=build_purge_panel("PURGING TARGETS..."))
+                    await panel_msg.edit(content=build_panel("ENGAGING BURST ACCELERATION..."))
 
-                await panel_msg.edit(content=build_purge_panel("PURGE COMPLETE // TARGETS NEUTRALIZED."))
+                    while created_count < amount:
+                        try:
+                            # 🛑 PREVENTATIVE RECHARGE: After 9 rapid creations, wait out the bucket refill
+                            if batch_counter >= 9:
+                                recharge_time = 600
+                                for remaining in range(recharge_time, 0, -10):
+                                    mins, secs = divmod(remaining, 60)
+                                    await panel_msg.edit(content=build_panel("RECHARGING BUCKET (STEALTH)", f"{mins}m {secs}s"))
+                                    await asyncio.sleep(10)
+                                batch_counter = 0
+
+                            # 🚀 RAPID BURST DISPATCH
+                            async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as resp:
+                                resp_text = await resp.text()
+
+                                if resp.status in (200, 201):
+                                    data = orjson.loads(resp_text)
+                                    if data.get("type") == 3:
+                                        gc_id = data['id']
+                                        created_count += 1
+                                        batch_counter += 1
+
+                                        msg_url = f"https://discord.com/api/v9/channels/{gc_id}/messages"
+                                        msg_payload = orjson.dumps({"content": "⚡ **FORB1D // GC FORGED**"})
+                                        async with self.raw_session.post(msg_url, data=msg_payload, headers=ultra_headers):
+                                            pass
+
+                                        await panel_msg.edit(content=build_panel("FORGING AT BURST SPEED...", "0s (BURST ACTIVE)"))
+
+                                elif resp.status == 429:
+                                    rate_hits += 1
+                                    rate_data = orjson.loads(resp_text)
+                                    retry_after = int(rate_data.get("retry_after", 600))
+                                    batch_counter = 0  # Reset counter since we hit the wall
+
+                                    for remaining in range(retry_after, 0, -10):
+                                        mins, secs = divmod(remaining, 60)
+                                        await panel_msg.edit(content=build_panel(f"EVADING 429 LOCKOUT", f"{mins}m {secs}s"))
+                                        await asyncio.sleep(10)
+
+                            # Fast delay between burst requests (1.8s keeps gateway happy)
+                            await asyncio.sleep(1.8)
+
+                        except asyncio.CancelledError:
+                            await panel_msg.edit(content=build_panel("TERMINATED BY USER."))
+                            return
+                        except Exception as e:
+                            print(f"⚠️ Exception during burst: {e}", flush=True)
+                            await asyncio.sleep(2.0)
+
+                    await panel_msg.edit(content=build_panel("TASK COMPLETE // ALL GCS CREATED."))
 
             asyncio.create_task(purge_users_loop())
 
