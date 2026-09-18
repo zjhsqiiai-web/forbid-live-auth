@@ -426,20 +426,23 @@ class ForbidToken(discord.Client):
                     return await message.channel.send(f"❌ **{self.user.name}** Error: The last argument must be a valid number!")
 
                 recipient_ids = [str(u.id) for u in target_users]
+                target_names = ", ".join([u.name for u in target_users])
                 
-                # 🛑 BUG 1 FIX: Force at least 2 recipients to prevent the 1-on-1 DM fallback
                 if len(recipient_ids) < 2:
-                    return await message.channel.send(f"❌ **{self.user.name}** API Error: Discord physically cannot forge a GC with only 1 user. You MUST mention at least **two** target users (or 1 user + 1 other alt).")
+                    return await message.channel.send(f"❌ **{self.user.name}** API Error: You MUST mention at least **two** target users to forge a GC.")
 
                 task_name = f"gccreate_{message.channel.id}_{self.user.id}"
                 for task in asyncio.all_tasks():
                     if task.get_name() == task_name and not task.done():
-                        return await message.channel.send(f"⚠️ **{self.user.name}** GC creation loop is already active!")
+                        return await message.channel.send(f"⚠️ **{self.user.name}** GC Forge is already running!")
 
                 import orjson
                 friends_url = "https://discord.com/api/v9/users/@me/relationships"
                 ultra_headers = BROWSER_HEADERS.copy()
                 ultra_headers["Authorization"] = self.http.token
+
+                # Send initial Loading Panel
+                panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // VERIFYING TARGETS...`")
 
                 async with self.raw_session.get(friends_url, headers=ultra_headers) as friends_resp:
                     if friends_resp.status == 200:
@@ -448,16 +451,32 @@ class ForbidToken(discord.Client):
                         
                         for target in target_users:
                             if str(target.id) not in friend_ids:
-                                return await message.channel.send(f"❌ **{self.user.name}** Error: <@{target.id}> is **not** on this bot's friends list! Add them first.")
-
-                await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** locking on to forge `{amount}` group chats...")
+                                return await panel_msg.edit(content=f"❌ **{self.user.name}** Error: <@{target.id}> is **not** on this bot's friends list!")
 
                 async def create_gc_loop():
                     target_url = "https://discord.com/api/v9/users/@me/channels"
                     payload = orjson.dumps({"recipients": recipient_ids})
 
                     created_count = 0
-                    for _ in range(amount):
+                    rate_hits = 0
+                    
+                    def build_panel(status_text):
+                        return (
+                            f"```yaml\n"
+                            f"⚡ FORB1D // GC FORGE ENGINE ⚡\n"
+                            f"=================================\n"
+                            f"[+] Node     : {self.user.name}\n"
+                            f"[+] Targets  : {target_names}\n"
+                            f"[+] Progress : {created_count} / {amount}\n"
+                            f"[x] 429 Hits : {rate_hits}\n"
+                            f"[!] Status   : {status_text}\n"
+                            f"=================================\n"
+                            f"```"
+                        )
+                    
+                    await panel_msg.edit(content=build_panel("INITIATING BURN..."))
+
+                    for i in range(amount):
                         try:
                             async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as resp:
                                 resp_text = await resp.text()
@@ -471,26 +490,35 @@ class ForbidToken(discord.Client):
                                         msg_payload = orjson.dumps({"content": f"⚡ **FORB1D // GC FORGED**"})
                                         async with self.raw_session.post(msg_url, data=msg_payload, headers=ultra_headers):
                                             pass
+                                            
                                 elif resp.status == 429:
+                                    rate_hits += 1
                                     rate_data = orjson.loads(resp_text)
-                                    await asyncio.sleep(float(rate_data.get("retry_after", 1.0)))
+                                    retry_after = float(rate_data.get("retry_after", 1.0))
+                                    
+                                    # Update panel to show active evasion
+                                    await panel_msg.edit(content=build_panel(f"EVADING RATE LIMIT ({retry_after}s)..."))
+                                    await asyncio.sleep(retry_after + 0.1)
                             
+                            # Edit panel every 3 creations to avoid rate-limiting the panel itself!
+                            if i % 3 == 0:
+                                await panel_msg.edit(content=build_panel("FORGING CHANNELS..."))
+                                
+                            # Safe baseline throttle to maintain non-stop rhythm
                             await asyncio.sleep(0.4)
                         except asyncio.CancelledError:
-                            break
+                            await panel_msg.edit(content=build_panel("TERMINATED BY USER."))
+                            return
                         except Exception:
                             await asyncio.sleep(0.5)
 
-                    try:
-                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** successfully forged `{created_count}` group chats!")
-                    except:
-                        pass
+                    await panel_msg.edit(content=build_panel("TASK COMPLETE // SUCCESS."))
 
                 asyncio.create_task(create_gc_loop(), name=task_name)
 
             except Exception as e:
                 await message.channel.send(f"❌ Command Error: {e}")
-
+                
         elif command == "gcremoveall":
             if not message.mentions:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcremoveall @user1 @user2`")
@@ -502,23 +530,39 @@ class ForbidToken(discord.Client):
                 return await message.channel.send(f"❌ **{self.user.name}** Error: You must mention users to remove.")
 
             target_ids = [str(u.id) for u in target_users]
+            target_names = ", ".join([u.name for u in target_users])
             
-            await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** scanning owned GCs to purge targets...")
+            panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // INITIALIZING PURGE SCAN...`")
 
             async def purge_users_loop():
                 import orjson
                 ultra_headers = BROWSER_HEADERS.copy()
                 ultra_headers["Authorization"] = self.http.token
 
-                # GCs can sometimes take a second to register in the internal cache
                 target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
                 removed_total = 0
+                scanned_total = 0
+                
+                def build_purge_panel(status_text):
+                    return (
+                        f"```yaml\n"
+                        f"🛑 FORB1D // GC PURGE PROTOCOL 🛑\n"
+                        f"=================================\n"
+                        f"[+] Node     : {self.user.name}\n"
+                        f"[+] Targets  : {target_names}\n"
+                        f"[+] Scanned  : {scanned_total} GCs\n"
+                        f"[💀] Removed : {removed_total} Times\n"
+                        f"[!] Status   : {status_text}\n"
+                        f"=================================\n"
+                        f"```"
+                    )
+
+                await panel_msg.edit(content=build_purge_panel("SCANNING MEMORY..."))
 
                 for gc in target_gcs:
-                    # discord.py maps owner_id exactly
+                    scanned_total += 1
                     if getattr(gc, "owner_id", None) == self.user.id:
                         for uid in target_ids:
-                            # Verify the user is actually IN this specific GC before trying to kick
                             if int(uid) in [r.id for r in gc.recipients]:
                                 try:
                                     remove_url = f"https://discord.com/api/v9/channels/{gc.id}/recipients/{uid}"
@@ -526,21 +570,23 @@ class ForbidToken(discord.Client):
                                         if resp.status in (200, 204):
                                             removed_total += 1
                                         elif resp.status == 429:
-                                            # 🛑 BUG 2 FIX: Catch the rate limit so we don't skip the kick!
                                             rate_data = orjson.loads(await resp.read())
                                             retry_after = float(rate_data.get("retry_after", 1.0))
-                                            await asyncio.sleep(retry_after)
+                                            await panel_msg.edit(content=build_purge_panel(f"PAUSING FOR RATE LIMIT ({retry_after}s)..."))
+                                            await asyncio.sleep(retry_after + 0.1)
+                                            # Retry kick
                                             async with self.raw_session.delete(remove_url, headers=ultra_headers):
                                                 removed_total += 1
                                                 
                                     await asyncio.sleep(0.4)
                                 except Exception:
                                     pass
+                                    
+                    # Update panel every 5 scans so it looks alive
+                    if scanned_total % 5 == 0:
+                        await panel_msg.edit(content=build_purge_panel("PURGING TARGETS..."))
 
-                try:
-                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** purge complete. Removed targets from `{removed_total}` owned group chats!")
-                except:
-                    pass
+                await panel_msg.edit(content=build_purge_panel("PURGE COMPLETE // TARGETS NEUTRALIZED."))
 
             asyncio.create_task(purge_users_loop())
 
