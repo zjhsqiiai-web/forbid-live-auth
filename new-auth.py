@@ -407,23 +407,23 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "gccreate":
-            # Usage: ^gccreate [@bot1] <@user1 @user2 ...> <amount>
-            if len(parts) < 3:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gccreate [@bot1 @bot2 ...] <@user1 @user2 ...> <amount>`")
+            # Usage: ^gccreate @bot @user1 @user2 <amount>
+            if len(parts) < 3 or not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gccreate @bot @user1 @user2 <amount>`")
 
             try:
-                # 1. Separate mentioned bots from target user recipients
+                # 1. Isolate the target bot from the mentions
                 mentioned_bots = [t for t in message.mentions if t.id in ACTIVE_SWARM or t == self.user]
                 target_users = [t for t in message.mentions if t not in mentioned_bots]
 
-                # Target locking check for multi-token swarm
-                if mentioned_bots:
-                    if self.user not in mentioned_bots:
-                        return
-                    stagger = random.uniform(0.1, 0.5)
-                else:
-                    my_math_id = self.user.id % 8
-                    stagger = (my_math_id * 0.3) + random.uniform(0.1, 0.3)
+                # 🛑 PRECISION GUARD: If a bot was tagged, ONLY that specific bot runs. 
+                # If the current bot instance is not the one tagged, it silently drops out.
+                if mentioned_bots and self.user not in mentioned_bots:
+                    return
+
+                # If no bot was tagged, fallback to the first active node in the swarm to avoid chaos
+                if not mentioned_bots and ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
+                    return
 
                 # 2. Extract the amount from the last argument
                 try:
@@ -432,17 +432,17 @@ class ForbidToken(discord.Client):
                     return await message.channel.send(f"❌ **{self.user.name}** Error: The last argument must be a valid number for the amount!")
 
                 if not target_users:
-                    return await message.channel.send(f"❌ **{self.user.name}** Error: You must mention at least one user recipient to create a GC with.")
+                    return await message.channel.send(f"❌ **{self.user.name}** Error: You must mention at least one user recipient.")
 
                 recipient_ids = [str(u.id) for u in target_users]
                 task_name = f"gccreate_{message.channel.id}_{self.user.id}"
 
-                # Check if a creation task is already running for this bot
+                # Prevent duplicate tasks on this bot
                 for task in asyncio.all_tasks():
                     if task.get_name() == task_name and not task.done():
                         return await message.channel.send(f"⚠️ **{self.user.name}** GC creation loop is already active!")
 
-                await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** initiating fast GC creation loop for `{amount}` group chats...")
+                await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** locking on to forge `{amount}` group chats...")
 
                 async def create_gc_loop():
                     import orjson
@@ -450,7 +450,6 @@ class ForbidToken(discord.Client):
                     ultra_headers = BROWSER_HEADERS.copy()
                     ultra_headers["Authorization"] = self.http.token
                     
-                    # 🟢 Updated payload structure matching official client specs
                     payload = orjson.dumps({
                         "recipients": recipient_ids
                     })
@@ -464,9 +463,6 @@ class ForbidToken(discord.Client):
                                     data = orjson.loads(resp_text)
                                     if "id" in data:
                                         created_count += 1
-                                        print(f"✅ [{self.user.name}] GC successfully forged! ID: {data['id']}", flush=True)
-                                    else:
-                                        print(f"⚠️ [{self.user.name}] API returned 200 but no channel ID: {resp_text}", flush=True)
                                 elif resp.status == 429:
                                     rate_data = orjson.loads(resp_text)
                                     retry_after = float(rate_data.get("retry_after", 1.0))
@@ -475,23 +471,18 @@ class ForbidToken(discord.Client):
                                         retry_text = await retry_resp.text()
                                         if retry_resp.status in (200, 201) and "id" in orjson.loads(retry_text):
                                             created_count += 1
-                                        else:
-                                            print(f"⚠️ [{self.user.name}] Retry failed: {retry_text}", flush=True)
-                                else:
-                                    print(f"❌ [{self.user.name}] GC Creation Failed ({resp.status}): {resp_text}", flush=True)
                             
-                            await asyncio.sleep(0.5)
+                            await asyncio.sleep(0.4)
                         except asyncio.CancelledError:
                             break
-                        except Exception as e:
-                            print(f"⚠️ [{self.user.name}] GC Loop Exception: {e}", flush=True)
+                        except Exception:
                             await asyncio.sleep(0.5)
 
                     try:
-                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** forged `{created_count}` active group chats!")
+                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** successfully forged `{created_count}` group chats!")
                     except:
                         pass
-                        
+
                 asyncio.create_task(create_gc_loop(), name=task_name)
 
             except Exception as e:
