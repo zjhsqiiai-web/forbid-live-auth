@@ -487,7 +487,6 @@ class ForbidToken(discord.Client):
 
             except Exception as e:
                 await message.channel.send(f"❌ Command Error: {e}")
-
         elif command == "ungccreate":
             # Usage: ^ungccreate
             killed_count = 0
