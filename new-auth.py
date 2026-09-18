@@ -446,40 +446,43 @@ class ForbidToken(discord.Client):
 
                 async def create_gc_loop():
                     import orjson
-                    target_url = "https://discord.com/api/v9/users/@me/channels"
+                    dm_url = "https://discord.com/api/v9/users/@me/channels"
                     ultra_headers = BROWSER_HEADERS.copy()
                     ultra_headers["Authorization"] = self.http.token
                     
-                    payload = orjson.dumps({
-                        "recipients": recipient_ids
-                    })
-
                     created_count = 0
                     for _ in range(amount):
                         try:
-                            async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as resp:
+                            # 1. First, establish a valid user channel route for the first recipient
+                            dm_payload = orjson.dumps({"recipient_id": recipient_ids[0]})
+                            async with self.raw_session.post(dm_url, data=dm_payload, headers=ultra_headers) as dm_resp:
+                                if dm_resp.status not in (200, 201):
+                                    print(f"⚠️ [{self.user.name}] DM route failed: {await dm_resp.text()}", flush=True)
+                                    continue
+
+                            # 2. Now fire the group chat creation payload
+                            gc_payload = orjson.dumps({"recipients": recipient_ids})
+                            async with self.raw_session.post(dm_url, data=gc_payload, headers=ultra_headers) as resp:
                                 resp_text = await resp.text()
                                 if resp.status in (200, 201):
                                     data = orjson.loads(resp_text)
                                     if "id" in data:
                                         created_count += 1
-                                elif resp.status == 429:
-                                    rate_data = orjson.loads(resp_text)
-                                    retry_after = float(rate_data.get("retry_after", 1.0))
-                                    await asyncio.sleep(retry_after)
-                                    async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as retry_resp:
-                                        retry_text = await retry_resp.text()
-                                        if retry_resp.status in (200, 201) and "id" in orjson.loads(retry_text):
-                                            created_count += 1
+                                        print(f"✅ [{self.user.name}] Verified GC created! ID: {data['id']}", flush=True)
+                                    else:
+                                        print(f"⚠️ [{self.user.name}] Response missing ID: {resp_text}", flush=True)
+                                else:
+                                    print(f"❌ [{self.user.name}] GC Blocked ({resp.status}): {resp_text}", flush=True)
                             
-                            await asyncio.sleep(0.4)
+                            await asyncio.sleep(0.5)
                         except asyncio.CancelledError:
                             break
-                        except Exception:
+                        except Exception as e:
+                            print(f"⚠️ [{self.user.name}] Exception: {e}", flush=True)
                             await asyncio.sleep(0.5)
 
                     try:
-                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** successfully forged `{created_count}` group chats!")
+                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** finished execution. Created: `{created_count}`")
                     except:
                         pass
 
