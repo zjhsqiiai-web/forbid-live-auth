@@ -407,53 +407,58 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "gccreate":
-            # Usage: ^gccreate @bot @user1 @user2 <amount>
+            # Usage: ^gccreate @bot @user <amount>
             if len(parts) < 3 or not message.mentions:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gccreate @bot @user1 @user2 <amount>`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gccreate @bot @user <amount>`")
 
             try:
-                # 1. Isolate the target bot from the mentions
                 mentioned_bots = [t for t in message.mentions if t.id in ACTIVE_SWARM or t == self.user]
                 target_users = [t for t in message.mentions if t not in mentioned_bots]
 
-                # 🛑 PRECISION GUARD: If a bot was tagged, ONLY that specific bot runs. 
-                # If the current bot instance is not the one tagged, it silently drops out.
                 if mentioned_bots and self.user not in mentioned_bots:
                     return
 
-                # If no bot was tagged, fallback to the first active node in the swarm to avoid chaos
                 if not mentioned_bots and ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
                     return
 
-                # 2. Extract the amount from the last argument
                 try:
                     amount = int(parts[-1])
                 except ValueError:
-                    return await message.channel.send(f"❌ **{self.user.name}** Error: The last argument must be a valid number for the amount!")
+                    return await message.channel.send(f"❌ **{self.user.name}** Error: The last argument must be a valid number!")
 
                 if not target_users:
-                    return await message.channel.send(f"❌ **{self.user.name}** Error: You must mention at least one user recipient.")
+                    return await message.channel.send(f"❌ **{self.user.name}** Error: You must mention a target user recipient.")
 
                 recipient_ids = [str(u.id) for u in target_users]
                 task_name = f"gccreate_{message.channel.id}_{self.user.id}"
 
-                # Prevent duplicate tasks on this bot
                 for task in asyncio.all_tasks():
                     if task.get_name() == task_name and not task.done():
                         return await message.channel.send(f"⚠️ **{self.user.name}** GC creation loop is already active!")
 
-                await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** locking on to forge `{amount}` group chats...")
+                # 🟢 FRIEND LIST PRE-CHECK
+                import orjson
+                friends_url = "https://discord.com/api/v9/users/@me/relationships"
+                ultra_headers = BROWSER_HEADERS.copy()
+                ultra_headers["Authorization"] = self.http.token
+
+                async with self.raw_session.get(friends_url, headers=ultra_headers) as friends_resp:
+                    if friends_resp.status == 200:
+                        friends_data = orjson.loads(await friends_resp.text())
+                        friend_ids = [str(f.get("id")) for f in friends_data if f.get("type") == 1] # Type 1 = Friend
+                        
+                        # Check if all targets are in friends list
+                        for target in target_users:
+                            if str(target.id) not in friend_ids:
+                                return await message.channel.send(f"❌ **{self.user.name}** Error: <@{target.id}> is **not** on this bot's friends list! Add them first.")
+                    else:
+                        return await message.channel.send(f"❌ **{self.user.name}** Error: Failed to verify friends list.")
+
+                await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** verified friendship and locking on to forge `{amount}` group chats...")
 
                 async def create_gc_loop():
-                    import orjson
                     target_url = "https://discord.com/api/v9/users/@me/channels"
-                    ultra_headers = BROWSER_HEADERS.copy()
-                    ultra_headers["Authorization"] = self.http.token
-                    
-                    # 🟢 Explicitly format as a multi-user group creation request
-                    payload = orjson.dumps({
-                        "recipients": recipient_ids
-                    })
+                    payload = orjson.dumps({"recipients": recipient_ids})
 
                     created_count = 0
                     for _ in range(amount):
@@ -462,23 +467,14 @@ class ForbidToken(discord.Client):
                                 resp_text = await resp.text()
                                 if resp.status in (200, 201):
                                     data = orjson.loads(resp_text)
-                                    
-                                    # Check if it successfully forged a Group Chat (Type 3)
                                     if data.get("type") == 3:
                                         gc_id = data['id']
                                         created_count += 1
                                         
-                                        # Ping inside the new GC so it pops up in your UI instantly
                                         msg_url = f"https://discord.com/api/v9/channels/{gc_id}/messages"
                                         msg_payload = orjson.dumps({"content": f"⚡ **FORB1D // GC FORGED**"})
                                         async with self.raw_session.post(msg_url, data=msg_payload, headers=ultra_headers):
                                             pass
-                                            
-                                        print(f"✅ [{self.user.name}] Group Chat created! ID: {gc_id}", flush=True)
-                                    else:
-                                        print(f"⚠️ [{self.user.name}] Bypassed standard DM (Type {data.get('type')}) to force new instance...", flush=True)
-                                        # If type 1 is returned, we can dynamically convert or re-trigger with a unique access signature
-                                        
                                 elif resp.status == 429:
                                     rate_data = orjson.loads(resp_text)
                                     retry_after = float(rate_data.get("retry_after", 1.0))
@@ -487,12 +483,11 @@ class ForbidToken(discord.Client):
                             await asyncio.sleep(0.4)
                         except asyncio.CancelledError:
                             break
-                        except Exception as e:
-                            print(f"⚠️ [{self.user.name}] Exception: {e}", flush=True)
+                        except Exception:
                             await asyncio.sleep(0.5)
 
                     try:
-                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** forged `{created_count}` group chats!")
+                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** successfully forged `{created_count}` group chats!")
                     except:
                         pass
 
@@ -500,6 +495,53 @@ class ForbidToken(discord.Client):
 
             except Exception as e:
                 await message.channel.send(f"❌ Command Error: {e}")
+
+        elif command == "gcremoveall":
+            # Usage: ^gcremoveall @user1 @user2
+            if not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcremoveall @user1 @user2`")
+
+            # Isolate target users to remove
+            mentioned_bots = [t for t in message.mentions if t.id in ACTIVE_SWARM or t == self.user]
+            target_users = [t for t in message.mentions if t not in mentioned_bots]
+
+            if not target_users:
+                return await message.channel.send(f"❌ **{self.user.name}** Error: You must mention users to remove.")
+
+            target_ids = [str(u.id) for u in target_users]
+            
+            await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** scanning owned GCs to purge target users...")
+
+            async def purge_users_loop():
+                import orjson
+                ultra_headers = BROWSER_HEADERS.copy()
+                ultra_headers["Authorization"] = self.http.token
+
+                # Grab all GCs this bot is in
+                target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
+                removed_total = 0
+
+                for gc in target_gcs:
+                    # Check if the bot is the owner/creator of this GC
+                    if getattr(gc, "owner_id", None) == self.user.id:
+                        for uid in target_ids:
+                            try:
+                                remove_url = f"https://discord.com/api/v9/channels/{gc.id}/recipients/{uid}"
+                                async with self.raw_session.delete(remove_url, headers=ultra_headers) as resp:
+                                    if resp.status in (200, 204):
+                                        removed_total += 1
+                                await asyncio.sleep(0.3)
+                            except Exception:
+                                pass
+
+                try:
+                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** purge complete. Removed targets from `{removed_total}` owned group chats!")
+                except:
+                    pass
+
+            asyncio.create_task(purge_users_loop())
+
+        
         elif command == "ungccreate":
             # Usage: ^ungccreate
             killed_count = 0
