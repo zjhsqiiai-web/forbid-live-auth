@@ -459,67 +459,71 @@ class ForbidToken(discord.Client):
                     created_count = 0
                     rate_hits = 0
                     
-                    # 🟢 GHOST PACE: 75 seconds guarantees we never empty the 10-per-10-min bucket
-                    BASE_DELAY = 75 
-                    
-                    def build_panel(status_text):
-                        remaining_gcs = amount - created_count
-                        eta_seconds = int(remaining_gcs * BASE_DELAY)
-                        mins, secs = divmod(eta_seconds, 60)
-                        time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-
+                    def build_panel(status_text, eta_display="N/A"):
                         return (
                             f"```yaml\n"
-                            f"⚡ FORB1D // GHOST FORGE ENGINE ⚡\n"
+                            f"⚡ FORB1D // MAX YIELD ENGINE ⚡\n"
                             f"=================================\n"
                             f"[+] Node     : {self.user.name}\n"
                             f"[+] Targets  : {target_names}\n"
                             f"[+] Progress : {created_count} / {amount}\n"
-                            f"[~] ETA      : {time_str}\n"
                             f"[x] 429 Hits : {rate_hits}\n"
+                            f"[~] Cooldown : {eta_display}\n"
                             f"[!] Status   : {status_text}\n"
                             f"=================================\n"
                             f"```"
                         )
                     
-                    await panel_msg.edit(content=build_panel("INITIATING GHOST BURN..."))
+                    await panel_msg.edit(content=build_panel("ENGAGING MAX YIELD ACCELERATION..."))
 
-                    for i in range(amount):
+                    while created_count < amount:
                         try:
                             async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as resp:
                                 resp_text = await resp.text()
+
                                 if resp.status in (200, 201):
                                     data = orjson.loads(resp_text)
                                     if data.get("type") == 3:
                                         gc_id = data['id']
                                         created_count += 1
                                         
+                                        # Force UI popup ping
                                         msg_url = f"https://discord.com/api/v9/channels/{gc_id}/messages"
                                         msg_payload = orjson.dumps({"content": f"⚡ **FORB1D // GC FORGED**"})
                                         async with self.raw_session.post(msg_url, data=msg_payload, headers=ultra_headers):
                                             pass
                                             
+                                        # Only update panel every 2 creations during burst to avoid channel rate limit
+                                        if created_count % 2 == 0:
+                                            await panel_msg.edit(content=build_panel("FORGING AT BURST SPEED...", "0s (BURST ACTIVE)"))
+                                            
+                                        await asyncio.sleep(1.5) # Fast delay to keep gateway happy
+
                                 elif resp.status == 429:
                                     rate_hits += 1
                                     rate_data = orjson.loads(resp_text)
-                                    retry_after = float(rate_data.get("retry_after", 1.0))
-                                    await panel_msg.edit(content=build_panel(f"RATE LIMIT SURGE ({retry_after}s)..."))
-                                    await asyncio.sleep(retry_after + 0.1)
-                            
-                            # 🟢 THE LIVE COUNTDOWN BYPASS
-                            # If we haven't reached the end, wait the 75 seconds but update the panel every 5 seconds
-                            if i < amount - 1:
-                                for countdown in range(BASE_DELAY, 0, -5):
-                                    await panel_msg.edit(content=build_panel(f"COOLDOWN: {countdown}s REMAINING TO EVADE BAN..."))
-                                    await asyncio.sleep(5)
+                                    retry_after = float(rate_data.get("retry_after", 600.0))
+                                    wait_int = int(retry_after)
                                     
+                                    # Live countdown loop
+                                    for remaining in range(wait_int, 0, -10):
+                                        mins, secs = divmod(remaining, 60)
+                                        try:
+                                            await panel_msg.edit(content=build_panel(f"EVADING 429 LOCKOUT", f"{mins}m {secs}s"))
+                                        except:
+                                            pass
+                                        await asyncio.sleep(10)
+                                        
+                                    await asyncio.sleep(1) # Final buffer second
+
                         except asyncio.CancelledError:
                             await panel_msg.edit(content=build_panel("TERMINATED BY USER."))
                             return
-                        except Exception:
-                            await asyncio.sleep(BASE_DELAY)
+                        except Exception as e:
+                            print(f"⚠️ Exception: {e}", flush=True)
+                            await asyncio.sleep(2.0)
 
-                    await panel_msg.edit(content=build_panel("TASK COMPLETE // SUCCESS."))
+                    await panel_msg.edit(content=build_panel("TASK COMPLETE // ALL GCS CREATED."))
 
                 asyncio.create_task(create_gc_loop(), name=task_name)
 
