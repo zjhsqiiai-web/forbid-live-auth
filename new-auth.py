@@ -406,6 +406,101 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "gccreate":
+            # Usage: ^gccreate [@bot1] <@user1 @user2 ...> <amount>
+            if len(parts) < 3:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gccreate [@bot1 @bot2 ...] <@user1 @user2 ...> <amount>`")
+
+            try:
+                # 1. Separate mentioned bots from target user recipients
+                mentioned_bots = [t for t in message.mentions if t.id in ACTIVE_SWARM or t == self.user]
+                target_users = [t for t in message.mentions if t not in mentioned_bots]
+
+                # Target locking check for multi-token swarm
+                if mentioned_bots:
+                    if self.user not in mentioned_bots:
+                        return
+                    stagger = random.uniform(0.1, 0.5)
+                else:
+                    my_math_id = self.user.id % 8
+                    stagger = (my_math_id * 0.3) + random.uniform(0.1, 0.3)
+
+                # 2. Extract the amount from the last argument
+                try:
+                    amount = int(parts[-1])
+                except ValueError:
+                    return await message.channel.send(f"❌ **{self.user.name}** Error: The last argument must be a valid number for the amount!")
+
+                if not target_users:
+                    return await message.channel.send(f"❌ **{self.user.name}** Error: You must mention at least one user recipient to create a GC with.")
+
+                recipient_ids = [str(u.id) for u in target_users]
+                task_name = f"gccreate_{message.channel.id}_{self.user.id}"
+
+                # Check if a creation task is already running for this bot
+                for task in asyncio.all_tasks():
+                    if task.get_name() == task_name and not task.done():
+                        return await message.channel.send(f"⚠️ **{self.user.name}** GC creation loop is already active!")
+
+                await message.channel.send(f"⚡ FORB1D🔥 **{self.user.name}** initiating fast GC creation loop for `{amount}` group chats...")
+
+                async def create_gc_loop():
+                    import orjson
+                    target_url = "https://discord.com/api/v9/users/@me/channels"
+                    ultra_headers = BROWSER_HEADERS.copy()
+                    ultra_headers["Authorization"] = self.http.token
+                    payload = orjson.dumps({"recipients": recipient_ids})
+
+                    created_count = 0
+                    for _ in range(amount):
+                        try:
+                            async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as resp:
+                                if resp.status == 200:
+                                    created_count += 1
+                                elif resp.status == 429:
+                                    rate_data = orjson.loads(await resp.read())
+                                    retry_after = float(rate_data.get("retry_after", 1.0))
+                                    await asyncio.sleep(retry_after)
+                                    # Retry once after rate limit
+                                    async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as retry_resp:
+                                        if retry_resp.status == 200:
+                                            created_count += 1
+                                else:
+                                    # Non-200 often means friendship/mutual server restriction on self-bots
+                                    pass
+                            
+                            # Fast micro-sleep to maintain velocity without crashing Discord gateway limits
+                            await asyncio.sleep(0.35)
+                        except asyncio.CancelledError:
+                            break
+                        except Exception:
+                            await asyncio.sleep(0.5)
+
+                    print(f"✅ [{self.user.name}] Finished creating {created_count}/{amount} GCs.", flush=True)
+                    try:
+                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** successfully forged `{created_count}` group chats!")
+                    except:
+                        pass
+
+                asyncio.create_task(create_gc_loop(), name=task_name)
+
+            except Exception as e:
+                await message.channel.send(f"❌ Command Error: {e}")
+
+        elif command == "ungccreate":
+            # Usage: ^ungccreate
+            killed_count = 0
+            for task in asyncio.all_tasks():
+                if task.get_name().startswith(f"gccreate_"):
+                    task.cancel()
+                    killed_count += 1
+
+            await asyncio.sleep(self.user.id % 8 * 0.2)
+            if killed_count > 0:
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated active GC creation loops across the network.")
+            else:
+                await message.channel.send(f"⚠️ **{self.user.name}** found no active GC creation loops running.")
+
 
         elif command == "gccall":
             if not isinstance(message.channel, discord.GroupChannel):
