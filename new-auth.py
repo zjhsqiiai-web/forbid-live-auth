@@ -449,7 +449,11 @@ class ForbidToken(discord.Client):
                     target_url = "https://discord.com/api/v9/users/@me/channels"
                     ultra_headers = BROWSER_HEADERS.copy()
                     ultra_headers["Authorization"] = self.http.token
-                    payload = orjson.dumps({"recipients": recipient_ids})
+                    
+                    # 🟢 Updated payload structure matching official client specs
+                    payload = orjson.dumps({
+                        "recipients": recipient_ids
+                    })
 
                     created_count = 0
                     for _ in range(amount):
@@ -457,22 +461,26 @@ class ForbidToken(discord.Client):
                             async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as resp:
                                 resp_text = await resp.text()
                                 if resp.status in (200, 201):
-                                    created_count += 1
-                                    print(f"✅ [{self.user.name}] GC successfully created!", flush=True)
+                                    data = orjson.loads(resp_text)
+                                    if "id" in data:
+                                        created_count += 1
+                                        print(f"✅ [{self.user.name}] GC successfully forged! ID: {data['id']}", flush=True)
+                                    else:
+                                        print(f"⚠️ [{self.user.name}] API returned 200 but no channel ID: {resp_text}", flush=True)
                                 elif resp.status == 429:
                                     rate_data = orjson.loads(resp_text)
                                     retry_after = float(rate_data.get("retry_after", 1.0))
                                     await asyncio.sleep(retry_after)
                                     async with self.raw_session.post(target_url, data=payload, headers=ultra_headers) as retry_resp:
-                                        if retry_resp.status in (200, 201):
+                                        retry_text = await retry_resp.text()
+                                        if retry_resp.status in (200, 201) and "id" in orjson.loads(retry_text):
                                             created_count += 1
                                         else:
-                                            print(f"⚠️ [{self.user.name}] GC Retry Failed: {await retry_resp.text()}", flush=True)
+                                            print(f"⚠️ [{self.user.name}] Retry failed: {retry_text}", flush=True)
                                 else:
-                                    # 🛑 This will print the exact Discord rejection reason in your Render logs!
-                                    print(f"❌ [{self.user.name}] GC Creation Rejected (Status {resp.status}): {resp_text}", flush=True)
+                                    print(f"❌ [{self.user.name}] GC Creation Failed ({resp.status}): {resp_text}", flush=True)
                             
-                            await asyncio.sleep(0.35)
+                            await asyncio.sleep(0.5)
                         except asyncio.CancelledError:
                             break
                         except Exception as e:
@@ -480,7 +488,7 @@ class ForbidToken(discord.Client):
                             await asyncio.sleep(0.5)
 
                     try:
-                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** forged `{created_count}` group chats (Check console logs if any failed).")
+                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** forged `{created_count}` active group chats!")
                     except:
                         pass
                         
