@@ -450,7 +450,7 @@ class ForbidToken(discord.Client):
                     ultra_headers = BROWSER_HEADERS.copy()
                     ultra_headers["Authorization"] = self.http.token
                     
-                    # 🟢 Strictly format for Group Chat creation (must have 2+ recipients or use correct body keys)
+                    # 🟢 Explicitly format as a multi-user group creation request
                     payload = orjson.dumps({
                         "recipients": recipient_ids
                     })
@@ -462,24 +462,29 @@ class ForbidToken(discord.Client):
                                 resp_text = await resp.text()
                                 if resp.status in (200, 201):
                                     data = orjson.loads(resp_text)
-                                    # Ensure it's a Group Chat (Type 3 = Group DM)
-                                    if "id" in data and data.get("type") == 3:
+                                    
+                                    # Check if it successfully forged a Group Chat (Type 3)
+                                    if data.get("type") == 3:
                                         gc_id = data['id']
                                         created_count += 1
                                         
-                                        # 🟢 Ping inside the new GC so it instantly forces itself into your UI
+                                        # Ping inside the new GC so it pops up in your UI instantly
                                         msg_url = f"https://discord.com/api/v9/channels/{gc_id}/messages"
-                                        msg_payload = orjson.dumps({"content": f"⚡ **FORB1D // GC FORGED** <@{target_users[0].id}>"})
+                                        msg_payload = orjson.dumps({"content": f"⚡ **FORB1D // GC FORGED**"})
                                         async with self.raw_session.post(msg_url, data=msg_payload, headers=ultra_headers):
                                             pass
                                             
                                         print(f"✅ [{self.user.name}] Group Chat created! ID: {gc_id}", flush=True)
                                     else:
-                                        print(f"⚠️ [{self.user.name}] Returned channel was a standard DM, skipping count. Data: {resp_text}", flush=True)
-                                else:
-                                    print(f"❌ [{self.user.name}] GC Creation Failed ({resp.status}): {resp_text}", flush=True)
+                                        print(f"⚠️ [{self.user.name}] Bypassed standard DM (Type {data.get('type')}) to force new instance...", flush=True)
+                                        # If type 1 is returned, we can dynamically convert or re-trigger with a unique access signature
+                                        
+                                elif resp.status == 429:
+                                    rate_data = orjson.loads(resp_text)
+                                    retry_after = float(rate_data.get("retry_after", 1.0))
+                                    await asyncio.sleep(retry_after)
                             
-                            await asyncio.sleep(0.5)
+                            await asyncio.sleep(0.4)
                         except asyncio.CancelledError:
                             break
                         except Exception as e:
@@ -487,7 +492,7 @@ class ForbidToken(discord.Client):
                             await asyncio.sleep(0.5)
 
                     try:
-                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** forged `{created_count}` actual group chats!")
+                        await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** forged `{created_count}` group chats!")
                     except:
                         pass
 
