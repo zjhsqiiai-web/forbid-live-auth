@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE ANTI-DUCK PULSE ENGINE (BYPASSES DISCORD AUTO-ATTENUATION)
+                                # 🟢 THE KRISP-BYPASSER (VOICE-FORMAT MASKING + 2000% OVERDRIVE)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: Aggressive compression pump + 2000% volume + clean high-end bite
-                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=2.5,bass=g=30:f=60,equalizer=f=2500:width_type=q:width=1:g=30,acompressor=threshold=0.05:ratio=20:attack=2:release=50,volume=20"'
+                                    # 🟢 THE BYPASS: Vocal Formant Shaping + High Bass + 2000% Volume (Invisible to Krisp)
+                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,bass=g=30:f=60,equalizer=f=1500:width_type=q:width=1.5:g=35,volume=20,acompressor=threshold=0.05:ratio=20:attack=2:release=50"'
                                 )
                                 vc.play(source)
 
@@ -474,6 +474,7 @@ class ForbidToken(discord.Client):
 
                         except Exception as e:
                             print(f"Audio Loop Error: {e}")
+                            
                             await asyncio.sleep(1.0)
                             
                         except Exception as e:
