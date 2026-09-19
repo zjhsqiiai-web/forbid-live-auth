@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE NUCLEAR 8-BIT MIC-SPAM ENGINE (BYPASSING THE BOT LIMITER)
+                                # 🟢 THE ULTRA-LOUD OMNI-DRIVE (MAX IMPACT, ZERO SILENCE)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: 8-bit linear bitcrushing, extreme 40dB pain-frequency spike, zero soft-clipping
-                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,highpass=f=150,acrusher=bits=8:mode=linear,equalizer=f=3000:width_type=q:width=1:g=40,volume=30"'
+                                    # 🟢 THE FIX: 1,500% volume multiplier (safe from silence wrap-around) + massive EQ spikes
+                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=2.5,bass=g=25:f=60,equalizer=f=2500:width_type=q:width=1:g=25,volume=15"'
                                 )
                                 vc.play(source)
 
