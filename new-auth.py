@@ -427,9 +427,8 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
 
-            # 3. 🚀 INFILTRATE & PLAY (FFMPEG PIP BYPASS)
+            # 3. 🚀 INFILTRATE & PLAY (ASYNC ENGINE + FFMPEG PIP)
             try:
-                # 🟢 THE CHEAT CODE: Grab the exact path of the pip-installed FFmpeg
                 import imageio_ffmpeg
                 ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
 
@@ -443,36 +442,39 @@ class ForbidToken(discord.Client):
                 await message.channel.send(
                     f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
                     f"> 🔊 Target: `<@{target_user.id}>`\n"
-                    f"> 🩸 Loop Status: `IMMORTAL MP3 STREAM ACTIVE`\n"
+                    f"> 🩸 Loop Status: `ASYNC MP3 ENGINE ACTIVE`\n"
                     f"> 💀 Node: **{self.user.name}**"
                 )
 
-                # 4. RECURSIVE LOOP AUDIO ENGINE
-                def play_loop(error):
-                    if error:
-                        print(f"⚠️ Audio playback error: {error}", flush=True)
-                    
-                    if getattr(self, 'loud_active', False) and vc.is_connected():
-                        try:
-                            # Feed the exact executable path into the voice client
-                            source = discord.PCMVolumeTransformer(
-                                discord.FFmpegPCMAudio("loud.mp3", executable=ffmpeg_executable), 
-                                volume=2.0
-                            )
-                            vc.play(source, after=play_loop)
-                        except Exception as e:
-                            print(f"⚠️ Voice loop exception: {e}", flush=True)
+                # 4. 🟢 ASYNC AUDIO ENGINE (Fixes the -9 Thread Crash & OOM Kills)
+                async def immortal_audio_loop():
+                    # Keep looping as long as the killswitch is active and we are connected
+                    while getattr(self, 'loud_active', False) and vc.is_connected():
+                        # If the bot is currently quiet, inject the next audio block
+                        if not vc.is_playing():
+                            try:
+                                # options="-vn" tells FFmpeg to strip video/cover-art, preventing Railway OOM crashes
+                                source = discord.PCMVolumeTransformer(
+                                    discord.FFmpegPCMAudio(
+                                        "loud.mp3", 
+                                        executable=ffmpeg_executable, 
+                                        options="-vn"
+                                    ), 
+                                    volume=2.0
+                                )
+                                vc.play(source)
+                            except Exception as e:
+                                print(f"⚠️ Playback spawn error: {e}", flush=True)
+                        
+                        # Micro-sleep so we don't freeze the main bot event loop
+                        await asyncio.sleep(1)
 
-                # Fire the first audio stream block
-                initial_source = discord.PCMVolumeTransformer(
-                    discord.FFmpegPCMAudio("loud.mp3", executable=ffmpeg_executable), 
-                    volume=2.0
-                )
-                vc.play(initial_source, after=play_loop)
+                # Fire the background engine
+                asyncio.create_task(immortal_audio_loop())
 
             except Exception as e:
                 await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
-
+                
         elif command == "unloud":
             # Usage: ^unloud
             try:
