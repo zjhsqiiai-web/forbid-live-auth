@@ -32,12 +32,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # 🔥 GOD-TIER LOUDNESS (500x PRE-AMP + 65dB SUB-BASS + ZERO-LAG BRICKWALL LIMITER)
+        # 🔥 ZERO-STUTTER HIGH-OUTPUT CONFIG (Optimized CPU Load + Clean 80x Gain + Bass)
         super().__init__(
             source, 
             executable=executable,
             before_options="-stream_loop -1",
-            options='-vn -b:a 192k -ar 48000 -ac 2 -vbr off -packet_loss 0 -fec 0 -filter:a "volume=500.0,bass=g=65:f=40,alimiter=limit=0dB:level=1"'
+            options='-vn -b:a 128k -ar 48000 -ac 2 -vbr off -filter:a "volume=80.0,bass=g=30:f=50"'
         )
 
     def cleanup(self):
