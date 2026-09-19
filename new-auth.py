@@ -26,14 +26,17 @@ if not discord.opus.is_loaded():
     except Exception as e:
         print(f"⚠️ [System] Opus load warning (safe to ignore if audio works): {e}", flush=True)
 
-class PyAVMemoryAudio(discord.AudioSource):
-    def __init__(self, filename):
-        self.container = av.open(filename)
-        self.stream = self.container.streams.audio[0]
-        self.resampler = av.AudioResampler(
-            format='s16',
-            layout='stereo',
-            rate=48000
+class PyAVMemoryAudio(discord.FFmpegOpusAudio):
+    def __init__(self, source, **kwargs):
+        import imageio_ffmpeg
+        executable = imageio_ffmpeg.get_ffmpeg_exe()
+        
+        # 🔥 Massive volume multiplier + bass boost + 48kHz stereo sync
+        super().__init__(
+            source, 
+            executable=executable,
+            before_options="-stream_loop -1",
+            options='-vn -b:a 128k -ar 48000 -ac 2 -vbr off -packet_loss 10 -fec 1 -filter:a "volume=30.0,bass=g=30:f=50,aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=stereo"'
         )
 
     def read(self):
