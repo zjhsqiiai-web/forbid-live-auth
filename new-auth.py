@@ -32,12 +32,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # 🔥 HARDWARE-LEVEL RAW PCM VOLTAGE OVERDRIVE
+        # 🔥 DIRECT MAXIMUM VOLTAGE INJECTION (Zero Muting, Massive Gain)
         super().__init__(
             source, 
             executable=executable,
             before_options="-stream_loop -1",
-            options='-vn -b:a 128k -ar 48000 -ac 2 -filter:a "volume=200.0,acompressor=threshold=0.0:ratio=50:attack=0:release=10,alimiter=limit=0dB"'
+            options='-vn -b:a 128k -ar 48000 -ac 2 -filter:a "volume=100.0,alimiter=limit=0dB"'
         )
 
     def cleanup(self):
