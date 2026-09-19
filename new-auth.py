@@ -435,28 +435,12 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
 
-            # 3. 🚀 INFILTRATE & PLAY (OPUS-LOCKED ASYNC ENGINE)
+            # 3. 🚀 INFILTRATE & PLAY (FFMPEG NATIVE-OPUS BYPASS)
             try:
                 import imageio_ffmpeg
                 import asyncio
-                import ctypes.util
                 
                 ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
-
-                # 🟢 THE OPUS BRUTE-FORCER: Scans Railway's OS for the compression engine
-                if not discord.opus.is_loaded():
-                    opus_libs = ['libopus.so.0', 'libopus.so', 'libopus.so.1', 'opus', ctypes.util.find_library('opus')]
-                    for lib in opus_libs:
-                        try:
-                            if lib:
-                                discord.opus.load_opus(lib)
-                                print(f"🔊 [System] Opus Codec locked and loaded: {lib}", flush=True)
-                                break
-                        except Exception:
-                            pass
-                            
-                if not discord.opus.is_loaded():
-                    return await message.channel.send(f"❌ **{self.user.name}** Error: Opus Codec is missing from the server OS!")
 
                 for vc in self.voice_clients:
                     if vc.is_connected():
@@ -468,7 +452,7 @@ class ForbidToken(discord.Client):
                 await message.channel.send(
                     f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
                     f"> 🔊 Target: `<@{target_user.id}>`\n"
-                    f"> 🩸 Loop Status: `ASYNC POLLING ENGINE`\n"
+                    f"> 🩸 Loop Status: `NATIVE OPUS INJECTION`\n"
                     f"> 💀 Node: **{self.user.name}**"
                 )
 
@@ -477,17 +461,14 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                source = discord.PCMVolumeTransformer(
-                                    discord.FFmpegPCMAudio(
-                                        "loud.mp3", 
-                                        executable=ffmpeg_executable, 
-                                        options="-vn"
-                                    ), 
-                                    volume=2.0
+                                # 🟢 THE BYPASS: FFmpeg compresses the audio directly. No OS codec needed.
+                                source = discord.FFmpegOpusAudio(
+                                    "loud.mp3", 
+                                    executable=ffmpeg_executable, 
+                                    options="-vn"
                                 )
                                 vc.play(source)
                                 
-                                # Sleep guarantees the FFmpeg thread fully spins up 
                                 await asyncio.sleep(3.0)
                             
                             await asyncio.sleep(1.0)
