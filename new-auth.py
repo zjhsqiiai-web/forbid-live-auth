@@ -461,16 +461,16 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                               # 🟢 THE ELITE-TIER HARD-CLIPPER (SQUARE WAVE DOMINANCE)
-                                source = discord.FFmpegOpusAudio(
-                                    "loud.mp3", 
-                                    executable=ffmpeg_executable,
-                                    # Infinite gapless loop
-                                    before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: Heavy boosts mapped explicitly to a 16-bit hard-clip wall
-                                    options='-vn -b:a 128k -filter:a "extrastereo=m=2.0,bass=g=20:f=60,equalizer=f=2500:width_type=q:width=1:g=20,volume=50,aformat=sample_fmts=s16"'
-                                )
-                                vc.play(source)
+                               # 🟢 THE PSYCHOACOUSTIC OPUS-BREAKER (HAAS EFFECT + CBR OVERRIDE)
+                            source = discord.FFmpegOpusAudio(
+                                "loud.mp3", 
+                                executable=ffmpeg_executable,
+                                # Infinite loop
+                                before_options="-stream_loop -1",
+                                # 🟢 THE BYPASS: CBR forcing (-vbr off), Haas brain-hack, 10-bit crushing, and s16 hard-clipping
+                                options='-vn -b:a 128k -vbr off -filter:a "haas=delay=15,extrastereo=m=3.0,bass=g=25:f=60,equalizer=f=2500:width_type=q:width=1:g=30,acrusher=bits=10:mode=log,volume=50,aformat=sample_fmts=s16"'
+                            )
+                            vc.play(source)
                                 
                                 await asyncio.sleep(3.0)
                             
