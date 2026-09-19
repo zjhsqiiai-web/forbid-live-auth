@@ -25,6 +25,33 @@ if not discord.opus.is_loaded():
     except Exception as e:
         print(f"⚠️ [System] Opus load warning (safe to ignore if audio works): {e}", flush=True)
 
+import av
+
+class PyAVMemoryAudio(discord.AudioSource):
+    def __init__(self, filename):
+        self.container = av.open(filename)
+        self.stream = self.container.streams.audio[0]
+        self.resampler = av.AudioResampler(
+            format='s16',
+            layout='stereo',
+            rate=48000
+        )
+
+    def read(self):
+        try:
+            for frame in self.container.decode(self.stream):
+                resampled_frames = self.resampler.resample(frame)
+                for resampled_frame in resampled_frames:
+                    # Raw 16-bit 48kHz stereo PCM byte injection
+                    return resampled_frame.to_bytes()
+        except Exception:
+            return b''
+        return b''
+
+    def cleanup(self):
+        if self.container:
+            self.container.close()
+
 # 1. TURN ON DISCORD X-RAY (Keeps your general boot-up info flowing)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(name)s: %(message)s')
 
@@ -455,19 +482,13 @@ class ForbidToken(discord.Client):
                     f"> 💀 Node: **{self.user.name}**"
                 )
 
-                # 4. 🟢 THE BULLETPROOF LOOP
+                # 4. 🟢 THE BULLETPROOF MEMORY STREAM LOOP
                 async def immortal_audio_loop():
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE CHERNOBYL OVERDRIVE (EXTREME BITCRUSH + 16-BIT SQUARE WAVE)
-                                source = discord.FFmpegOpusAudio(
-                                    "loud.mp3", 
-                                    executable=ffmpeg_executable,
-                                    before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: 4-bit destruction + 10,000% Volume + Raw 16-Bit Square Wave Clip
-                                    options='-vn -b:a 128k -ar 48000 -ac 2 -vbr off -packet_loss 10 -fec 1 -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,bass=g=50:f=45,volume=40,aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=stereo"'
-                                )
+                                # 🟢 DIRECT MEMORY INJECTION (BYPASSING FFMPEG SUBPROCESS PIPES)
+                                source = PyAVMemoryAudio("loud.mp3")
                                 vc.play(source)
 
                             await asyncio.sleep(3.0)
