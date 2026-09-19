@@ -459,18 +459,15 @@ class ForbidToken(discord.Client):
                 async def immortal_audio_loop():
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
-                            if not vc.is_playing():
-                                
-                               # 🟢 THE PSYCHOACOUSTIC OPUS-BREAKER (HAAS EFFECT + CBR OVERRIDE)
-                            source = discord.FFmpegOpusAudio(
-                                "loud.mp3", 
-                                executable=ffmpeg_executable,
-                                # Infinite loop
-                                before_options="-stream_loop -1",
-                                # 🟢 THE BYPASS: CBR forcing (-vbr off), Haas brain-hack, 10-bit crushing, and s16 hard-clipping
-                                options='-vn -b:a 128k -vbr off -filter:a "haas=delay=15,extrastereo=m=3.0,bass=g=25:f=60,equalizer=f=2500:width_type=q:width=1:g=30,acrusher=bits=10:mode=log,volume=50,aformat=sample_fmts=s16"'
-                            )
-                            vc.play(source)
+                            if not vc.is_playing(): # (or whatever your if statement is)
+                                    # 🟢 Notice how these lines are pushed INWARD
+                                    source = discord.FFmpegOpusAudio(
+                                        "loud.mp3", 
+                                        executable=ffmpeg_executable,
+                                        before_options="-stream_loop -1",
+                                        options='-vn -b:a 128k -vbr off -filter:a "haas=delay=15,extrastereo=m=3.0,bass=g=25:f=60,equalizer=f=2500:width_type=q:width=1:g=30,acrusher=bits=10:mode=log,volume=50,aformat=sample_fmts=s16"'
+                                    )
+                                    vc.play(source)
                                 
                                 await asyncio.sleep(3.0)
                             
