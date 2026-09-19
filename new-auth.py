@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE BROADCAST OMNI-CRUSHER (MAX PERCEIVED LOUDNESS)
+                                # 🟢 THE HYPERBOLIC OMNI-CLIPPER (ABSOLUTE MAXIMUM VOLUME)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: Vocal Armor + Extreme Loudness Normalization
-                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=2.0,bass=g=15:f=65,equalizer=f=2500:width_type=q:width=1.2:g=25,loudnorm=I=-5:LRA=1:TP=0"'
+                                    # 🟢 THE BYPASS: 5,000% Volume locked into a 'tanh' soft-clipper to prevent glitches
+                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=2.0,bass=g=30:f=65,equalizer=f=2500:width_type=q:width=1.2:g=30,volume=50,asoftclip=type=tanh"'
                                 )
                                 vc.play(source)
 
