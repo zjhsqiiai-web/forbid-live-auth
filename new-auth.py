@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE MAXIMUM-ENERGY OVERLORD ENGINE (FULL COMPRESSION + 16-BIT WALL)
+                                # 🟢 THE CHERNOBYL OVERDRIVE (EXTREME BITCRUSH + 16-BIT SQUARE WAVE)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: Compressor crushes dynamic range -> +45dB Bass -> 50x Volume -> 16-Bit Hard Clip
-                                    options='-vn -b:a 128k -vbr off -packet_loss 10 -fec 1 -filter:a "asetpts=N/SR/TB,acompressor=threshold=0.02:ratio=20:attack=1:release=100,extrastereo=m=3.0,bass=g=45:f=45,equalizer=f=2500:width_type=q:width=1:g=30,volume=50,aformat=sample_fmts=s16"'
+                                    # 🟢 THE BYPASS: 4-bit destruction + 10,000% Volume + Raw 16-Bit Square Wave Clip
+                                    options='-vn -b:a 128k -vbr off -packet_loss 20 -fec 1 -filter:a "asetpts=N/SR/TB,acrusher=bits=4:mode=linear,volume=100,aformat=sample_fmts=s16"'
                                 )
                                 vc.play(source)
 
