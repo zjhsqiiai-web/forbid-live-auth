@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE OVERLORD-CLASS AUDIO ENGINE (ABSOLUTE CHANNEL DOMINANCE)
+                                # 🟢 THE SUB-BASS NUCLEAR ENGINE (MAXIMUM LOW-END DOMINANCE)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: 300% Stereo Expansion -> Dual-Stage Harmonic Saturation -> Vocal Formant Armor -> Hard Ceiling
-                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,volume=12,equalizer=f=2500:width_type=q:width=1:g=40,volume=20,alimiter=limit=-0.0dB:level=1"'
+                                    # 🟢 THE BYPASS: +50dB Sub-Bass + Vocal Formant Armor + Dual Gain Cascade + Brickwall Ceiling
+                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,bass=g=50:f=50,volume=15,equalizer=f=2500:width_type=q:width=1:g=35,volume=20,alimiter=limit=-0.0dB:level=1"'
                                 )
                                 vc.play(source)
 
