@@ -32,12 +32,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # 🔥 CLEAN MAX-OUTPUT CONFIG (Optimized Gain + Zero Distortion + Zero Lag)
+        # ⚡ LOW-LATENCY REAL-TIME BUFFER BYPASS (Zero Stutter + Clean High Gain)
         super().__init__(
             source, 
             executable=executable,
-            before_options="-stream_loop -1",
-            options='-vn -b:a 128k -ar 48000 -ac 2 -vbr off -filter:a "volume=15.0,alimiter=limit=-1.0dB"'
+            before_options="-fflags nobuffer -flags low_delay -stream_loop -1",
+            options='-vn -b:a 128k -ar 48000 -ac 2 -vbr off -filter:a "volume=25.0,alimiter=limit=-0.5dB"'
         )
 
     def cleanup(self):
