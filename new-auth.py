@@ -32,12 +32,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # 🔥 THE ABSOLUTE MAXIMUM LOUDNESS BLASTER (STABLE + DEAFENING)
+        # 🔥 FORCED MAXIMUM GAIN (5,000% Volume + Heavy Sub-Bass + Hard Limiter)
         super().__init__(
             source, 
             executable=executable,
             before_options="-stream_loop -1",
-            options='-vn -b:a 128k -ar 48000 -ac 2 -vbr off -packet_loss 10 -fec 1 -filter:a "volume=40.0,bass=g=45:f=45,acompressor=threshold=0.01:ratio=20:attack=1:release=100,alimiter=limit=-0.3dB:level=1,aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=stereo"'
+            options='-vn -b:a 128k -ar 48000 -ac 2 -af "volume=50.0,bass=g=50:f=40,alimiter=limit=-0.1dB"'
         )
 
     def cleanup(self):
@@ -45,7 +45,7 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
             super().cleanup()
         except Exception:
             pass
-
+            
 import discord
 
 class ForbidRTPOverdrive(discord.VoiceClient):
