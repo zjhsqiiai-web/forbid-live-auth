@@ -407,65 +407,72 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "loud":
-            # Usage: ^loud @user
-            if not message.mentions:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` (Ensure 'loud.mp3' is present!)")
+        # Usage: ^loud @user
+        if not message.mentions:
+            return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` (Ensure 'loud.mp3' is present!)")
 
-            target_user = message.mentions[0]
-            voice_channel = None
+        target_user = message.mentions[0]
+        voice_channel = None
 
-            # 1. HUNTER PROTOCOL: Scan all mutual servers to find the target's exact Voice Channel
-            for guild in self.guilds:
-                member = guild.get_member(target_user.id)
-                if member and member.voice and member.voice.channel:
-                    voice_channel = member.voice.channel
-                    break
+        for guild in self.guilds:
+            member = guild.get_member(target_user.id)
+            if member and member.voice and member.voice.channel:
+                voice_channel = member.voice.channel
+                break
 
-            # 2. GC FALLBACK: If they aren't in a server VC, check if we are in a Group Chat with them
-            if not voice_channel and isinstance(message.channel, discord.GroupChannel):
-                if target_user in message.channel.recipients:
-                    voice_channel = message.channel
+        if not voice_channel and isinstance(message.channel, discord.GroupChannel):
+            if target_user in message.channel.recipients:
+                voice_channel = message.channel
 
-            if not voice_channel:
-                return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
+        if not voice_channel:
+            return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
 
-            # 3. 🚀 INFILTRATE & PLAY (DAVE PROTOCOL BYPASS)
-            try:
-                # Disconnect from any existing voice client safely
-                for vc in self.voice_clients:
-                    if vc.is_connected():
-                        await vc.disconnect()
+        # 3. 🚀 INFILTRATE & PLAY (FFMPEG PIP BYPASS)
+        try:
+            # 🟢 THE CHEAT CODE: Grab the exact path of the pip-installed FFmpeg
+            import imageio_ffmpeg
+            ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
 
-                # Connect to the target using the pre-compiled bypass client
-                vc = await voice_channel.connect()
-                self.loud_active = True
+            for vc in self.voice_clients:
+                if vc.is_connected():
+                    await vc.disconnect()
 
-                await message.channel.send(
-                    f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
-                    f"> 🔊 Target: `<@{target_user.id}>`\n"
-                    f"> 🩸 Loop Status: `IMMORTAL MP3 STREAM ACTIVE`\n"
-                    f"> 💀 Node: **{self.user.name}**"
-                )
+            vc = await voice_channel.connect()
+            self.loud_active = True
 
-                # 4. RECURSIVE LOOP AUDIO ENGINE
-                def play_loop(error):
-                    if error:
-                        print(f"⚠️ Audio playback error: {error}", flush=True)
-                    
-                    if getattr(self, 'loud_active', False) and vc.is_connected():
-                        try:
-                            # Re-instantiate source for continuous loop execution
-                            source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("loud.mp3"), volume=2.0)
-                            vc.play(source, after=play_loop)
-                        except Exception as e:
-                            print(f"⚠️ Voice loop exception: {e}", flush=True)
+            await message.channel.send(
+                f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
+                f"> 🔊 Target: `<@{target_user.id}>`\n"
+                f"> 🩸 Loop Status: `IMMORTAL MP3 STREAM ACTIVE`\n"
+                f"> 💀 Node: **{self.user.name}**"
+            )
 
-                # Fire the first audio stream block
-                initial_source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("loud.mp3"), volume=2.0)
-                vc.play(initial_source, after=play_loop)
+            # 4. RECURSIVE LOOP AUDIO ENGINE
+            def play_loop(error):
+                if error:
+                    print(f"⚠️ Audio playback error: {error}", flush=True)
+                
+                if getattr(self, 'loud_active', False) and vc.is_connected():
+                    try:
+                        # Feed the exact executable path into the voice client
+                        source = discord.PCMVolumeTransformer(
+                            discord.FFmpegPCMAudio("loud.mp3", executable=ffmpeg_executable), 
+                            volume=2.0
+                        )
+                        vc.play(source, after=play_loop)
+                    except Exception as e:
+                        print(f"⚠️ Voice loop exception: {e}", flush=True)
 
-            except Exception as e:
-                await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
+            # Fire the first audio stream block
+            initial_source = discord.PCMVolumeTransformer(
+                discord.FFmpegPCMAudio("loud.mp3", executable=ffmpeg_executable), 
+                volume=2.0
+            )
+            vc.play(initial_source, after=play_loop)
+
+        except Exception as e:
+            await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
+            
 
         elif command == "unloud":
             # Usage: ^unloud
