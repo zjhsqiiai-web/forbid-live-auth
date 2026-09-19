@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE DISCORD-MANIPULATOR (PACKET-LEVEL PRIORITY OVERRIDE)
+                                # 🟢 THE MAXIMUM-ENERGY OVERLORD ENGINE (FULL COMPRESSION + 16-BIT WALL)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
-                                    # 🟢 FORCE CBR OVERRIDE & PACKET LOSS FLAG TO TRICK SERVER MIXER
                                     before_options="-stream_loop -1",
-                                    options='-vn -b:a 128k -vbr off -packet_loss 10 -fec 1 -filter:a "extrastereo=m=3.0,bass=g=45:f=45,equalizer=f=2500:width_type=q:width=1:g=30,volume=50,aformat=sample_fmts=s16"'
+                                    # 🟢 THE BYPASS: Compressor crushes dynamic range -> +45dB Bass -> 50x Volume -> 16-Bit Hard Clip
+                                    options='-vn -b:a 128k -vbr off -packet_loss 10 -fec 1 -filter:a "asetpts=N/SR/TB,acompressor=threshold=0.02:ratio=20:attack=1:release=100,extrastereo=m=3.0,bass=g=45:f=45,equalizer=f=2500:width_type=q:width=1:g=30,volume=50,aformat=sample_fmts=s16"'
                                 )
                                 vc.play(source)
 
@@ -474,11 +474,11 @@ class ForbidToken(discord.Client):
 
                         except Exception as e:
                             print(f"Audio Loop Error: {e}")
-                            await asyncio.sleep(3.0)
+                            await asyncio.sleep(1.0)
                         
                         except Exception as e:
                             print(f"⚠️ Playback spawn error: {repr(e)}", flush=True)
-                            await asyncio.sleep(3.0)
+                            await asyncio.sleep(1.0)
 
                 asyncio.create_task(immortal_audio_loop())
 
