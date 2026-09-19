@@ -466,7 +466,7 @@ class ForbidToken(discord.Client):
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
                                     # 🟢 THE BYPASS: 4-bit destruction + 10,000% Volume + Raw 16-Bit Square Wave Clip
-                                    options='-vn -b:a 128k -vbr off -packet_loss 20 -fec 1 -filter:a "asetpts=N/SR/TB,acrusher=bits=4:mode=linear,volume=100,aformat=sample_fmts=s16"'
+                                    options='-vn -b:a 128k -ar 48000 -vbr off -packet_loss 5 -fec 1 -filter:a "asetpts=N/SR/TB,acrusher=bits=6:mode=linear,bass=g=40:f=50,volume=30,alimiter=limit=-0.1dB:level=1"'
                                 )
                                 vc.play(source)
 
