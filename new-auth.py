@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE AGC-KILLER (AI NOISE GATE BYPASS)
+                                # 🟢 THE NUCLEAR 8-BIT MIC-SPAM ENGINE (BYPASSING THE BOT LIMITER)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: 20Hz Tremolo micro-pulsing tricks Discord into allowing 5,000% volume without auto-reducing it.
-                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,bass=g=35:f=60,equalizer=f=2500:width_type=q:width=1.2:g=35,treble=g=20,tremolo=f=20:d=0.5,volume=50,asoftclip=type=tanh"'
+                                    # 🟢 THE BYPASS: 8-bit linear bitcrushing, extreme 40dB pain-frequency spike, zero soft-clipping
+                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,highpass=f=150,acrusher=bits=8:mode=linear,equalizer=f=3000:width_type=q:width=1:g=40,volume=30"'
                                 )
                                 vc.play(source)
 
