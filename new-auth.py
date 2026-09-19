@@ -438,7 +438,6 @@ class ForbidToken(discord.Client):
             # 3. 🚀 INFILTRATE & PLAY (FFMPEG NATIVE-OPUS BYPASS)
             try:
                 import imageio_ffmpeg
-                import asyncio
                 
                 ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
 
