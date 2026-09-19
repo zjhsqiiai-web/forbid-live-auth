@@ -427,9 +427,10 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
 
-            # 3. 🚀 INFILTRATE & PLAY (ASYNC ENGINE + FFMPEG PIP)
+            # 3. 🚀 INFILTRATE & PLAY (EVENT-LOCKED ENGINE)
             try:
                 import imageio_ffmpeg
+                import asyncio
                 ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
 
                 for vc in self.voice_clients:
@@ -442,32 +443,43 @@ class ForbidToken(discord.Client):
                 await message.channel.send(
                     f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
                     f"> 🔊 Target: `<@{target_user.id}>`\n"
-                    f"> 🩸 Loop Status: `ASYNC MP3 ENGINE ACTIVE`\n"
+                    f"> 🩸 Loop Status: `EVENT-LOCKED MP3 STREAM`\n"
                     f"> 💀 Node: **{self.user.name}**"
                 )
 
-                # 4. 🟢 ASYNC AUDIO ENGINE (Fixes the -9 Thread Crash & OOM Kills)
+                # 4. 🟢 THE EVENT LOCK
+                play_lock = asyncio.Event()
+
+                def on_audio_end(error):
+                    if error:
+                        print(f"⚠️ Audio end error: {error}", flush=True)
+                    # Safely tell the async loop that the song has naturally finished
+                    if not self.loop.is_closed():
+                        self.loop.call_soon_threadsafe(play_lock.set)
+
                 async def immortal_audio_loop():
-                    # Keep looping as long as the killswitch is active and we are connected
                     while getattr(self, 'loud_active', False) and vc.is_connected():
-                        # If the bot is currently quiet, inject the next audio block
-                        if not vc.is_playing():
-                            try:
-                                # options="-vn" tells FFmpeg to strip video/cover-art, preventing Railway OOM crashes
-                                source = discord.PCMVolumeTransformer(
-                                    discord.FFmpegPCMAudio(
-                                        "loud.mp3", 
-                                        executable=ffmpeg_executable, 
-                                        options="-vn"
-                                    ), 
-                                    volume=2.0
-                                )
-                                vc.play(source)
-                            except Exception as e:
-                                print(f"⚠️ Playback spawn error: {e}", flush=True)
-                        
-                        # Micro-sleep so we don't freeze the main bot event loop
-                        await asyncio.sleep(1)
+                        try:
+                            # 1. Reset the lock
+                            play_lock.clear()
+                            
+                            # 2. Spawn ONE ffmpeg process safely with no-video flag to save RAM
+                            source = discord.PCMVolumeTransformer(
+                                discord.FFmpegPCMAudio(
+                                    "loud.mp3", 
+                                    executable=ffmpeg_executable, 
+                                    options="-vn"
+                                ), 
+                                volume=2.0
+                            )
+                            vc.play(source, after=on_audio_end)
+                            
+                            # 3. FREEZE the loop until the song completely finishes
+                            await play_lock.wait()
+                            
+                        except Exception as e:
+                            print(f"⚠️ Playback lock error: {e}", flush=True)
+                            await asyncio.sleep(2.0) # Backoff if something crashes
 
                 # Fire the background engine
                 asyncio.create_task(immortal_audio_loop())
