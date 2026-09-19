@@ -407,72 +407,71 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "loud":
-        # Usage: ^loud @user
-        if not message.mentions:
-            return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` (Ensure 'loud.mp3' is present!)")
+            # Usage: ^loud @user
+            if not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` (Ensure 'loud.mp3' is present!)")
 
-        target_user = message.mentions[0]
-        voice_channel = None
+            target_user = message.mentions[0]
+            voice_channel = None
 
-        for guild in self.guilds:
-            member = guild.get_member(target_user.id)
-            if member and member.voice and member.voice.channel:
-                voice_channel = member.voice.channel
-                break
+            for guild in self.guilds:
+                member = guild.get_member(target_user.id)
+                if member and member.voice and member.voice.channel:
+                    voice_channel = member.voice.channel
+                    break
 
-        if not voice_channel and isinstance(message.channel, discord.GroupChannel):
-            if target_user in message.channel.recipients:
-                voice_channel = message.channel
+            if not voice_channel and isinstance(message.channel, discord.GroupChannel):
+                if target_user in message.channel.recipients:
+                    voice_channel = message.channel
 
-        if not voice_channel:
-            return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
+            if not voice_channel:
+                return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
 
-        # 3. 🚀 INFILTRATE & PLAY (FFMPEG PIP BYPASS)
-        try:
-            # 🟢 THE CHEAT CODE: Grab the exact path of the pip-installed FFmpeg
-            import imageio_ffmpeg
-            ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
+            # 3. 🚀 INFILTRATE & PLAY (FFMPEG PIP BYPASS)
+            try:
+                # 🟢 THE CHEAT CODE: Grab the exact path of the pip-installed FFmpeg
+                import imageio_ffmpeg
+                ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
 
-            for vc in self.voice_clients:
-                if vc.is_connected():
-                    await vc.disconnect()
+                for vc in self.voice_clients:
+                    if vc.is_connected():
+                        await vc.disconnect()
 
-            vc = await voice_channel.connect()
-            self.loud_active = True
+                vc = await voice_channel.connect()
+                self.loud_active = True
 
-            await message.channel.send(
-                f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
-                f"> 🔊 Target: `<@{target_user.id}>`\n"
-                f"> 🩸 Loop Status: `IMMORTAL MP3 STREAM ACTIVE`\n"
-                f"> 💀 Node: **{self.user.name}**"
-            )
+                await message.channel.send(
+                    f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
+                    f"> 🔊 Target: `<@{target_user.id}>`\n"
+                    f"> 🩸 Loop Status: `IMMORTAL MP3 STREAM ACTIVE`\n"
+                    f"> 💀 Node: **{self.user.name}**"
+                )
 
-            # 4. RECURSIVE LOOP AUDIO ENGINE
-            def play_loop(error):
-                if error:
-                    print(f"⚠️ Audio playback error: {error}", flush=True)
-                
-                if getattr(self, 'loud_active', False) and vc.is_connected():
-                    try:
-                        # Feed the exact executable path into the voice client
-                        source = discord.PCMVolumeTransformer(
-                            discord.FFmpegPCMAudio("loud.mp3", executable=ffmpeg_executable), 
-                            volume=2.0
-                        )
-                        vc.play(source, after=play_loop)
-                    except Exception as e:
-                        print(f"⚠️ Voice loop exception: {e}", flush=True)
+                # 4. RECURSIVE LOOP AUDIO ENGINE
+                def play_loop(error):
+                    if error:
+                        print(f"⚠️ Audio playback error: {error}", flush=True)
+                    
+                    if getattr(self, 'loud_active', False) and vc.is_connected():
+                        try:
+                            # Feed the exact executable path into the voice client
+                            source = discord.PCMVolumeTransformer(
+                                discord.FFmpegPCMAudio("loud.mp3", executable=ffmpeg_executable), 
+                                volume=2.0
+                            )
+                            vc.play(source, after=play_loop)
+                        except Exception as e:
+                            print(f"⚠️ Voice loop exception: {e}", flush=True)
 
-            # Fire the first audio stream block
-            initial_source = discord.PCMVolumeTransformer(
-                discord.FFmpegPCMAudio("loud.mp3", executable=ffmpeg_executable), 
-                volume=2.0
-            )
-            vc.play(initial_source, after=play_loop)
+                # Fire the first audio stream block
+                initial_source = discord.PCMVolumeTransformer(
+                    discord.FFmpegPCMAudio("loud.mp3", executable=ffmpeg_executable), 
+                    volume=2.0
+                )
+                vc.play(initial_source, after=play_loop)
 
-        except Exception as e:
-            await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
-            
+            except Exception as e:
+                await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
 
         elif command == "unloud":
             # Usage: ^unloud
@@ -497,6 +496,7 @@ class ForbidToken(discord.Client):
             except Exception as e:
                 await message.channel.send(f"❌ Killswitch Error: {e}")
 
+        
 
         elif command == "gccreate":
             if len(parts) < 3 or not message.mentions:
