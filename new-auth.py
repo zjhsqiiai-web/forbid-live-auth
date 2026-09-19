@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE HYPERBOLIC OMNI-CLIPPER (ABSOLUTE MAXIMUM VOLUME)
+                                # 🟢 THE HARDWARE OVERDRIVE (PURE EQ DISTORTION EMULATION)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: 5,000% Volume locked into a 'tanh' soft-clipper to prevent glitches
-                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=2.0,bass=g=30:f=65,equalizer=f=2500:width_type=q:width=1.2:g=30,volume=50,asoftclip=type=tanh"'
+                                    # 🟢 THE BYPASS: Max Stereo Width + Extreme Treble Distortion + Hard Clipping
+                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,bass=g=35:f=60,equalizer=f=2500:width_type=q:width=1.2:g=35,treble=g=30,volume=100,aformat=sample_fmts=s16"'
                                 )
                                 vc.play(source)
 
