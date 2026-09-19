@@ -461,14 +461,14 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                               # 🟢 THE RADIOACTIVE EQ-KILLER (SQUARE WAVE OVERRIDE)
+                               # 🟢 THE ELITE-TIER HARD-CLIPPER (SQUARE WAVE DOMINANCE)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
-                                    # Infinite loop for zero gaps
+                                    # Infinite gapless loop
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: +60dB vocal spikes, +50dB bass, and double 10,000% volume cascading
-                                    options='-vn -b:a 128k -filter:a "extrastereo=m=3.0,equalizer=f=2500:width_type=q:width=1:g=60,equalizer=f=1000:width_type=q:width=1:g=60,bass=g=50:f=60:w=0.8,treble=g=50,volume=100,volume=100"'
+                                    # 🟢 THE BYPASS: Heavy boosts mapped explicitly to a 16-bit hard-clip wall
+                                    options='-vn -b:a 128k -filter:a "extrastereo=m=2.0,bass=g=20:f=60,equalizer=f=2500:width_type=q:width=1:g=20,volume=50,aformat=sample_fmts=s16"'
                                 )
                                 vc.play(source)
                                 
