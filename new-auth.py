@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 BITCRUSHER + CBR HARD-CLIPPER (MAX AUDIBLE CEILING)
+                                # 🟢 THE TITAN OMNI-CLIPPER (PURE RAW POWER, NO GLITCHES)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: Stripped 'haas', kept 10-bit crushing, extreme EQ, and s16 hard-clipping
-                                    options='-vn -b:a 128k -vbr off -filter:a "extrastereo=m=3.0,bass=g=25:f=60,equalizer=f=2500:width_type=q:width=1:g=30,acrusher=bits=10:mode=log,volume=50,aformat=sample_fmts=s16"'
+                                    # 🟢 THE BYPASS: No bitcrushers. +35dB bass, +35dB vocals, 10,000% volume -> Hard Clip.
+                                    options='-vn -b:a 128k -vbr off -filter:a "extrastereo=m=3.0,bass=g=35:f=60,equalizer=f=2500:width_type=q:width=1:g=35,volume=100,aformat=sample_fmts=s16"'
                                 )
                                 vc.play(source)
 
