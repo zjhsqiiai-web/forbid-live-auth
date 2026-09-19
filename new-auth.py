@@ -462,12 +462,13 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                               # 🟢 THE CONTINUITY ENGINE (2.5 SECOND RESTART)
+                               # 🟢 THE INFINITE INTERNAL LOOP (ZERO MILLISECOND GAP)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
-                                    # 🟢 THE FIX: Cuts the audio at exactly 2.5 seconds to force a seamless loop
-                                    before_options="-t 2.9",
+                                    # 🟢 THE FIX: Forces FFmpeg to loop the file infinitely in memory. 
+                                    # Python never has to restart the process, so there is ZERO gap.
+                                    before_options="-stream_loop -1",
                                     # Crystal bass, wide stereo, vocal shield, max volume compression
                                     options='-vn -b:a 128k -filter:a "extrastereo=m=2.0,bass=g=30:f=60:w=0.6,equalizer=f=2500:width_type=q:width=1:g=25,treble=g=15,acompressor=threshold=0.01:ratio=20:makeup=20,volume=10.0"'
                                 )
