@@ -466,7 +466,7 @@ class ForbidToken(discord.Client):
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable, 
-                                    options='-vn -b:a 128k -filter:a "extrastereo=m=5.0,flanger=delay=0:depth=2:regen=90:speed=10,aphaser=type=t:speed=20,equalizer=f=2500:width_type=q:width=1:g=50,acompressor=threshold=0.0001:ratio=20:makeup=50,volume=1000"'
+                                    options='-vn -b:a 128k -filter:a "extrastereo=m=5.0,flanger=delay=0:depth=2:regen=90:speed=10,aphaser=type=t:speed=2.0,equalizer=f=2500:width_type=q:width=1:g=50,acompressor=threshold=0.001:ratio=20:makeup=50,volume=100.0"'
                                 )
                                 vc.play(source)
                                 
