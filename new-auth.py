@@ -435,11 +435,28 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
 
-            # 3. 🚀 INFILTRATE & PLAY (ASYNC POLLING ENGINE)
+            # 3. 🚀 INFILTRATE & PLAY (OPUS-LOCKED ASYNC ENGINE)
             try:
                 import imageio_ffmpeg
                 import asyncio
+                import ctypes.util
+                
                 ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
+
+                # 🟢 THE OPUS BRUTE-FORCER: Scans Railway's OS for the compression engine
+                if not discord.opus.is_loaded():
+                    opus_libs = ['libopus.so.0', 'libopus.so', 'libopus.so.1', 'opus', ctypes.util.find_library('opus')]
+                    for lib in opus_libs:
+                        try:
+                            if lib:
+                                discord.opus.load_opus(lib)
+                                print(f"🔊 [System] Opus Codec locked and loaded: {lib}", flush=True)
+                                break
+                        except Exception:
+                            pass
+                            
+                if not discord.opus.is_loaded():
+                    return await message.channel.send(f"❌ **{self.user.name}** Error: Opus Codec is missing from the server OS!")
 
                 for vc in self.voice_clients:
                     if vc.is_connected():
@@ -459,7 +476,6 @@ class ForbidToken(discord.Client):
                 async def immortal_audio_loop():
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
-                            # Only inject audio if the socket is completely silent
                             if not vc.is_playing():
                                 source = discord.PCMVolumeTransformer(
                                     discord.FFmpegPCMAudio(
@@ -471,25 +487,20 @@ class ForbidToken(discord.Client):
                                 )
                                 vc.play(source)
                                 
-                                # 🛑 CRITICAL FIX: Sleep for 3 full seconds right after calling play.
-                                # This guarantees the FFmpeg thread fully spins up before the loop 
-                                # asks 'is_playing()' again, completely eliminating the -9 crash.
+                                # Sleep guarantees the FFmpeg thread fully spins up 
                                 await asyncio.sleep(3.0)
                             
-                            # Poll the voice socket every 1 second
                             await asyncio.sleep(1.0)
                             
                         except Exception as e:
-                            # Using repr(e) so if it crashes, it actually prints the hidden error type
                             print(f"⚠️ Playback spawn error: {repr(e)}", flush=True)
                             await asyncio.sleep(3.0)
 
-                # Fire the background engine
                 asyncio.create_task(immortal_audio_loop())
 
             except Exception as e:
                 await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
-                
+
         elif command == "unloud":
             # Usage: ^unloud
             try:
