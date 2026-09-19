@@ -406,6 +406,90 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "loud":
+            # Usage: ^loud @user
+            if not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` (Ensure 'loud.mp3' is present!)")
+
+            target_user = message.mentions[0]
+            voice_channel = None
+
+            # 1. HUNTER PROTOCOL: Scan all mutual servers to find the target's exact Voice Channel
+            for guild in self.guilds:
+                member = guild.get_member(target_user.id)
+                if member and member.voice and member.voice.channel:
+                    voice_channel = member.voice.channel
+                    break
+
+            # 2. GC FALLBACK: If they aren't in a server VC, check if we are in a Group Chat with them
+            if not voice_channel and isinstance(message.channel, discord.GroupChannel):
+                if target_user in message.channel.recipients:
+                    voice_channel = message.channel
+
+            if not voice_channel:
+                return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
+
+            # 3. INFILTRATE & PLAY
+            try:
+                # Disconnect from any existing voice client safely
+                for vc in self.voice_clients:
+                    if vc.is_connected():
+                        await vc.disconnect()
+
+                # Connect to the target voice channel
+                vc = await voice_channel.connect()
+                self.loud_active = True
+
+                await message.channel.send(
+                    f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
+                    f"> 🔊 Target: `<@{target_user.id}>`\n"
+                    f"> 🩸 Loop Status: `IMMORTAL MP3 STREAM ACTIVE`\n"
+                    f"> 💀 Node: **{self.user.name}**"
+                )
+
+                # 4. RECURSIVE LOOP AUDIO ENGINE
+                def play_loop(error):
+                    if error:
+                        print(f"⚠️ Audio playback error: {error}", flush=True)
+                    
+                    if getattr(self, 'loud_active', False) and vc.is_connected():
+                        try:
+                            # Re-instantiate source for continuous loop execution
+                            source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("loud.mp3"), volume=2.0)
+                            vc.play(source, after=play_loop)
+                        except Exception as e:
+                            print(f"⚠️ Voice loop exception: {e}", flush=True)
+
+                # Fire the first audio stream block
+                initial_source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("loud.mp3"), volume=2.0)
+                vc.play(initial_source, after=play_loop)
+
+            except Exception as e:
+                await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
+
+        elif command == "unloud":
+            # Usage: ^unloud
+            try:
+                self.loud_active = False
+                disconnected = False
+
+                for vc in self.voice_clients:
+                    if vc.is_connected():
+                        await vc.disconnect()
+                        disconnected = True
+
+                if disconnected:
+                    await message.channel.send(
+                        f"🛑 **[ FORB1D AUDIO ASSAULT TERMINATED ]** 🛑\n"
+                        f"> 💤 Status: `VOICE SOCKET SEVERED`\n"
+                        f"> 💀 Node: **{self.user.name}**"
+                    )
+                else:
+                    await message.channel.send(f"⚠️ **{self.user.name}** is not currently connected to any Voice Channels.")
+
+            except Exception as e:
+                await message.channel.send(f"❌ Killswitch Error: {e}")
+
         elif command == "gccreate":
             if len(parts) < 3 or not message.mentions:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gccreate @bot @user1 @user2 <amount>`")
