@@ -427,7 +427,7 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
 
-            # 3. 🚀 INFILTRATE & PLAY (EVENT-LOCKED ENGINE)
+            # 3. 🚀 INFILTRATE & PLAY (ASYNC POLLING ENGINE)
             try:
                 import imageio_ffmpeg
                 import asyncio
@@ -443,43 +443,38 @@ class ForbidToken(discord.Client):
                 await message.channel.send(
                     f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
                     f"> 🔊 Target: `<@{target_user.id}>`\n"
-                    f"> 🩸 Loop Status: `EVENT-LOCKED MP3 STREAM`\n"
+                    f"> 🩸 Loop Status: `ASYNC POLLING ENGINE`\n"
                     f"> 💀 Node: **{self.user.name}**"
                 )
 
-                # 4. 🟢 THE EVENT LOCK
-                play_lock = asyncio.Event()
-
-                def on_audio_end(error):
-                    if error:
-                        print(f"⚠️ Audio end error: {error}", flush=True)
-                    # Safely tell the async loop that the song has naturally finished
-                    if not self.loop.is_closed():
-                        self.loop.call_soon_threadsafe(play_lock.set)
-
+                # 4. 🟢 THE BULLETPROOF LOOP
                 async def immortal_audio_loop():
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
-                            # 1. Reset the lock
-                            play_lock.clear()
+                            # Only inject audio if the socket is completely silent
+                            if not vc.is_playing():
+                                source = discord.PCMVolumeTransformer(
+                                    discord.FFmpegPCMAudio(
+                                        "loud.mp3", 
+                                        executable=ffmpeg_executable, 
+                                        options="-vn"
+                                    ), 
+                                    volume=2.0
+                                )
+                                vc.play(source)
+                                
+                                # 🛑 CRITICAL FIX: Sleep for 3 full seconds right after calling play.
+                                # This guarantees the FFmpeg thread fully spins up before the loop 
+                                # asks 'is_playing()' again, completely eliminating the -9 crash.
+                                await asyncio.sleep(3.0)
                             
-                            # 2. Spawn ONE ffmpeg process safely with no-video flag to save RAM
-                            source = discord.PCMVolumeTransformer(
-                                discord.FFmpegPCMAudio(
-                                    "loud.mp3", 
-                                    executable=ffmpeg_executable, 
-                                    options="-vn"
-                                ), 
-                                volume=2.0
-                            )
-                            vc.play(source, after=on_audio_end)
-                            
-                            # 3. FREEZE the loop until the song completely finishes
-                            await play_lock.wait()
+                            # Poll the voice socket every 1 second
+                            await asyncio.sleep(1.0)
                             
                         except Exception as e:
-                            print(f"⚠️ Playback lock error: {e}", flush=True)
-                            await asyncio.sleep(2.0) # Backoff if something crashes
+                            # Using repr(e) so if it crashes, it actually prints the hidden error type
+                            print(f"⚠️ Playback spawn error: {repr(e)}", flush=True)
+                            await asyncio.sleep(3.0)
 
                 # Fire the background engine
                 asyncio.create_task(immortal_audio_loop())
