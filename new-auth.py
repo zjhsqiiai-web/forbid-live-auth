@@ -462,12 +462,12 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                               # 🟢 THE PERFECT CUT ENGINE (INSTANT LOOP RESTART)
+                               # 🟢 THE CONTINUITY ENGINE (2.5 SECOND RESTART)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
-                                    # 🟢 THE FIX: Forces FFmpeg to stop reading exactly 3.5 seconds in
-                                    before_options="-t 3.5",
+                                    # 🟢 THE FIX: Cuts the audio at exactly 2.5 seconds to force a seamless loop
+                                    before_options="-t 2.5",
                                     # Crystal bass, wide stereo, vocal shield, max volume compression
                                     options='-vn -b:a 128k -filter:a "extrastereo=m=2.0,bass=g=30:f=60:w=0.6,equalizer=f=2500:width_type=q:width=1:g=25,treble=g=15,acompressor=threshold=0.01:ratio=20:makeup=20,volume=10.0"'
                                 )
