@@ -17,6 +17,14 @@ if sys.platform != "win32":
     except ImportError:
         print("⚠️ [SYSTEM] uvloop package not installed. Continuing with standard event loop.")
 
+# 🟢 FORCE OPUS AUDIO CODEC INJECTION FOR RAILWAY
+if not discord.opus.is_loaded():
+    try:
+        discord.opus.load_opus('libopus.so.0')
+        print("🔊 [System] Opus Audio Codec Loaded Successfully.", flush=True)
+    except Exception as e:
+        print(f"⚠️ [System] Opus load warning (safe to ignore if audio works): {e}", flush=True)
+
 # 1. TURN ON DISCORD X-RAY (Keeps your general boot-up info flowing)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(name)s: %(message)s')
 
