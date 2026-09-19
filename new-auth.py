@@ -462,12 +462,12 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                               # 🟢 THE SEAMLESS CINEMATIC BASS ENGINE (SINGLE TRACK)
+                               # 🟢 THE STADIUM ECHO BASS ENGINE (CONTINUOUS VIBE)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
-                                    # Trim silence, expand stereo, boost bass, protect lyrics, maximize volume
-                                    options='-vn -b:a 128k -filter:a "atrim=start=0:end=3,asetpts=PTS-STARTPTS,extrastereo=m=2.5,bass=g=35:f=70:w=0.6,equalizer=f=2500:width_type=q:width=1:g=25,dynaudnorm=m=50,volume=10.0"'
+                                    # Stacked bass, stadium echo to fill silence, shielded lyrics
+                                    options='-vn -b:a 128k -filter:a "extrastereo=m=3.0,bass=g=40:f=50,bass=g=30:f=100,equalizer=f=2500:width_type=q:width=1:g=30,aecho=0.8:0.9:400:0.5,dynaudnorm=m=50,volume=15.0"'
                                 )
                                 vc.play(source)
                                 
