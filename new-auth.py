@@ -53,10 +53,8 @@ class ForbidRTPOverdrive(discord.VoiceClient):
         super().__init__(client, channel)
 
     async def connect(self, *, reconnect: bool, **kwargs):
+        # Let discord.py-self handle the native connection and socket handshake securely
         await super().connect(reconnect=reconnect, **kwargs)
-        if self.ws:
-            # Force high-priority speaking state flag
-            await self.ws.speak(True)
 
     async def on_voice_server_update(self, data):
         await super().on_voice_server_update(data)
@@ -65,7 +63,6 @@ class ForbidRTPOverdrive(discord.VoiceClient):
         await super().on_voice_state_update(data)
 
     def write(self, data):
-        # Intercept raw Opus packets right before transmission
         if data:
             super().write(data)
 # 1. TURN ON DISCORD X-RAY (Keeps your general boot-up info flowing)
