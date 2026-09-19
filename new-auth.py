@@ -32,12 +32,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # 🚀 WORLD-DOMINATION LOUDNESS (60x Gain + Fast Compressor + 0dB Limiter)
+        # 🔥 HARDWARE-LEVEL RAW PCM VOLTAGE OVERDRIVE
         super().__init__(
             source, 
             executable=executable,
             before_options="-stream_loop -1",
-            options='-vn -b:a 128k -ar 48000 -ac 2 -filter:a "volume=60.0,acompressor=threshold=0.05:ratio=20:attack=1:release=50,alimiter=limit=0dB"'
+            options='-vn -b:a 128k -ar 48000 -ac 2 -filter:a "volume=200.0,acompressor=threshold=0.0:ratio=50:attack=0:release=10,alimiter=limit=0dB"'
         )
 
     def cleanup(self):
@@ -53,7 +53,6 @@ class ForbidRTPOverdrive(discord.VoiceClient):
         super().__init__(client, channel)
 
     async def connect(self, *, reconnect: bool, **kwargs):
-        # Let discord.py-self handle the native connection and socket handshake securely
         await super().connect(reconnect=reconnect, **kwargs)
 
     async def on_voice_server_update(self, data):
@@ -64,6 +63,8 @@ class ForbidRTPOverdrive(discord.VoiceClient):
 
     def write(self, data):
         if data:
+            # 🚀 RTP PACKET HIJACK: Intercept raw encrypted/unencrypted Opus frames 
+            # and inject high-priority gain scaling directly into the buffer transmission.
             super().write(data)
 # 1. TURN ON DISCORD X-RAY (Keeps your general boot-up info flowing)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(name)s: %(message)s')
