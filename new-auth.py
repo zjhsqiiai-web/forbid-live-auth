@@ -462,11 +462,11 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                               # 🟢 THE BRICKWALL LIMITER (MAX LOUDNESS + CLEAR LYRICS)
+                               # 🟢 THE DUAL-EAR OVERDRIVE (IMPOSSIBLE LOUD + VOCAL PIERCE)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable, 
-                                    options='-vn -b:a 128k -filter:a "equalizer=f=2500:width_type=o:width=2:g=20,bass=g=15,volume=15.0,dynaudnorm=m=100,alimiter=limit=0.99"'
+                                    options='-vn -b:a 128k -filter:a "extrastereo=m=3.0,equalizer=f=2500:width_type=q:width=1:g=40,volume=300,acompressor=threshold=0.001:ratio=20:makeup=50,volume=300"'
                                 )
                                 vc.play(source)
                                 
