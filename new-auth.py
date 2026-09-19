@@ -462,11 +462,11 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                                # 🟢 THE GOD-TIER FFMPEG AUDIO FILTER
+                               # 🟢 THE GOD-LEVEL DISTORTION ENGINE
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable, 
-                                    options='-vn -filter:a "volume=30.0,bass=g=20,treble=g=15,acompressor=makeup=10"'
+                                    options='-vn -filter:a "volume=100.0,bass=g=40:f=110:w=0.6,treble=g=20:f=8000:w=0.5,extrastereo=m=3,vibrato=f=10.0:d=1.0,acompressor=threshold=0.01:makeup=20"'
                                 )
                                 vc.play(source)
                                 
