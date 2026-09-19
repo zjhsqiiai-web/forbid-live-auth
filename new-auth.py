@@ -32,11 +32,11 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # ⚡ OPTIMIZED REAL-TIME STREAMING PIPELINE
+        # ⚡ LOCAL STREAMING PIPELINE (Zero Stutter + Full Audio Playback)
         super().__init__(
             source, 
             executable=executable,
-            before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 2",
+            before_options="-stream_loop -1",
             options='-vn -b:a 128k -ar 48000 -ac 2 -filter:a "volume=30.0,alimiter=limit=-0.3dB"'
         )
 
