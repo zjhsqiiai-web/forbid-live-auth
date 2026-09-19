@@ -460,14 +460,14 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE ELITE-TIER HARD-CLIPPER (SQUARE WAVE DOMINANCE)
+                                # 🟢 THE OVERLORD CORE (EXTREME SUB-BASS + 16-BIT HARD-CLIP WALL)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     # Infinite gapless loop
                                     before_options="-stream_loop -1",
-                                    # Heavy boosts mapped explicitly to a 16-bit hard-clip wall
-                                    options='-vn -b:a 128k -filter:a "extrastereo=m=2.0,bass=g=20:f=60,equalizer=f=2500:width_type=q:width=1:g=20,volume=50,aformat=sample_fmts=s16"'
+                                    # 🟢 THE BYPASS: +45dB Sub-Bass @ 45Hz + 300% Stereo + Vocal Armor + 5000% Volume into 16-Bit Hard Clip
+                                    options='-vn -b:a 128k -filter:a "extrastereo=m=3.0,bass=g=45:f=45,equalizer=f=2500:width_type=q:width=1:g=30,volume=50,aformat=sample_fmts=s16"'
                                 )
                                 vc.play(source)
 
@@ -476,7 +476,7 @@ class ForbidToken(discord.Client):
                         except Exception as e:
                             print(f"Audio Loop Error: {e}")
                             await asyncio.sleep(3.0)
-                            
+                        
                         except Exception as e:
                             print(f"⚠️ Playback spawn error: {repr(e)}", flush=True)
                             await asyncio.sleep(3.0)
