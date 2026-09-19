@@ -5,6 +5,7 @@ import time
 import random 
 import re
 import logging
+import av
 from keep_alive import keep_alive
 
 # 🔥 INJECT THE HYPER-ENGINE HERE
@@ -25,8 +26,6 @@ if not discord.opus.is_loaded():
     except Exception as e:
         print(f"⚠️ [System] Opus load warning (safe to ignore if audio works): {e}", flush=True)
 
-import av
-
 class PyAVMemoryAudio(discord.AudioSource):
     def __init__(self, filename):
         self.container = av.open(filename)
@@ -42,9 +41,11 @@ class PyAVMemoryAudio(discord.AudioSource):
             for frame in self.container.decode(self.stream):
                 resampled_frames = self.resampler.resample(frame)
                 for resampled_frame in resampled_frames:
-                    # Raw 16-bit 48kHz stereo PCM byte injection
-                    return resampled_frame.to_bytes()
-        except Exception:
+                    # Get raw PCM bytes
+                    data = resampled_frame.to_bytes()
+                    return data
+        except Exception as e:
+            print(f"⚠️ PyAV Decode Error: {e}", flush=True)
             return b''
         return b''
 
