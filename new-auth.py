@@ -28,10 +28,9 @@ if not discord.opus.is_loaded():
 
 class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
-        import imageio_ffmpeg
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # 🔥 Massive volume multiplier + bass boost + 48kHz stereo sync
+        # 🔥 MAXIMUM LOUDNESS BLASTER CONFIGURATION
         super().__init__(
             source, 
             executable=executable,
@@ -39,22 +38,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
             options='-vn -b:a 128k -ar 48000 -ac 2 -vbr off -packet_loss 10 -fec 1 -filter:a "volume=30.0,bass=g=30:f=50,aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=stereo"'
         )
 
-    def read(self):
-        try:
-            for frame in self.container.decode(self.stream):
-                resampled_frames = self.resampler.resample(frame)
-                for resampled_frame in resampled_frames:
-                    # Get raw PCM bytes
-                    data = resampled_frame.to_bytes()
-                    return data
-        except Exception as e:
-            print(f"⚠️ PyAV Decode Error: {e}", flush=True)
-            return b''
-        return b''
-
     def cleanup(self):
-        if self.container:
-            self.container.close()
+        # Safely clean up the FFmpeg subprocess pipe without attribute errors
+        try:
+            super().cleanup()
+        except Exception:
+            pass
 
 # 1. TURN ON DISCORD X-RAY (Keeps your general boot-up info flowing)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(name)s: %(message)s')
