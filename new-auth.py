@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE MAX-DENSITY BRICKWALL ENGINE (MAXIMUM RMS LOUDNESS)
+                                # 🟢 THE EQUALIZER-KILLER (SQUARE WAVE SATURATION + MAXIMUM WIDTH)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: 3,000% Volume + Extreme EQ + Brickwall Limiter to lock it at max ceiling
-                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,bass=g=30:f=60,equalizer=f=2500:width_type=q:width=1:g=30,volume=30,alimiter=limit=-0.1dB:level=1"'
+                                    # 🟢 THE BYPASS: 300% Stereo Expansion + Multi-Band Overdrive + Hard-Clipper Saturation
+                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,bass=g=40:f=60,equalizer=f=2500:width_type=q:width=1:g=40,volume=40,aformat=sample_fmts=s16"'
                                 )
                                 vc.play(source)
 
