@@ -462,11 +462,12 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                               # 🟢 THE GOD-LEVEL DISTORTION ENGINE
+                               # 🟢 THE SQUARE-WAVE HARD-CLIPPER (PURE DESTRUCTION)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable, 
-                                    options='-vn -filter:a "volume=100.0,bass=g=40:f=110:w=0.6,treble=g=20:f=8000:w=0.5,extrastereo=m=3,vibrato=f=10.0:d=1.0,acompressor=threshold=0.01:makeup=20"'
+                                    # -b:a 128k forces maximum bitrate so Discord doesn't muffle the distortion
+                                    options='-vn -b:a 128k -filter:a "volume=500,bass=g=50:f=60:w=0.6,treble=g=50:f=8000:w=0.6,acompressor=threshold=0.001:ratio=20:makeup=50,volume=500"'
                                 )
                                 vc.play(source)
                                 
