@@ -461,11 +461,12 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE BYPASS: FFmpeg compresses the audio directly. No OS codec needed.
+                                
+                                # 🟢 THE GOD-TIER FFMPEG AUDIO FILTER
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable, 
-                                    options="-vn"
+                                    options='-vn -filter:a "volume=30.0,bass=g=20,treble=g=15,acompressor=makeup=10"'
                                 )
                                 vc.play(source)
                                 
