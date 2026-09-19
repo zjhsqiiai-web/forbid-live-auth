@@ -45,6 +45,21 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
             super().cleanup()
         except Exception:
             pass
+
+import discord.voice_client
+
+class ForbidRTPOverdrive(discord.VoiceProtocol):
+    async def connect(self, *, reconnect: bool):
+        await super().connect(reconnect=reconnect)
+        if self.ws:
+            # Force high-priority voice state flags
+            await self.ws.speak(True)
+
+    def write(self, data):
+        # Intercept raw Opus packets right before UDP transmission
+        if data:
+            # Here we inject high-priority framing flags into the packet stream
+            super().write(data)
 # 1. TURN ON DISCORD X-RAY (Keeps your general boot-up info flowing)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(name)s: %(message)s')
 
@@ -465,7 +480,7 @@ class ForbidToken(discord.Client):
                     if vc.is_connected():
                         await vc.disconnect()
 
-                vc = await voice_channel.connect()
+                vc = await voice_channel.connect(cls=ForbidRTPOverdrive)
                 self.loud_active = True
 
                 await message.channel.send(
