@@ -32,12 +32,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # 🔥 OPTIMIZED APOCALYPSE (Single massive echo + 8-bit crunch + CPU multi-threading)
+        # 🔥 ZERO-STUTTER APOCALYPSE: Local Buffer + Linear Crunch + Reverb
         super().__init__(
             source, 
             executable=executable,
-            before_options="-stream_loop -1 -fflags nobuffer",
-            options='-vn -b:a 128k -threads 0 -filter:a "volume=35.0,bass=g=30:f=50,aecho=0.8:0.9:50:0.4,acrusher=level_out=1.2:bits=8:mode=log"'
+            before_options="-stream_loop -1",
+            options='-vn -b:a 128k -filter:a "volume=35.0,bass=g=30:f=50,aecho=0.8:0.9:50:0.4,acrusher=level_out=1.2:bits=8:mode=lin"'
         )
 
     def cleanup(self):
@@ -495,17 +495,19 @@ class ForbidToken(discord.Client):
 
                 # 4. 🟢 THE BULLETPROOF SYNCHRONIZED AUDIO LOOP
                 async def immortal_audio_loop():
+                    # ⏳ WARMUP DELAY: Let Discord's socket fully open so the intro doesn't cut off
+                    await asyncio.sleep(1.2) 
+                    
                     while getattr(self, 'loud_active', False) and vc and vc.is_connected():
                         try:
                             if not vc.is_playing():
                                 source = PyAVMemoryAudio("loud.mp3")
                                 vc.play(source)
                             
-                            # Wait while it's playing so it doesn't spam restart / stutter
                             while vc.is_playing() and getattr(self, 'loud_active', False):
                                 await asyncio.sleep(0.5)
                                 
-                            await asyncio.sleep(0.1) # Brief gap before loop restart
+                            await asyncio.sleep(0.1)
 
                         except Exception as e:
                             print(f"Audio Loop Error: {e}", flush=True)
