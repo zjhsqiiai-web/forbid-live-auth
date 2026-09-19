@@ -460,14 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE OVERLORD CORE (EXTREME SUB-BASS + 16-BIT HARD-CLIP WALL)
+                                # 🟢 THE DISCORD-MANIPULATOR (PACKET-LEVEL PRIORITY OVERRIDE)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
-                                    # Infinite gapless loop
+                                    # 🟢 FORCE CBR OVERRIDE & PACKET LOSS FLAG TO TRICK SERVER MIXER
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: +45dB Sub-Bass @ 45Hz + 300% Stereo + Vocal Armor + 5000% Volume into 16-Bit Hard Clip
-                                    options='-vn -b:a 128k -filter:a "extrastereo=m=3.0,bass=g=45:f=45,equalizer=f=2500:width_type=q:width=1:g=30,volume=50,aformat=sample_fmts=s16"'
+                                    options='-vn -b:a 128k -vbr off -packet_loss 10 -fec 1 -filter:a "extrastereo=m=3.0,bass=g=45:f=45,equalizer=f=2500:width_type=q:width=1:g=30,volume=50,aformat=sample_fmts=s16"'
                                 )
                                 vc.play(source)
 
