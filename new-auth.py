@@ -2085,6 +2085,9 @@ class ForbidToken(discord.Client):
 > ^ungcncall            (Stop All GCNC)
 > ^gccall               (Spam Call In GC)
 > ^ungccall             (Stop Spam Calls)
+> ^gccreate @bot @user  (GC Creation)
+> ^ungccreate           (Stop GC Creation)
+> ^gcremoveall @users   (Remove People In All GC'S)
 
 [ 🎯 TARGETING & SPAM OPS ]
 > ^autoreact @user 💀   (Lock-on reactions)
