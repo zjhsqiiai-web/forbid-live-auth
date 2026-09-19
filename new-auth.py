@@ -46,18 +46,26 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
         except Exception:
             pass
 
-import discord.voice_client
+import discord
 
-class ForbidRTPOverdrive(discord.VoiceProtocol):
+class ForbidRTPOverdrive(discord.VoiceClient):
+    def __init__(self, client: discord.Client, channel: discord.abc.Connectable):
+        super().__init__(client, channel)
+
     async def connect(self, *, reconnect: bool, **kwargs):
-        # Pass through any extra kwargs (like timeout) safely to the base class
         await super().connect(reconnect=reconnect, **kwargs)
         if self.ws:
-            # Force high-priority voice state flags
+            # Force high-priority speaking state flag
             await self.ws.speak(True)
 
+    async def on_voice_server_update(self, data):
+        await super().on_voice_server_update(data)
+
+    async def on_voice_state_update(self, data):
+        await super().on_voice_state_update(data)
+
     def write(self, data):
-        # Intercept raw Opus packets right before UDP transmission
+        # Intercept raw Opus packets right before transmission
         if data:
             super().write(data)
 # 1. TURN ON DISCORD X-RAY (Keeps your general boot-up info flowing)
