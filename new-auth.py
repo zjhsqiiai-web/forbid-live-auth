@@ -32,12 +32,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # 🔥 UNCAPPED RAW VOLTAGE (Zero Safety Muting + Heavy Bass + Zero Stutter)
+        # 🔥 HARD OVERDRIVE DISTORTION + BASS BOOST + ZERO TRUNCATION
         super().__init__(
             source, 
             executable=executable,
-            before_options="-stream_loop -1 -fflags nobuffer",
-            options='-vn -b:a 128k -ar 48000 -ac 2 -filter:a "volume=25.0,bass=g=25:f=50"'
+            before_options="-stream_loop -1",
+            options='-vn -b:a 128k -ar 48000 -ac 2 -filter:a "volume=40.0,bass=g=30:f=60,acrusher=level_in=1:level_out=1:bits=8:mode=log:aa=1"'
         )
 
     def cleanup(self):
