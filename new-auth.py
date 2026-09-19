@@ -26,6 +26,8 @@ if not discord.opus.is_loaded():
     except Exception as e:
         print(f"⚠️ [System] Opus load warning (safe to ignore if audio works): {e}", flush=True)
 
+import imageio_ffmpeg
+
 class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
