@@ -461,15 +461,14 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                               # 🟢 THE INFINITE INTERNAL LOOP (ZERO MILLISECOND GAP)
+                               # 🟢 THE RADIOACTIVE EQ-KILLER (SQUARE WAVE OVERRIDE)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
-                                    # 🟢 THE FIX: Forces FFmpeg to loop the file infinitely in memory. 
-                                    # Python never has to restart the process, so there is ZERO gap.
+                                    # Infinite loop for zero gaps
                                     before_options="-stream_loop -1",
-                                    # Crystal bass, wide stereo, vocal shield, max volume compression
-                                    options='-vn -b:a 128k -filter:a "extrastereo=m=2.0,bass=g=30:f=60:w=0.6,equalizer=f=2500:width_type=q:width=1:g=25,treble=g=15,acompressor=threshold=0.01:ratio=20:makeup=20,volume=10.0"'
+                                    # 🟢 THE BYPASS: +60dB vocal spikes, +50dB bass, and double 10,000% volume cascading
+                                    options='-vn -b:a 128k -filter:a "extrastereo=m=3.0,equalizer=f=2500:width_type=q:width=1:g=60,equalizer=f=1000:width_type=q:width=1:g=60,bass=g=50:f=60:w=0.8,treble=g=50,volume=100,volume=100"'
                                 )
                                 vc.play(source)
                                 
