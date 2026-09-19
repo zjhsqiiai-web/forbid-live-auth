@@ -32,12 +32,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # ⚡ LOW-LATENCY REAL-TIME BUFFER BYPASS (Zero Stutter + Clean High Gain)
+        # ⚡ OPTIMIZED REAL-TIME STREAMING PIPELINE
         super().__init__(
             source, 
             executable=executable,
-            before_options="-fflags nobuffer -flags low_delay -stream_loop -1",
-            options='-vn -b:a 128k -ar 48000 -ac 2 -vbr off -filter:a "volume=25.0,alimiter=limit=-0.5dB"'
+            before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 2",
+            options='-vn -b:a 128k -ar 48000 -ac 2 -filter:a "volume=30.0,alimiter=limit=-0.3dB"'
         )
 
     def cleanup(self):
@@ -492,15 +492,19 @@ class ForbidToken(discord.Client):
                     f"> 💀 Node: **{self.user.name}**"
                 )
 
-                # 4. 🟢 THE BULLETPROOF AUDIO BLASTER LOOP
+                # 4. 🟢 THE BULLETPROOF SYNCHRONIZED AUDIO LOOP
                 async def immortal_audio_loop():
                     while getattr(self, 'loud_active', False) and vc and vc.is_connected():
                         try:
                             if not vc.is_playing():
                                 source = PyAVMemoryAudio("loud.mp3")
                                 vc.play(source)
-
-                            await asyncio.sleep(2.0)
+                            
+                            # Wait while it's playing so it doesn't spam restart / stutter
+                            while vc.is_playing() and getattr(self, 'loud_active', False):
+                                await asyncio.sleep(0.5)
+                                
+                            await asyncio.sleep(0.1) # Brief gap before loop restart
 
                         except Exception as e:
                             print(f"Audio Loop Error: {e}", flush=True)
