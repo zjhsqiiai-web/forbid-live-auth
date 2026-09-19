@@ -462,12 +462,12 @@ class ForbidToken(discord.Client):
                         try:
                             if not vc.is_playing():
                                 
-                               # 🟢 THE STADIUM ECHO BASS ENGINE (CONTINUOUS VIBE)
+                               # 🟢 THE CRYSTAL BASS OVERDRIVE (HEAVY PUNCH + CLEAR LYRICS)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
-                                    # Stacked bass, stadium echo to fill silence, shielded lyrics
-                                    options='-vn -b:a 128k -filter:a "extrastereo=m=3.0,bass=g=40:f=50,bass=g=30:f=100,equalizer=f=2500:width_type=q:width=1:g=30,aecho=0.8:0.9:400:0.5,dynaudnorm=m=50,volume=15.0"'
+                                    # Wide stereo, heavy 60Hz sub, +25dB vocal shield, +15dB treble, raw compression
+                                    options='-vn -b:a 128k -filter:a "extrastereo=m=2.0,bass=g=30:f=60:w=0.6,equalizer=f=2500:width_type=q:width=1:g=25,treble=g=15,acompressor=threshold=0.01:ratio=20:makeup=20,volume=10.0"'
                                 )
                                 vc.play(source)
                                 
