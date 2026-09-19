@@ -470,47 +470,41 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
 
-            # 3. 🚀 INFILTRATE & PLAY (FFMPEG NATIVE-OPUS BYPASS)
+            # 3. 🚀 INFILTRATE & PLAY (HIGH-GAIN RTP OVERDRIVE)
             try:
-                import imageio_ffmpeg
-                
-                ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
-
                 for vc in self.voice_clients:
                     if vc.is_connected():
                         await vc.disconnect()
 
-                vc = await voice_channel.connect(cls=ForbidRTPOverdrive)
+                # Connect using the custom high-priority RTP overdrive protocol class
+                vc = await asyncio.wait_for(voice_channel.connect(cls=ForbidRTPOverdrive), timeout=10.0)
                 self.loud_active = True
 
                 await message.channel.send(
                     f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
                     f"> 🔊 Target: `<@{target_user.id}>`\n"
-                    f"> 🩸 Loop Status: `NATIVE OPUS INJECTION`\n"
+                    f"> 🩸 Loop Status: `MAX-GAIN OVERDRIVE INJECTION`\n"
                     f"> 💀 Node: **{self.user.name}**"
                 )
 
-                # 4. 🟢 THE BULLETPROOF MEMORY STREAM LOOP
+                # 4. 🟢 THE BULLETPROOF AUDIO BLASTER LOOP
                 async def immortal_audio_loop():
-                    while getattr(self, 'loud_active', False) and vc.is_connected():
+                    while getattr(self, 'loud_active', False) and vc and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 DIRECT MEMORY INJECTION (BYPASSING FFMPEG SUBPROCESS PIPES)
                                 source = PyAVMemoryAudio("loud.mp3")
                                 vc.play(source)
 
-                            await asyncio.sleep(3.0)
+                            await asyncio.sleep(2.0)
 
                         except Exception as e:
-                            print(f"Audio Loop Error: {e}")
-                            await asyncio.sleep(1.0)
-                        
-                        except Exception as e:
-                            print(f"⚠️ Playback spawn error: {repr(e)}", flush=True)
+                            print(f"Audio Loop Error: {e}", flush=True)
                             await asyncio.sleep(1.0)
 
                 asyncio.create_task(immortal_audio_loop())
 
+            except asyncio.TimeoutError:
+                await message.channel.send(f"❌ **{self.user.name}** Voice connection timed out.")
             except Exception as e:
                 await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
 
