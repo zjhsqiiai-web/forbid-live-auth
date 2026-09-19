@@ -460,13 +460,13 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'loud_active', False) and vc.is_connected():
                         try:
                             if not vc.is_playing():
-                                # 🟢 THE HARDWARE OVERDRIVE (PURE EQ DISTORTION EMULATION)
+                                # 🟢 THE AGC-KILLER (AI NOISE GATE BYPASS)
                                 source = discord.FFmpegOpusAudio(
                                     "loud.mp3", 
                                     executable=ffmpeg_executable,
                                     before_options="-stream_loop -1",
-                                    # 🟢 THE BYPASS: Max Stereo Width + Extreme Treble Distortion + Hard Clipping
-                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,bass=g=35:f=60,equalizer=f=2500:width_type=q:width=1.2:g=35,treble=g=30,volume=100,aformat=sample_fmts=s16"'
+                                    # 🟢 THE BYPASS: 20Hz Tremolo micro-pulsing tricks Discord into allowing 5,000% volume without auto-reducing it.
+                                    options='-vn -b:a 128k -filter:a "asetpts=N/SR/TB,extrastereo=m=3.0,bass=g=35:f=60,equalizer=f=2500:width_type=q:width=1.2:g=35,treble=g=20,tremolo=f=20:d=0.5,volume=50,asoftclip=type=tanh"'
                                 )
                                 vc.play(source)
 
