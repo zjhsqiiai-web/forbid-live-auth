@@ -32,12 +32,12 @@ class PyAVMemoryAudio(discord.FFmpegOpusAudio):
     def __init__(self, source, **kwargs):
         executable = imageio_ffmpeg.get_ffmpeg_exe()
         
-        # 🔥 ZERO-STUTTER APOCALYPSE: Local Buffer + Linear Crunch + Reverb
+        # 🔥 ABSOLUTE SMOOTHNESS: 4096 Thread Queue + Multi-Core + Apocalypse Filters
         super().__init__(
             source, 
             executable=executable,
-            before_options="-stream_loop -1",
-            options='-vn -b:a 128k -filter:a "volume=35.0,bass=g=30:f=50,aecho=0.8:0.9:50:0.4,acrusher=level_out=1.2:bits=8:mode=lin"'
+            before_options="-thread_queue_size 4096 -stream_loop -1",
+            options='-vn -b:a 128k -threads 0 -filter:a "volume=35.0,bass=g=30:f=50,aecho=0.8:0.9:50:0.4,acrusher=level_out=1.2:bits=8:mode=lin"'
         )
 
     def cleanup(self):
