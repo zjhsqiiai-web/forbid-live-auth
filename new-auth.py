@@ -672,15 +672,16 @@ class ForbidToken(discord.Client):
                 
                 
         elif command == "gcremoveall":
-            # Usage: ^gcremoveall @user1 @user2
+            # Usage: ^gcremoveall @bot @target1 @target2
             if not message.mentions:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcremoveall @user1 @user2`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcremoveall @target1 @target2`")
 
+            # 1. SMART SEPARATION: Filter the Swarm Bots (Owners) from the Victims (Targets)
             mentioned_bots = [t for t in message.mentions if t.id in ACTIVE_SWARM or t == self.user]
             target_users = [t for t in message.mentions if t not in mentioned_bots]
 
             if not target_users:
-                return await message.channel.send(f"❌ **{self.user.name}** Error: You must mention users to remove.")
+                return await message.channel.send(f"❌ **{self.user.name}** Error: No valid targets identified to remove.")
 
             target_ids = [str(u.id) for u in target_users]
             target_names = ", ".join([u.name for u in target_users])
@@ -689,58 +690,74 @@ class ForbidToken(discord.Client):
 
             async def purge_users_loop():
                 import orjson
+                import time
+                
                 ultra_headers = BROWSER_HEADERS.copy()
                 ultra_headers["Authorization"] = self.http.token
 
                 target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
                 removed_total = 0
                 scanned_total = 0
+                last_edit_time = time.time()
                 
+                # Zero-Padding Luxury Panel
                 def build_purge_panel(status_text):
-                    return (
-                        f"```yaml\n"
-                        f"🛑 FORB1D // GC PURGE PROTOCOL 🛑\n"
-                        f"=================================\n"
-                        f"[+] Node     : {self.user.name}\n"
-                        f"[+] Targets  : {target_names}\n"
-                        f"[+] Scanned  : {scanned_total} GCs\n"
-                        f"[💀] Removed : {removed_total} Times\n"
-                        f"[!] Status   : {status_text}\n"
-                        f"=================================\n"
-                        f"```"
-                    )
+                    return textwrap.dedent(f"""```yaml
+                    🛑 FORB1D // GC PURGE PROTOCOL 🛑
+                    =================================
+                    [+] Node     : {self.user.name}
+                    [+] Targets  : {target_names}
+                    [+] Scanned  : {scanned_total} GCs
+                    [💀] Removed : {removed_total} Times
+                    [!] Status   : {status_text}
+                    =================================
+                    ```""")
 
                 await panel_msg.edit(content=build_purge_panel("SCANNING MEMORY..."))
 
                 for gc in target_gcs:
                     scanned_total += 1
-                    # Ensure the bot actually owns this GC before trying to kick anyone
+                    
+                    # 2. OWNER VERIFICATION: Only kick if this specific bot actually owns this GC
                     if getattr(gc, "owner_id", None) == self.user.id:
                         for uid in target_ids:
-                            # Ensure the target user is actually inside this specific GC
+                            # 3. PRESENCE CHECK: Ensure the target is actually inside this GC
                             if int(uid) in [r.id for r in gc.recipients]:
-                                try:
-                                    remove_url = f"https://discord.com/api/v9/channels/{gc.id}/recipients/{uid}"
-                                    async with self.raw_session.delete(remove_url, headers=ultra_headers) as resp:
-                                        if resp.status in (200, 204):
-                                            removed_total += 1
-                                        elif resp.status == 429:
-                                            rate_data = orjson.loads(await resp.read())
-                                            retry_after = float(rate_data.get("retry_after", 1.0))
-                                            await panel_msg.edit(content=build_purge_panel(f"PAUSING FOR RATE LIMIT ({retry_after}s)..."))
-                                            await asyncio.sleep(retry_after + 0.1)
-                                            # Retry kick after waiting
-                                            async with self.raw_session.delete(remove_url, headers=ultra_headers):
+                                remove_url = f"https://discord.com/api/v9/channels/{gc.id}/recipients/{uid}"
+                                
+                                # 4. BULLETPROOF RATE LIMIT LOOP: Never skips a target.
+                                while True:
+                                    try:
+                                        async with self.raw_session.delete(remove_url, headers=ultra_headers) as resp:
+                                            if resp.status in (200, 204):
                                                 removed_total += 1
+                                                break  # Success! Break the retry loop and move to next target
+                                            
+                                            elif resp.status == 429:
+                                                rate_data = orjson.loads(await resp.read())
+                                                retry_after = float(rate_data.get("retry_after", 1.0))
                                                 
-                                    await asyncio.sleep(0.4)
-                                except Exception:
-                                    pass
-                                    
-                    # Update panel every 5 scans so it doesn't rate limit the message edit endpoint
-                    if scanned_total % 5 == 0:
-                        await panel_msg.edit(content=build_purge_panel("PURGING TARGETS..."))
+                                                # Update panel to show we are holding position
+                                                await panel_msg.edit(content=build_purge_panel(f"RATE LIMIT HIT ({retry_after}s) - HOLDING..."))
+                                                await asyncio.sleep(retry_after + 0.2) # Sleep the penalty
+                                                continue  # Loop restarts and tries EXACT same user again
+                                            
+                                            else:
+                                                break  # 403 Forbidden or 404, move to next target
+                                    except Exception:
+                                        break  # Network error, break loop
+                                
+                                await asyncio.sleep(0.4) # Safe delay between successful kicks
+                                
+                    # 5. ANTI-LAG UI: Only update panel visually once every 3 seconds max
+                    if time.time() - last_edit_time > 3.0:
+                        try:
+                            await panel_msg.edit(content=build_purge_panel("PURGING TARGETS..."))
+                            last_edit_time = time.time()
+                        except Exception:
+                            pass
 
+                # Final Status Update
                 await panel_msg.edit(content=build_purge_panel("PURGE COMPLETE // TARGETS NEUTRALIZED."))
 
             asyncio.create_task(purge_users_loop())
