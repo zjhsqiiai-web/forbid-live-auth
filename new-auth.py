@@ -6,6 +6,7 @@ import random
 import re
 import logging
 import av
+import textwrap
 from keep_alive import keep_alive
 
 # 🔥 INJECT THE HYPER-ENGINE HERE
