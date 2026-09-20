@@ -2207,7 +2207,7 @@ class ForbidToken(discord.Client):
 > ^serverleave <link>   (Swarm leaves)
 > ^serverleave @bot     (Precision leave)
 > ^ping                 (Live latency)
-> ^unping               (Stop live latency)
+> ^unping               (Stop latency)
 > ^reset                (Refresh Script)
 
 [ 👥 GROUP CHAT OPS ]
