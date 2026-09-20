@@ -2384,7 +2384,7 @@ class ForbidToken(discord.Client):
 > ^presence <md> <msg>  (Set Status)
 > ^stream <text>        (Purple Stream)
 > ^stream stop          (Wipe Stream)
-> ^rgbstream @user      (RGB Stream)
+> ^rgbstream <text>     (RGB Stream)
 > ^unstream             (UNRGB Stream)
 > ^recon @user          (Acc Info)
 
