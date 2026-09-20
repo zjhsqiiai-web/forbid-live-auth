@@ -700,24 +700,24 @@ class ForbidToken(discord.Client):
                 scanned_total = 0
                 last_edit_time = time.time()
                 
-                # 📱 MICRO-TERMINAL UI (Absolute zero-wrap for all phones)
+                # 📱 NANO-TERMINAL UI (18-Character Hard Limit)
                 def build_purge_panel(status_text):
-                    # Hard-limit variables to 10 characters to guarantee they fit the 22-char grid
-                    node = (self.user.name[:10] + '..') if len(self.user.name) > 10 else self.user.name
-                    tgts = (target_names[:10] + '..') if len(target_names) > 10 else target_names
+                    # Hard-limit variables to 7 characters to guarantee they fit the grid
+                    node = (self.user.name[:7] + '..') if len(self.user.name) > 7 else self.user.name
+                    tgts = (target_names[:7] + '..') if len(target_names) > 7 else target_names
                     
                     return textwrap.dedent(f"""```yaml
-                    [💀] GC PURGE PROTOCOL
-                    ----------------------
-                    Node  : {node}
-                    Tgts  : {tgts}
-                    Scans : {scanned_total}
-                    Kills : {removed_total}
-                    ----------------------
-                    [!] {status_text}
+                    [💀] GC PURGE
+                    ------------------
+                    Node : {node}
+                    Tgts : {tgts}
+                    Scan : {scanned_total}
+                    Kill : {removed_total}
+                    ------------------
+                    {status_text}
                     ```""")
 
-                await panel_msg.edit(content=build_purge_panel("SCANNING MEMORY..."))
+                await panel_msg.edit(content=build_purge_panel("[!] SCANNING..."))
 
                 for gc in target_gcs:
                     scanned_total += 1
@@ -742,7 +742,7 @@ class ForbidToken(discord.Client):
                                                 retry_after = float(rate_data.get("retry_after", 1.0))
                                                 
                                                 # Update panel to show we are holding position
-                                                await panel_msg.edit(content=build_purge_panel(f"RATE LIMIT HIT ({retry_after}s) - HOLDING..."))
+                                                await panel_msg.edit(content=build_purge_panel(f"[!] HOLD: {retry_after}s"))
                                                 await asyncio.sleep(retry_after + 0.2) # Sleep the penalty
                                                 continue  # Loop restarts and tries EXACT same user again
                                             
@@ -756,14 +756,14 @@ class ForbidToken(discord.Client):
                     # 5. ANTI-LAG UI: Only update panel visually once every 3 seconds max
                     if time.time() - last_edit_time > 3.0:
                         try:
-                            await panel_msg.edit(content=build_purge_panel("PURGING TARGETS..."))
+                            await panel_msg.edit(content=build_purge_panel("[!] PURGING..."))
                             last_edit_time = time.time()
                         except Exception:
                             pass
 
                 # Final Status Update
-                await panel_msg.edit(content=build_purge_panel("PURGE COMPLETE // TARGETS NEUTRALIZED."))
-
+                await panel_msg.edit(content=build_purge_panel("[!] PURGE DONE."))
+                
             asyncio.create_task(purge_users_loop())
         
         elif command == "ungccreate":
