@@ -457,53 +457,50 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "recon":
-            # Usage: ^recon @user
             if not message.mentions:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^recon @user`")
-
+            
             target = message.mentions[0]
             
-            # Send initial scanning message
-            panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // INITIATING OSINT RECON ON {target.name.upper()}...`")
-
-            # 1. Calculate Account Age
-            created_at = target.created_at.strftime("%Y-%m-%d")
+            # Initial terminal sequence
+            panel_msg = await message.channel.send("`[!] FORB1D🔥 // INITIATING TRACE ROUTE...`")
             
-            # 2. Scrape Mutual Servers (Guilds)
-            # Self-bots can only see mutuals for the specific node running the command
-            mutual_guilds = [guild.name for guild in self.guilds if target in guild.members]
-            mutual_count = len(mutual_guilds)
+            # Extract Creation Date
+            creation_date = target.created_at.strftime("%Y-%m-%d")
             
-            if mutual_count == 0:
-                mutual_display = "None Detected"
-            elif mutual_count == 1:
-                mutual_display = (mutual_guilds[0][:15] + '..') if len(mutual_guilds[0]) > 15 else mutual_guilds[0]
+            # Extract Device Client (Requires them to be in the same server as the bot)
+            if isinstance(target, discord.Member):
+                if str(target.mobile_status) != "offline":
+                    client_type = "📱 MOBILE"
+                elif str(target.desktop_status) != "offline":
+                    client_type = "💻 DESKTOP"
+                elif str(target.web_status) != "offline":
+                    client_type = "🌐 BROWSER"
+                else:
+                    client_type = "⚫ OFFLINE/GHOST"
             else:
-                mutual_display = f"{mutual_count} Shared Nodes"
-
-            # 3. Pull Status (If visible to the bot)
-            # Note: Discord restricts advanced presence data for self-bots unless deeply fetched, 
-            # but we can grab their raw desktop/mobile state if cached.
-            status_raw = str(target.status).upper() if hasattr(target, 'status') else "UNKNOWN"
+                client_type = "⚠️ OUT OF NETWORK"
             
-            # Truncate names for the UI box
-            safe_name = (target.name[:10] + '..') if len(target.name) > 10 else target.name
-
-            # 4. Build the Cyberpunk UI Panel
-            recon_panel = textwrap.dedent(f"""```yaml
-            👁️ FORB1D // RECON DATA
-            =========================
-            > TARGET  :: {safe_name}
-            > ID NUM  :: {target.id}
-            > CREATED :: {created_at}
-            > STATUS  :: {status_raw}
-            > MUTUALS :: {mutual_display}
-            =========================
-            [!] INTEL SECURED.
-            ```""")
-
-            await asyncio.sleep(0.5) # Fake a slight processing delay for the C2 aesthetic
-            await panel_msg.edit(content=recon_panel)
+            # 🛑 ZERO-MARGIN ARRAY (Impossible to float, 0 spaces on the left)
+            recon_lines = [
+                "```yaml",
+                "👁️ FORB1D // TARGET RECON 👁️",
+                "=============================",
+                f"TgT   : {target.name}",
+                f"ID    : {target.id}",
+                f"Born  : {creation_date}",
+                f"Node  : {client_type}",
+                "=============================",
+                "[!] TRACE ROUTE COMPLETED",
+                "```"
+            ]
+            
+            # Join the array strictly with newlines so no editor spaces are added
+            final_panel = "\n".join(recon_lines)
+            
+            # Simulate the trace delay for the aesthetic, then drop the panel
+            await asyncio.sleep(1.5)
+            await panel_msg.edit(content=final_panel)
 
         elif command == "loud":
             # Usage: ^loud @user
