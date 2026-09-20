@@ -700,21 +700,21 @@ class ForbidToken(discord.Client):
                 scanned_total = 0
                 last_edit_time = time.time()
                 
-                # 📱 RESPONSIVE TERMINAL UI (Never breaks on mobile)
+                # 📱 MICRO-TERMINAL UI (Absolute zero-wrap for all phones)
                 def build_purge_panel(status_text):
-                    # Enforce strict 16-character limits so the box never wraps on phones
-                    node = (self.user.name[:16] + '..') if len(self.user.name) > 16 else self.user.name
-                    tgts = (target_names[:16] + '..') if len(target_names) > 16 else target_names
+                    # Hard-limit variables to 10 characters to guarantee they fit the 22-char grid
+                    node = (self.user.name[:10] + '..') if len(self.user.name) > 10 else self.user.name
+                    tgts = (target_names[:10] + '..') if len(target_names) > 10 else target_names
                     
                     return textwrap.dedent(f"""```yaml
-                    🛑 FORB1D // PURGE PROTOCOL
-                    =============================
-                    > NODE   :: {node}
-                    > TARGET :: {tgts}
-                    > SCANS  :: {scanned_total} GCs
-                    > PURGED :: {removed_total} Users
-                    =============================
-                    > {status_text}
+                    [💀] GC PURGE PROTOCOL
+                    ----------------------
+                    Node  : {node}
+                    Tgts  : {tgts}
+                    Scans : {scanned_total}
+                    Kills : {removed_total}
+                    ----------------------
+                    [!] {status_text}
                     ```""")
 
                 await panel_msg.edit(content=build_purge_panel("SCANNING MEMORY..."))
