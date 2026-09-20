@@ -502,6 +502,71 @@ class ForbidToken(discord.Client):
             await asyncio.sleep(1.5)
             await panel_msg.edit(content=final_panel)
 
+        elif command.startswith("rgbstream"):
+            # Usage: ^rgbstream FORB1D SYSTEM
+            args = message.content.split(" ", 1)
+            base_text = args[1] if len(args) > 1 else f"FORB1D🔥 OPS"
+            
+            # Set the flag to keep the loop alive
+            self.rgb_stream_active = True
+            
+            panel_msg = await message.channel.send("`[!] FORB1D // INJECTING RGB ANIMATION...`")
+            
+            async def rgb_stream_loop():
+                # The animation frames (RGB Hearts)
+                frames = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤"]
+                index = 0
+                
+                while getattr(self, 'rgb_stream_active', False):
+                    try:
+                        current_frame = f"{frames[index]} {base_text} {frames[index]}"
+                        
+                        # Apply the Twitch stream status
+                        stream_activity = discord.Streaming(
+                            name=current_frame, 
+                            url="https://twitch.tv/forbid"
+                        )
+                        await self.change_presence(activity=stream_activity)
+                        
+                        # Cycle to the next frame
+                        index = (index + 1) % len(frames)
+                        
+                        # 5-SECOND DELAY: Mandatory to prevent Discord from dropping the WebSocket connection
+                        await asyncio.sleep(5.0)
+                    except Exception as e:
+                        print(f"RGB Stream Error: {e}")
+                        await asyncio.sleep(5.0)
+
+            # Start the background animation
+            asyncio.create_task(rgb_stream_loop())
+            
+            # 📱 NANO-TERMINAL CONFIRMATION UI
+            confirm_panel = textwrap.dedent(f"""```yaml
+            [🌈] RGB STREAM
+            ------------------
+            Node : {self.user.name[:7] + '..' if len(self.user.name) > 7 else self.user.name}
+            Mode : ANIMATED
+            Text : {base_text[:7] + '..' if len(base_text) > 7 else base_text}
+            ------------------
+            [!] INJECTED.
+            ```""")
+            await panel_msg.edit(content=confirm_panel)
+
+        elif command == "unstream":
+            # Instantly kills the RGB loop and wipes the presence
+            self.rgb_stream_active = False
+            await self.change_presence(activity=None)
+            
+            wipe_panel = textwrap.dedent(f"""```yaml
+            [🛑] STREAM WIPED
+            ------------------
+            Node : {self.user.name[:7] + '..' if len(self.user.name) > 7 else self.user.name}
+            Mode : OFFLINE
+            ------------------
+            [!] HALTED.
+            ```""")
+            await message.channel.send(wipe_panel)
+
         elif command == "loud":
             # Usage: ^loud @user
             if not message.mentions:
