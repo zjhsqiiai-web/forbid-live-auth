@@ -2228,6 +2228,10 @@ class ForbidToken(discord.Client):
 > ^gccreate @bot @user  (GC Creation)
 > ^ungccreate           (Stop Creation)
 > ^gcremoveall @users   (Remove From ALL)
+
+======================================
+⚡ Powered by FORB1D🔥 Network ⚡
+[ {self.user.name} - System Online ]
 ```""")
 
             # Stage 2: Targeting & Presence
