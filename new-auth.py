@@ -2229,6 +2229,8 @@ class ForbidToken(discord.Client):
 > ^gcremoveall @users   (Remove People In All GC'S)
 
 [ 🎯 TARGETING & SPAM OPS ]
+> ^loud @user            (Loud On User)
+> ^unloud                (Stop Loud)
 > ^autoreact @user 💀   (Lock-on reactions)
 > ^unautoreact          (Wipe all targets)
 > ^unautoreact @user    (Unlock specific user)
@@ -2242,8 +2244,6 @@ class ForbidToken(discord.Client):
 > ^unslide @user @user2 (Precise Remover)
 
 [ 🎭 FLEX & PRESENCE OPS ]
-> ^grant @user          (Grant Access)
-> ^ungrant @user        (Revoke Access)
 > ^stream <text>        (Purple stream status)
 > ^stream stop          (Wipe stream status)
 > ^presence <mode> <msg>(play/listen/watch)
