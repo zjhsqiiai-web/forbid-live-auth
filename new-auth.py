@@ -2193,11 +2193,11 @@ class ForbidToken(discord.Client):
             # STAGGER MATH: All 8 bots respond, staggered by 1 second so Discord doesn't block them!
             stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.4)
             await asyncio.sleep(stagger)
-            
-            # Wrapped in ```yaml to give it that colored, luxury terminal aesthetic in Discord
-            help_panel = f"""```yaml
-🔥 FORB1D OPS | MASTER CONTROL 🔥
-=====================================
+
+            # Stage 1: Infiltration & GC Ops
+            help_panel_part1 = textwrap.dedent(f"""```yaml
+🔥 FORB1D OPS | MASTER CONTROL (1/2) 🔥
+======================================
 "Dominate the network. Engineered by FORB1D🔥"
 
 [ 📡 INFILTRATION & EXTRACTION ]
@@ -2207,55 +2207,65 @@ class ForbidToken(discord.Client):
 > ^serverleave @bot     (Precision leave)
 > ^ping                 (Live latency)
 > ^unping               (Stop live latency)
-> ^reset                (Refresh Whole Script)
+> ^reset                (Refresh Script)
 
 [ 👥 GROUP CHAT OPS ]
-> ^gcjoin <link>        (Join GC Through Link)
+> ^gcjoin <link>        (Join GC via Link)
 > ^gcnc <name> <delay>  (GC Name Flasher)
-> ^ungcnc               (Stop flasher here)
-> ^gcleave              (Swarm leaves This GC)
-> ^gcleave all          (Swarm leaves ALL GCs)
-> ^gcleave @bot         (Precision GC leave)
+> ^ungcnc               (Stop flasher)
+> ^gcleave              (Leave This GC)
+> ^gcleave all          (Leave ALL GCs)
+> ^gcleave @bot         (Precision Leave)
 > ^sgcnc <text> @userx  (Fastest GCNC)
 > ^unsgcnc @user        (Remove SGCNC)
-> ^gcspamall <text>     (Spam In Every Gc)
-> ^gcncall <text>       (GCNC In Every Gc)
-> ^ungcspamall          (Stop All Spam In Gc's)
+> ^gcspamall <text>     (Spam Every GC)
+> ^gcncall <text>       (GCNC Every GC)
+> ^ungcspamall          (Stop GC Spam)
 > ^ungcncall            (Stop All GCNC)
-> ^gccall               (Spam Call In GC)
+> ^gccall               (Spam Call GC)
 > ^ungccall             (Stop Spam Calls)
 > ^gccreate @bot @user  (GC Creation)
-> ^ungccreate           (Stop GC Creation)
-> ^gcremoveall @users   (Remove People In All GC'S)
+> ^ungccreate           (Stop Creation)
+> ^gcremoveall @users   (Remove From ALL)
+```""")
 
+            # Stage 2: Targeting & Presence
+            help_panel_part2 = textwrap.dedent(f"""```yaml
+🔥 FORB1D OPS | MASTER CONTROL (2/2) 🔥
+======================================
 [ 🎯 TARGETING & SPAM OPS ]
-> ^loud @user            (Loud On User)
-> ^unloud                (Stop Loud)
+> ^loud @user           (Loud On User)
+> ^unloud               (Stop Loud)
 > ^autoreact @user 💀   (Reactors)
 > ^unautoreact          (Remove Reactors)
 > ^unautoreact @user    (Unlock @user)
 > ^rs <text> <delay>    (Roast Spam)
 > ^cs <text> <delay>    (Custom Spam)
 > ^fs <text> <delay>    (Forward Spam)
-> ^sspam <text> @user1  (Fastest Smart Spam)
+> ^sspam <text> @user1  (Fast Smart Spam)
 > ^unsspam @user        (Stop Smart Spam)
 > ^unspam               (Stop All Spam)
-> ^slide @user1 @user2  (Auto Roaster)
-> ^unslide @user @user2 (Precise Remover)
+> ^slide @u1 @u2        (Auto Roaster)
+> ^unslide @u1 @u2      (Precise Remove)
 
 [ 🎭 FLEX & PRESENCE OPS ]
-> ^stream <text>    (Purple stream status)
-> ^stream stop      (Wipe stream status)
+> ^grant @user          (Grant Access)
+> ^ungrant @user        (Revoke Access)
+> ^presence <md> <msg>  (Set Status)
+> ^stream <text>        (Purple Stream)
+> ^stream stop          (Wipe Stream)
 
-=====================================
+======================================
 ⚡ Powered by FORB1D🔥 Network ⚡
 [ {self.user.name} - System Online ]
-```"""
+```""")
+
             try:
-                await message.channel.send(help_panel)
+                await message.channel.send(help_panel_part1)
+                await asyncio.sleep(0.3)
+                await message.channel.send(help_panel_part2)
             except Exception as e:
                 print(f"❌ [{self.user.name}] Help Panel failed: {e}", flush=True)
-
        
     async def ram_cleaner_loop(self):
         import gc
