@@ -2241,6 +2241,96 @@ class ForbidToken(discord.Client):
                     await asyncio.sleep(1.0)
                     await message.channel.leave()
 
+        elif command == "gcleaveall":
+            # Usage: ^gcleaveall @bot1 @bot2
+            if not message.mentions:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcleaveall @bot1 @bot2`")
+
+            # 1. TARGET LOCK: If this specific bot node was NOT mentioned, it aborts immediately.
+            if self.user not in message.mentions:
+                return
+            
+            # 2. INITIALIZE EXTRACTION
+            panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // NODE {self.user.name} INITIATING GHOST PROTOCOL...`")
+            jitter = random.uniform(0.1, 0.6)
+            
+            # 3. MEMORY SCAN: Get every single GC this specific bot is currently inside
+            gcs_to_leave = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
+            
+            # 4. 200 IQ PLAY: If we are currently standing in a GC, we must leave it LAST.
+            current_is_gc = isinstance(message.channel, discord.GroupChannel)
+            if current_is_gc and message.channel in gcs_to_leave:
+                gcs_to_leave.remove(message.channel)
+            
+            # 5. BULLETPROOF BACKGROUND WIPE
+            import time
+            leave_count = 0
+            last_edit_time = time.time()
+            total_target = len(gcs_to_leave)
+            
+            for gc in gcs_to_leave:
+                # The Bulletproof Loop: Never skips a GC if rate-limited
+                while True:
+                    try:
+                        await gc.leave()
+                        leave_count += 1
+                        await asyncio.sleep(random.uniform(0.8, 1.5))
+                        break  # Success! Break the retry loop and move to the next GC
+                        
+                    except discord.HTTPException as e:
+                        if e.status == 429:
+                            # If Discord rate limits, wait the exact penalty time and try again
+                            retry = getattr(e, 'retry_after', 5.0)
+                            await asyncio.sleep(float(retry) + 0.5)
+                            continue  # Restarts the loop to target the EXACT same GC
+                        else:
+                            break  # 403 Forbidden or 404, break loop and skip
+                    except Exception:
+                        break  # Network disconnect failsafe, break loop and skip
+                
+                # 6. ANTI-LAG LIVE UI UPDATER (Updates terminal every 5 seconds)
+                if time.time() - last_edit_time > 5.0:
+                    live_lines = [
+                        "```yaml",
+                        "☢️ FORB1D // MASS EXTRACTION ☢️",
+                        "================================",
+                        f"[+] Node   : {self.user.name}",
+                        f"[💀] Purged : {leave_count} / {total_target} GCs",
+                        "[!] Status : EXTRACTION IN PROGRESS...",
+                        "================================",
+                        "```"
+                    ]
+                    try:
+                        await panel_msg.edit(content="\n".join(live_lines))
+                        last_edit_time = time.time()
+                    except Exception:
+                        pass # Ignore message edit rate limits
+
+            # 7. FINAL COMPLETION DROP
+            await asyncio.sleep(jitter)
+            total_left = leave_count + (1 if current_is_gc else 0)
+            
+            # 🛑 1# TIER ZERO-MARGIN TERMINAL PANEL 🛑
+            report_lines = [
+                "```yaml",
+                "☢️ FORB1D // MASS EXTRACTION ☢️",
+                "================================",
+                f"[+] Node   : {self.user.name}",
+                f"[💀] Purged : {total_left} GCs",
+                "[+] Status : SECURE WIPE",
+                "================================",
+                "[!] GHOST PROTOCOL COMPLETED.",
+                "```"
+            ]
+            
+            await panel_msg.edit(content="\n".join(report_lines))
+            print(f"✅ [{self.user.name}] Targeted mass GC extraction complete.", flush=True)
+            
+            # 8. FINAL EXTRACTION: Leave the current GC as the absolute last step
+            if current_is_gc:
+                await asyncio.sleep(1.0)
+                await message.channel.leave()
+                
         elif command == "stream":
             # Usage: ^stream <Text> (Turns it on) | ^stream stop (Turns it off)
             if len(parts) < 2:
@@ -2341,6 +2431,7 @@ class ForbidToken(discord.Client):
 > ^ungcnc               (Stop flasher)
 > ^gcleave              (Leave This GC)
 > ^gcleave all          (Leave ALL GCs)
+> ^gcleaveall @bot      (Precision All GCs)
 > ^gcleave @bot         (Precision Leave)
 > ^sgcnc <text> @userx  (Fastest GCNC)
 > ^unsgcnc @user        (Remove SGCNC)
