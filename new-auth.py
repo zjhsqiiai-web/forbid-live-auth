@@ -533,7 +533,8 @@ class ForbidToken(discord.Client):
                 while getattr(self, 'rgb_stream_active', False):
                     try:
                         current_frame = f"{frames[index]} {base_text} {frames[index]}"
-                        stream_activity = discord.Streaming(
+                        stream_activity = discord.Activity(
+                            type=discord.ActivityType.streaming,
                             name=current_frame, 
                             url="https://twitch.tv/forbid"
                         )
