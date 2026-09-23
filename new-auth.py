@@ -582,25 +582,37 @@ class ForbidToken(discord.Client):
             await message.channel.send("\n".join(unstream_lines))
 
         elif command == "loud":
-            # Usage: ^loud @user
-            if not message.mentions:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` (Ensure 'loud.mp3' is present!)")
+            # Usage: ^loud @user OR ^loud <channel_id>
+            parts = message.content.split()
+            if len(parts) < 2:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` OR `^loud <channel_id>`")
 
-            target_user = message.mentions[0]
+            target_arg = parts[1]
             voice_channel = None
+            target_display = "UNKNOWN"
 
-            for guild in self.guilds:
-                member = guild.get_member(target_user.id)
-                if member and member.voice and member.voice.channel:
-                    voice_channel = member.voice.channel
-                    break
+            # 1. DIRECT ID OVERRIDE: Bypass tracking and hard-lock onto a Channel ID
+            if target_arg.isdigit():
+                voice_channel = self.get_channel(int(target_arg))
+                target_display = f"<#{target_arg}> (Direct Lock)"
+            
+            # 2. TARGET TRACKING: Hunt down the mentioned user's active VC
+            elif message.mentions:
+                target_user = message.mentions[0]
+                target_display = f"<@{target_user.id}>"
+                
+                for guild in self.guilds:
+                    member = guild.get_member(target_user.id)
+                    if member and member.voice and member.voice.channel:
+                        voice_channel = member.voice.channel
+                        break
 
-            if not voice_channel and isinstance(message.channel, discord.GroupChannel):
-                if target_user in message.channel.recipients:
-                    voice_channel = message.channel
+                if not voice_channel and isinstance(message.channel, discord.GroupChannel):
+                    if target_user in message.channel.recipients:
+                        voice_channel = message.channel
 
             if not voice_channel:
-                return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: <@{target_user.id}> is not in any visible Voice Channel or GC Call.")
+                return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: Cannot locate valid Voice Channel.")
 
             # 3. 🚀 INFILTRATE & PLAY (HIGH-GAIN RTP OVERDRIVE)
             try:
@@ -614,7 +626,7 @@ class ForbidToken(discord.Client):
 
                 await message.channel.send(
                     f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
-                    f"> 🔊 Target: `<@{target_user.id}>`\n"
+                    f"> 🔊 Target: {target_display}\n"
                     f"> 🩸 Loop Status: `MAX-GAIN OVERDRIVE INJECTION`\n"
                     f"> 💀 Node: **{self.user.name}**"
                 )
