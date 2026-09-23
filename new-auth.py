@@ -503,9 +503,27 @@ class ForbidToken(discord.Client):
             await panel_msg.edit(content=final_panel)
 
         elif command.startswith("rgbstream"):
-            # Usage: ^rgbstream TARGET LOCKED
-            args = message.content.split(" ", 1)
-            base_text = args[1] if len(args) > 1 else f"FORB1D🔥 OPS"
+            # Usage: ^rgbstream TARGET LOCKED 6
+            parts = message.content.split(" ")
+            
+            base_text = "FORB1D🔥 OPS"
+            delay = 6.0
+            
+            if len(parts) > 1:
+                try:
+                    # Attempt to parse the very last word as a number (the delay)
+                    delay = float(parts[-1])
+                    
+                    # PROTECT THE NODE: Hard-cap at 5.0s minimum so Discord doesn't API ban the bot
+                    if delay < 1.0:
+                        delay = 1.0
+                    
+                    # Join everything before the delay as the actual text
+                    if len(parts) > 2:
+                        base_text = " ".join(parts[1:-1])
+                except ValueError:
+                    # If the last word isn't a number, they didn't provide a delay. Treat it all as text.
+                    base_text = " ".join(parts[1:])
             
             self.rgb_stream_active = True
             
@@ -521,10 +539,9 @@ class ForbidToken(discord.Client):
                         )
                         await self.change_presence(activity=stream_activity)
                         index = (index + 1) % len(frames)
-                        # 6.0s delay prevents Discord from rate-limiting your websocket presence updates
-                        await asyncio.sleep(6.0) 
+                        await asyncio.sleep(delay) 
                     except Exception:
-                        await asyncio.sleep(6.0)
+                        await asyncio.sleep(delay)
 
             asyncio.create_task(rgb_stream_loop())
             
@@ -535,16 +552,17 @@ class ForbidToken(discord.Client):
                 "=================================",
                 f"[+] Node     : {self.user.name}",
                 f"[+] Payload  : {base_text}",
+                f"[+] Delay    : {delay}s",
                 "[+] Mode     : CYCLING RGB FRAMES",
                 "[!] Status   : STREAM INJECTED",
                 "=================================",
                 "```"
             ]
             
-            # INSTANT DROP: Snaps into chat immediately with zero leading spaces
+            # INSTANT DROP
             await message.channel.send("\n".join(stream_lines))
 
-        elif command == "unstream":
+        elif command == "unrgbstream":
             self.rgb_stream_active = False
             await self.change_presence(activity=None)
             
@@ -2431,7 +2449,7 @@ class ForbidToken(discord.Client):
 > ^ungcnc               (Stop flasher)
 > ^gcleave              (Leave This GC)
 > ^gcleave all          (Leave ALL GCs)
-> ^gcleaveall @bot      (Precision All GCs)
+> ^gcleaveall @bot      (All GC Wipe)
 > ^gcleave @bot         (Precision Leave)
 > ^sgcnc <text> @userx  (Fastest GCNC)
 > ^unsgcnc @user        (Remove SGCNC)
@@ -2475,8 +2493,8 @@ class ForbidToken(discord.Client):
 > ^presence <md> <msg>  (Set Status)
 > ^stream <text>        (Purple Stream)
 > ^stream stop          (Wipe Stream)
-> ^rgbstream <text>     (RGB Stream)
-> ^unstream             (UNRGB Stream)
+> ^rgbstream <txt> <d>  (RGB Stream)
+> ^unrgbstream          (Stop RGB)
 > ^recon @user          (Acc Info)
 
 ======================================
