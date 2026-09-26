@@ -616,9 +616,14 @@ class ForbidToken(discord.Client):
 
             # 3. 🚀 INFILTRATE & PLAY (HIGH-GAIN RTP OVERDRIVE)
             try:
-                for vc in self.voice_clients:
-                    if vc.is_connected():
-                        await vc.disconnect()
+                # FORCE WIPE: Kill any ghost connections before joining
+                for existing_vc in self.voice_clients:
+                    try:
+                        await existing_vc.disconnect(force=True)
+                    except Exception:
+                        pass
+                
+                await asyncio.sleep(0.5) # Let the Discord websocket breathe and clear the state
 
                 # Connect using the custom high-priority RTP overdrive protocol class
                 vc = await asyncio.wait_for(voice_channel.connect(cls=ForbidRTPOverdrive), timeout=10.0)
