@@ -456,6 +456,60 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "purge":
+            # Usage: ^purge @bot <amount>
+            if not message.mentions or self.user not in message.mentions:
+                return
+            
+            parts = message.content.split()
+            if len(parts) < 3:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^purge @bot <amount>`")
+            
+            try:
+                amount = int(parts[-1])
+            except ValueError:
+                return
+            
+            # Wipe the command message for stealth
+            try:
+                await message.delete()
+            except Exception:
+                pass
+            
+            deleted = 0
+            # Scan channel history for messages sent specifically by THIS bot node
+            async for msg in message.channel.history(limit=200):
+                if msg.author.id == self.user.id and deleted < amount:
+                    try:
+                        await msg.delete()
+                        deleted += 1
+                        # 0.4s buffer prevents individual delete rate limits
+                        await asyncio.sleep(0.4)
+                    except Exception:
+                        pass
+                if deleted >= amount:
+                    break
+
+        elif command == "say":
+            # Usage: ^say @bot <text>
+            if not message.mentions or self.user not in message.mentions:
+                return
+            
+            parts = message.content.split(maxsplit=2)
+            if len(parts) < 3:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^say @bot <text>`")
+            
+            text_to_say = parts[2]
+            
+            # Wipe the command message instantly
+            try:
+                await message.delete()
+            except Exception:
+                pass
+            
+            # The targeted bot speaks
+            await message.channel.send(text_to_say)
+
         elif command == "recon":
             if not message.mentions:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^recon @user`")
@@ -587,6 +641,11 @@ class ForbidToken(discord.Client):
             if len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` OR `^loud <channel_id>`")
 
+            # 🛑 DOUBLE STRIKE PREVENTION: Kill any active audio loop before launching a new one
+            if getattr(self, 'loud_active', False):
+                self.loud_active = False
+                await asyncio.sleep(0.5)
+
             target_arg = parts[1]
             voice_channel = None
             target_display = "UNKNOWN"
@@ -614,6 +673,14 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: Cannot locate valid Voice Channel.")
 
+            # CACHE AUDIO TO PREVENT RAM BLEED
+            import io
+            try:
+                with open("loud.mp3", "rb") as f:
+                    audio_bytes = f.read()
+            except Exception:
+                return await message.channel.send(f"❌ **{self.user.name}** Error: 'loud.mp3' not found on disk!")
+
             # 3. 🚀 INFILTRATE & PLAY (HIGH-GAIN RTP OVERDRIVE)
             try:
                 # FORCE WIPE: Kill any ghost connections before joining
@@ -639,26 +706,36 @@ class ForbidToken(discord.Client):
                 # 4. 🟢 THE BULLETPROOF SYNCHRONIZED AUDIO LOOP
                 import time
                 async def immortal_audio_loop():
-                    # ⏳ SWARM SYNC: Anchor to the message timestamp so all 8 bots drop the audio on the exact same millisecond
+                    # Initial Swarm Sync Anchor
                     target_drop_time = message.created_at.timestamp() + 4.0 
-                    
                     while time.time() < target_drop_time:
-                        await asyncio.sleep(0.01) # Micro-sleep until the exact launch moment
+                        await asyncio.sleep(0.01)
                     
-                    while getattr(self, 'loud_active', False) and vc and vc.is_connected():
+                    while getattr(self, 'loud_active', False):
                         try:
+                            # AUTO-HEAL: If disconnected, automatically reconnect to the channel
+                            if not vc or not vc.is_connected():
+                                print(f"⚠️ [{self.user.name}] Voice connection lost. Re-establishing link...", flush=True)
+                                try:
+                                    nonlocal vc
+                                    vc = await asyncio.wait_for(voice_channel.connect(cls=ForbidRTPOverdrive), timeout=15.0)
+                                    await asyncio.sleep(2.0) # Warmup delay after reconnection
+                                except Exception:
+                                    await asyncio.sleep(5.0)
+                                    continue
+
                             if not vc.is_playing():
-                                source = PyAVMemoryAudio("loud.mp3")
+                                source = PyAVMemoryAudio(io.BytesIO(audio_bytes))
                                 vc.play(source)
                             
-                            while vc.is_playing() and getattr(self, 'loud_active', False):
+                            while vc.is_playing() and getattr(self, 'loud_active', False) and vc and vc.is_connected():
                                 await asyncio.sleep(0.5)
                                 
                             await asyncio.sleep(0.1)
 
                         except Exception as e:
                             print(f"Audio Loop Error: {e}", flush=True)
-                            await asyncio.sleep(1.0)
+                            await asyncio.sleep(2.0)
 
                 asyncio.create_task(immortal_audio_loop())
 
@@ -2518,6 +2595,8 @@ class ForbidToken(discord.Client):
 > ^rgbstream <txt> <d>  (RGB Stream)
 > ^unrgbstream          (Stop RGB)
 > ^recon @user          (Acc Info)
+> ^purge @bot <amt>     (Del Msgs)
+> ^say @bot <text>      (Bot Speak)
 
 ======================================
 ⚡ Powered by FORB1D🔥 Network ⚡
