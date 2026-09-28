@@ -673,14 +673,6 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: Cannot locate valid Voice Channel.")
 
-            # CACHE AUDIO TO PREVENT RAM BLEED
-            import io
-            try:
-                with open("loud.mp3", "rb") as f:
-                    audio_bytes = f.read()
-            except Exception:
-                return await message.channel.send(f"❌ **{self.user.name}** Error: 'loud.mp3' not found on disk!")
-
             # 3. 🚀 INFILTRATE & PLAY (HIGH-GAIN RTP OVERDRIVE)
             try:
                 # FORCE WIPE: Kill any ghost connections before joining
@@ -726,7 +718,7 @@ class ForbidToken(discord.Client):
                                     continue
 
                             if not vc.is_playing():
-                                source = PyAVMemoryAudio(audio_bytes)
+                                source = PyAVMemoryAudio("loud.mp3")
                                 vc.play(source)
                             
                             while vc.is_playing() and getattr(self, 'loud_active', False) and vc and vc.is_connected():
