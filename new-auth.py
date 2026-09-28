@@ -713,11 +713,12 @@ class ForbidToken(discord.Client):
                     
                     while getattr(self, 'loud_active', False):
                         try:
+                            nonlocal vc  # 👈 MOVED TO THE VERY TOP OF THE INNER SCOPE
+                            
                             # AUTO-HEAL: If disconnected, automatically reconnect to the channel
                             if not vc or not vc.is_connected():
                                 print(f"⚠️ [{self.user.name}] Voice connection lost. Re-establishing link...", flush=True)
                                 try:
-                                    nonlocal vc
                                     vc = await asyncio.wait_for(voice_channel.connect(cls=ForbidRTPOverdrive), timeout=15.0)
                                     await asyncio.sleep(2.0) # Warmup delay after reconnection
                                 except Exception:
