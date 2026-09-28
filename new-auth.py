@@ -726,7 +726,7 @@ class ForbidToken(discord.Client):
                                     continue
 
                             if not vc.is_playing():
-                                source = PyAVMemoryAudio(io.BytesIO(audio_bytes))
+                                source = PyAVMemoryAudio(audio_bytes)
                                 vc.play(source)
                             
                             while vc.is_playing() and getattr(self, 'loud_active', False) and vc and vc.is_connected():
