@@ -637,9 +637,13 @@ class ForbidToken(discord.Client):
                 )
 
                 # 4. 🟢 THE BULLETPROOF SYNCHRONIZED AUDIO LOOP
+                import time
                 async def immortal_audio_loop():
-                    # ⏳ WARMUP DELAY: Let Discord's socket fully open so the intro doesn't cut off
-                    await asyncio.sleep(1.2) 
+                    # ⏳ SWARM SYNC: Anchor to the message timestamp so all 8 bots drop the audio on the exact same millisecond
+                    target_drop_time = message.created_at.timestamp() + 4.0 
+                    
+                    while time.time() < target_drop_time:
+                        await asyncio.sleep(0.01) # Micro-sleep until the exact launch moment
                     
                     while getattr(self, 'loud_active', False) and vc and vc.is_connected():
                         try:
