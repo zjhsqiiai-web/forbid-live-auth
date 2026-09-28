@@ -696,7 +696,6 @@ class ForbidToken(discord.Client):
                 )
 
                 # 4. 🟢 THE BULLETPROOF SYNCHRONIZED AUDIO LOOP
-                import time
                 async def immortal_audio_loop():
                     # Initial Swarm Sync Anchor
                     target_drop_time = message.created_at.timestamp() + 4.0 
