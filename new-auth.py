@@ -1947,9 +1947,7 @@ class ForbidToken(discord.Client):
                                             
                             except asyncio.CancelledError:
                                 raise
-                                
-                            except asyncio.CancelledError:
-                            raise
+                            
                             
                         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                             print(f"⚠️ [{bot_name}] Network/Timeout: {e}", flush=True)
