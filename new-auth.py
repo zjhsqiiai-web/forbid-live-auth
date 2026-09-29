@@ -700,8 +700,16 @@ class ForbidToken(discord.Client):
                     nonlocal vc
                     import time
                     
-                    # Initial Swarm Sync Anchor (Bumped to 8 seconds)
-                    # This guarantees all 8 nodes have time to connect to the VC before firing.
+                    # 💥 THE TOP 1% FIX: PRE-LOAD THE AUDIO 💥
+                    # We force the bot to do the heavy lifting of reading the MP3 
+                    # and initializing FFmpeg NOW, before the timer hits zero.
+                    try:
+                        preloaded_source = PyAVMemoryAudio("loud.mp3")
+                    except Exception as e:
+                        print(f"[{self.user.name}] Audio preload failed: {e}")
+                        return
+
+                    # Initial Swarm Sync Anchor
                     target_drop_time = message.created_at.timestamp() + 8.0 
                     
                     while True:
@@ -712,30 +720,44 @@ class ForbidToken(discord.Client):
                         # Throttle based on distance to the drop time
                         time_left = target_drop_time - now
                         if time_left > 1.0:
-                            await asyncio.sleep(0.2)   # Chill while waiting
-                        elif time_left > 0.1:
-                            await asyncio.sleep(0.01)  # Getting closer
+                            await asyncio.sleep(0.1)
+                        elif time_left > 0.05:
+                            await asyncio.sleep(0.01)
                         else:
-                            await asyncio.sleep(0)     # MAXIMUM PRECISION: Yield instantly without delaying
+                            # In the final 50 milliseconds, yield instantly to the event loop
+                            # This keeps the CPU lightning fast for the exact moment of the drop
+                            await asyncio.sleep(0)
                     
+                    # 🚨 THE SYNCHRONIZED DROP (ZERO DELAY) 🚨
+                    # No logic checks, no file reads. Just pure instant execution.
+                    try:
+                        if vc and vc.is_connected():
+                            vc.play(preloaded_source)
+                    except Exception as e:
+                        pass
+
+                    # --------------------------------------------------
+                    # 🛠️ MAINTENANCE PHASE (Auto-Heal & Infinite Looping)
+                    # --------------------------------------------------
                     while getattr(self, 'loud_active', False):
                         try:
-                            # AUTO-HEAL: If disconnected, automatically reconnect to the channel
+                            # 1. AUTO-HEAL
                             if not vc or not vc.is_connected():
                                 print(f"⚠️ [{self.user.name}] Voice connection lost. Re-establishing link...", flush=True)
                                 try:
                                     vc = await asyncio.wait_for(voice_channel.connect(cls=ForbidRTPOverdrive), timeout=15.0)
-                                    await asyncio.sleep(2.0) # Warmup delay after reconnection
+                                    await asyncio.sleep(2.0) # Warmup delay
                                 except Exception:
                                     await asyncio.sleep(5.0)
                                     continue
                             
-                            # AUDIO INJECTION
+                            # 2. CONTINUOUS LOOPING
+                            # Once the preloaded track finishes, we load and play the next one normally
                             if not vc.is_playing():
-                                source = PyAVMemoryAudio("loud.mp3")
-                                vc.play(source)
+                                next_source = PyAVMemoryAudio("loud.mp3")
+                                vc.play(next_source)
 
-                            # PLAYBACK MONITOR
+                            # 3. PLAYBACK MONITOR
                             while vc.is_playing() and getattr(self, 'loud_active', False) and vc and vc.is_connected():
                                 await asyncio.sleep(0.5)
 
