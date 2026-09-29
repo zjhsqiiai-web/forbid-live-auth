@@ -700,10 +700,23 @@ class ForbidToken(discord.Client):
                     nonlocal vc
                     import time
                     
-                    # Initial Swarm Sync Anchor
-                    target_drop_time = message.created_at.timestamp() + 4.0 
-                    while time.time() < target_drop_time:
-                        await asyncio.sleep(0.01)
+                    # Initial Swarm Sync Anchor (Bumped to 8 seconds)
+                    # This guarantees all 8 nodes have time to connect to the VC before firing.
+                    target_drop_time = message.created_at.timestamp() + 8.0 
+                    
+                    while True:
+                        now = time.time()
+                        if now >= target_drop_time:
+                            break
+                        
+                        # Throttle based on distance to the drop time
+                        time_left = target_drop_time - now
+                        if time_left > 1.0:
+                            await asyncio.sleep(0.2)   # Chill while waiting
+                        elif time_left > 0.1:
+                            await asyncio.sleep(0.01)  # Getting closer
+                        else:
+                            await asyncio.sleep(0)     # MAXIMUM PRECISION: Yield instantly without delaying
                     
                     while getattr(self, 'loud_active', False):
                         try:
