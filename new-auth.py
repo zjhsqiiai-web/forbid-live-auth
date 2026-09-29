@@ -1965,17 +1965,17 @@ class ForbidToken(discord.Client):
                                 if spam_tasks.get(channel_id) == current_task:
                                     spam_tasks.pop(channel_id, None)
 
-                task = asyncio.create_task(custom_loop(), name=f"spam_{channel_id}")
-                spam_tasks[channel_id] = task
-                
-                if my_math_id == 0: 
-                    await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
-            
-            except Exception as outer_e:
-                try:
-                    await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
-                except Exception:
-                    pass
+                                task = asyncio.create_task(custom_loop(), name=f"spam_{channel_id}")
+                                spam_tasks[channel_id] = task
+                                
+                                if my_math_id == 0: 
+                                    await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
+                            
+                            except Exception as outer_e:
+                                try:
+                                    await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
+                                except Exception:
+                                    pass
 
         elif command == "fs" or command == "forwardspam":
             if len(parts) < 3:
