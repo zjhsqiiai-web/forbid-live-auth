@@ -1972,11 +1972,11 @@ class ForbidToken(discord.Client):
                 if my_math_id == 0: 
                     await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
             
-            except Exception as outer_e:
-                try:
-                    await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
-                except Exception:
-                    pass    
+                    except Exception as outer_e:
+                        try:
+                            await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
+                        except Exception:
+                            pass    
                                     
                     
         elif command == "fs" or command == "forwardspam":
