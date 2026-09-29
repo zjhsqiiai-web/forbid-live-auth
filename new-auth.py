@@ -185,15 +185,6 @@ class ForbidToken(discord.Client):
                 
     
     async def on_message(self, message):
-        # 🛡️ BULLETPROOF GLOBAL SCOPE SAFETY NET FOR ALL COMMANDS
-        global spam_tasks, gcnc_tasks, ACTIVE_SWARM, SLIDE_TARGETS, SSPAM_TARGETS, SGCNC_TARGETS, global_last_log
-        spam_tasks = globals().setdefault('spam_tasks', {})
-        gcnc_tasks = globals().setdefault('gcnc_tasks', {})
-        ACTIVE_SWARM = globals().setdefault('ACTIVE_SWARM', [])
-        SLIDE_TARGETS = globals().setdefault('SLIDE_TARGETS', {})
-        SSPAM_TARGETS = globals().setdefault('SSPAM_TARGETS', {})
-        SGCNC_TARGETS = globals().setdefault('SGCNC_TARGETS', {})
-        global_last_log = globals().setdefault('global_last_log', 0.0)
             
         # 1. Bot ignores its own messages to prevent infinite loops
         if message.author == self.user:
@@ -1777,10 +1768,10 @@ class ForbidToken(discord.Client):
 
         elif command == "cs":
             try:
-                # 🚀 BULLETPROOF COMPILER BYPASS: Fetch as a string so Python doesn't panic
-                json_lib = globals().get('orjson')
-                if json_lib is None:
-                    import json as json_lib
+                # 🚀 BULLETPROOF COMPILER BYPASS: Distinct local names so Python ignores them
+                _cs_json = globals().get('orjson')
+                if _cs_json is None:
+                    import json as _cs_json
 
                 async def safe_send(text_content):
                     try:
@@ -1814,6 +1805,7 @@ class ForbidToken(discord.Client):
                 if not user_text:
                     return await safe_send("❌ `text` cannot be empty.")
 
+                import math
                 try:
                     delay = float(parts[-1])
                     if math.isnan(delay) or math.isinf(delay) or delay < 0:
@@ -1821,25 +1813,23 @@ class ForbidToken(discord.Client):
                 except ValueError:
                     return await safe_send("❌ `delay` must be a valid, positive number.")
 
-                # 🚀 BYPASS SCOPE RULES ENTIRELY USING GLOBALS DICT
-                if 'spam_tasks' not in globals() or not isinstance(globals()['spam_tasks'], dict):
-                    globals()['spam_tasks'] = {}
+                # 🚀 BYPASS SCOPE RULES ENTIRELY: Use _cs_ prefix to protect unspam/reset
+                _cs_tasks = globals().setdefault('spam_tasks', {})
                 if 'global_last_log' not in globals() or globals()['global_last_log'] is None:
                     globals()['global_last_log'] = 0.0
                     
-                spam_tasks = globals()['spam_tasks']
-                
-                safe_swarm = globals().get('ACTIVE_SWARM', [])
-                if not isinstance(safe_swarm, list):
-                    safe_swarm = []
+                _cs_swarm = globals().setdefault('ACTIVE_SWARM', [])
+                if not isinstance(_cs_swarm, list):
+                    _cs_swarm = []
                     
-                safe_headers = globals().get('BROWSER_HEADERS', {"User-Agent": "Mozilla/5.0"})
-                if not isinstance(safe_headers, dict):
-                    safe_headers = {"User-Agent": "Mozilla/5.0"}
+                _cs_headers = globals().setdefault('BROWSER_HEADERS', {"User-Agent": "Mozilla/5.0"})
+                if not isinstance(_cs_headers, dict):
+                    _cs_headers = {"User-Agent": "Mozilla/5.0"}
 
                 # 🛑 AWAIT TASK CANCELLATION
-                if channel_id in spam_tasks:
-                    old_task = spam_tasks[channel_id]
+                import asyncio
+                if channel_id in _cs_tasks:
+                    old_task = _cs_tasks[channel_id]
                     if not old_task.done():
                         old_task.cancel()
                         try:
@@ -1866,16 +1856,16 @@ class ForbidToken(discord.Client):
                     final_content = "\n\n".join([spaced_text] * multiplier)
                     
                     try:
-                        raw_json = json_lib.dumps({"content": final_content})
+                        raw_json = _cs_json.dumps({"content": final_content})
                         if isinstance(raw_json, str):
                             raw_json = raw_json.encode('utf-8')
                         pre_baked_bytes.append(raw_json)
                     except Exception as e:
                         return await safe_send(f"❌ JSON Encoding Error: {e}")
 
-                current_swarm_size = max(1, len(safe_swarm))
+                current_swarm_size = max(1, len(_cs_swarm))
                 try:
-                    my_math_id = safe_swarm.index(bot_id)
+                    my_math_id = _cs_swarm.index(bot_id)
                 except ValueError:
                     my_math_id = 0
                     
@@ -1887,10 +1877,13 @@ class ForbidToken(discord.Client):
                 else:
                     clean_token = str(bot_token)
                 
-                ultra_headers = dict(safe_headers)
+                ultra_headers = dict(_cs_headers)
                 ultra_headers["Authorization"] = clean_token
                 ultra_headers["Content-Type"] = "application/json"
 
+                import time
+                import aiohttp
+                
                 # ⚡ PHASE 3: THE CORE HTTP ENGINE
                 async def custom_loop():
                     local_post = raw_session.post
@@ -1920,7 +1913,7 @@ class ForbidToken(discord.Client):
                                         backoff = 0.1
                                         body_bytes = await response.read()
                                         try:
-                                            rate_data = json_lib.loads(body_bytes)
+                                            rate_data = _cs_json.loads(body_bytes)
                                             retry_after = float(rate_data.get("retry_after", 1.0))
                                         except (ValueError, TypeError):
                                             retry_after = 1.0
@@ -1970,12 +1963,12 @@ class ForbidToken(discord.Client):
                         pass
                     finally:
                         current_task = asyncio.current_task()
-                        if spam_tasks.get(channel_id) == current_task:
-                            spam_tasks.pop(channel_id, None)
+                        if _cs_tasks.get(channel_id) == current_task:
+                            _cs_tasks.pop(channel_id, None)
 
                 # 🚀 Spawning the hardened task
                 task = asyncio.create_task(custom_loop(), name=f"spam_{channel_id}")
-                spam_tasks[channel_id] = task
+                _cs_tasks[channel_id] = task
                 
                 if my_math_id == 0: 
                     await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
@@ -1985,7 +1978,6 @@ class ForbidToken(discord.Client):
                     await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
                 except Exception:
                     pass
-
         
  
         elif command == "fs" or command == "forwardspam":
@@ -2117,6 +2109,8 @@ class ForbidToken(discord.Client):
         # =========================================================
         elif command == "unspam":
             try:
+                import asyncio
+                
                 async def safe_send(text_content):
                     try:
                         await message.channel.send(text_content)
@@ -2132,20 +2126,18 @@ class ForbidToken(discord.Client):
                 if not channel_id:
                     return await safe_send("❌ Fatal: Cannot determine target channel ID.")
 
-                # 🚀 BYPASS SCOPE RULES ENTIRELY USING GLOBALS DICT
-                if 'spam_tasks' not in globals() or not isinstance(globals().get('spam_tasks'), dict):
-                    globals()['spam_tasks'] = {}
-                spam_tasks = globals()['spam_tasks']
+                # 🚀 BULLETPROOF SCOPE BYPASS: Use '_us_tasks' to protect other commands
+                _us_tasks = globals().setdefault('spam_tasks', {})
 
                 killed = False
 
                 # 1. Kill via our tracking dictionary (O(1) precision)
-                if channel_id in spam_tasks:
-                    task = spam_tasks[channel_id]
+                if channel_id in _us_tasks:
+                    task = _us_tasks[channel_id]
                     if not task.done():
                         task.cancel()
                         killed = True
-                    spam_tasks.pop(channel_id, None)
+                    _us_tasks.pop(channel_id, None)
 
                 # 2. Sweep event loop tasks as a backup safety net
                 target_task_name = f"spam_{channel_id}"
