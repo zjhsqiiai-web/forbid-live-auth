@@ -1945,8 +1945,6 @@ class ForbidToken(discord.Client):
                                         await response.read()
                                         await asyncio.sleep(max(0.1, delay))
                                             
-                            except asyncio.CancelledError:
-                                raise
                             
                             
                         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
