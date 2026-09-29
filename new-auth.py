@@ -1316,6 +1316,8 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC spam running.")
 
         elif command == "gcncall":
+            # 🚀 Force Python to recognize spam_tasks globally in this block
+            spam_tasks = globals().setdefault('spam_tasks', {})
             if len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcncall <text>` or `^gcncall stop`")
             
