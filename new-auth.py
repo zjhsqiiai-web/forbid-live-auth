@@ -1750,7 +1750,6 @@ class ForbidToken(discord.Client):
             except Exception as e:
                 await message.channel.send(f"❌ Error: {e}")
 
-
         elif command == "cs":
                 
                 try:
@@ -1775,13 +1774,14 @@ class ForbidToken(discord.Client):
                 if not bot_user or not bot_http:
                     return await safe_send("❌ Fatal: Bot user or HTTP state offline.")
                 
-                bot_id = getattr(bot_user, 'id', None) or 0
+                bot_id = getattr(bot_user, 'id', 0)
                 bot_name = getattr(bot_user, 'name', 'UnknownNode')
                 bot_token = getattr(bot_http, 'token', None)
                 
                 if not bot_token or not isinstance(raw_session, aiohttp.ClientSession):
                     return await safe_send("❌ Fatal: Network session or token missing.")
 
+                # Moderate 2: Fail fast if channel_id is 0 or missing
                 channel_id = getattr(message.channel, 'id', 0)
                 if not channel_id:
                     return await safe_send("❌ Fatal: Cannot determine target channel ID.")
@@ -1797,14 +1797,14 @@ class ForbidToken(discord.Client):
                 except ValueError:
                     return await safe_send("❌ `delay` must be a valid, positive number.")
 
-                # 🚀 BYPASS SCOPE RULES ENTIRELY USING GLOBALS DICT
-                if 'spam_tasks' not in globals() or not isinstance(globals()['spam_tasks'], dict):
-                    globals()['spam_tasks'] = {}
-                if 'global_last_log' not in globals() or globals()['global_last_log'] is None:
-                    globals()['global_last_log'] = 0.0
-                    
-                spam_tasks = globals()['spam_tasks']
+                # Critical 1 & Minor 2: Safely read globals, explicitly initialize mutable state
+                global spam_tasks, global_last_log
                 
+                if 'spam_tasks' not in globals() or not isinstance(spam_tasks, dict):
+                    spam_tasks = {}
+                if 'global_last_log' not in globals() or global_last_log is None:
+                    global_last_log = 0.0
+                    
                 safe_swarm = globals().get('ACTIVE_SWARM', [])
                 if not isinstance(safe_swarm, list):
                     safe_swarm = []
@@ -1911,11 +1911,10 @@ class ForbidToken(discord.Client):
                                         except (ValueError, TypeError):
                                             retry_after = 1.0
                                         
-                                        global_last_log = globals()['global_last_log']
                                         now = time.time()
                                         if now - global_last_log > 60:
                                             print(f"⚠️ [{bot_name}] Rate Limit. Backing off {retry_after}s.", flush=True)
-                                            globals()['global_last_log'] = now
+                                            global_last_log = now
                                             
                                         await asyncio.sleep(retry_after)
                                         
@@ -1931,6 +1930,7 @@ class ForbidToken(discord.Client):
                                         print(f"⚠️ [{bot_name}] Discord Server Error {status}. Retrying in {backoff}s...", flush=True)
                                         await asyncio.sleep(backoff)
                                         backoff = min(backoff * 2.0, 10.0)
+                                        
                                     elif 200 <= status < 300:
                                         # Success: Drain body so socket returns to pool for reuse (Keep-Alive)
                                         await response.read() 
@@ -1972,13 +1972,12 @@ class ForbidToken(discord.Client):
                 if my_math_id == 0: 
                     await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
             
-                            except Exception as outer_e:
-                                try:
-                                    await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
-                                except Exception:
-                                    pass    
-                                    
-                    
+            except Exception as outer_e:
+                try:
+                    await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
+                except Exception:
+                    pass
+ 
         elif command == "fs" or command == "forwardspam":
             if len(parts) < 3:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^fs <text> <delay>`")
