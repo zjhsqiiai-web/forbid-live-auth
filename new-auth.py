@@ -1160,14 +1160,22 @@ class ForbidToken(discord.Client):
             )
 
             try:
+                # 🚀 BULLETPROOF SCOPE BYPASS: Fetch global registries safely via globals()
+                g_spam_tasks = globals().setdefault('spam_tasks', {})
+                g_gcnc_tasks = globals().setdefault('gcnc_tasks', {})
+                g_slide = globals().setdefault('SLIDE_TARGETS', {})
+                g_sspam = globals().setdefault('SSPAM_TARGETS', {})
+                g_sgcnc = globals().setdefault('SGCNC_TARGETS', {})
+                g_swarm = globals().setdefault('ACTIVE_SWARM', [])
+
                 # Step 1: Wipe all global task dictionaries, hater registries, and target maps (25%)
                 await asyncio.sleep(0.25)
-                spam_tasks.clear()
-                gcnc_tasks.clear()
-                SLIDE_TARGETS.clear()
-                SSPAM_TARGETS.clear()
-                SGCNC_TARGETS.clear()
-                ACTIVE_SWARM.clear()
+                g_spam_tasks.clear()
+                g_gcnc_tasks.clear()
+                if hasattr(g_slide, 'clear'): g_slide.clear()
+                if hasattr(g_sspam, 'clear'): g_sspam.clear()
+                if hasattr(g_sgcnc, 'clear'): g_sgcnc.clear()
+                if hasattr(g_swarm, 'clear'): g_swarm.clear()
                 
                 await progress_msg.edit(content=
                     f"⚡ **[ FORB1D CORE OVERRIDE ]** ⚡\n"
@@ -1204,8 +1212,8 @@ class ForbidToken(discord.Client):
 
                 # Step 4: Re-register current bot into the active swarm safely (100%)
                 await asyncio.sleep(0.3)
-                if self.user.id not in ACTIVE_SWARM:
-                    ACTIVE_SWARM.append(self.user.id)
+                if self.user.id not in g_swarm:
+                    g_swarm.append(self.user.id)
 
                 await progress_msg.edit(content=
                     f"⚡ **[ FORB1D CORE OVERRIDE ]** ⚡\n"
@@ -1218,7 +1226,10 @@ class ForbidToken(discord.Client):
 
             except Exception as e:
                 print(f"❌ [Reset Error]: {e}", flush=True)
-                await message.channel.send(f"❌ Reset failed: {e}")
+                try:
+                    await message.channel.send(f"❌ Reset failed: {e}")
+                except Exception:
+                    pass
 
         elif command == "gcspamall":
             # Usage: ^gcspamall <text>
