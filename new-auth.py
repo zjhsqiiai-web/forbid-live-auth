@@ -2116,7 +2116,7 @@ class ForbidToken(discord.Client):
                     except Exception:
                         pass
 
-                # 🛡️ Safe attribute extraction (Prevents TypeError if user state is uninitialized)
+                # 🛡️ Safe attribute extraction
                 bot_user = getattr(self, 'user', None)
                 bot_id = getattr(bot_user, 'id', None) or 0
                 bot_name = getattr(bot_user, 'name', 'UnknownNode')
@@ -2125,10 +2125,10 @@ class ForbidToken(discord.Client):
                 if not channel_id:
                     return await safe_send("❌ Fatal: Cannot determine target channel ID.")
 
-                # Safely access global spam dictionary
-                global spam_tasks
-                if 'spam_tasks' not in globals() or not isinstance(spam_tasks, dict):
-                    spam_tasks = {}
+                # 🚀 BYPASS SCOPE RULES ENTIRELY USING GLOBALS DICT
+                if 'spam_tasks' not in globals() or not isinstance(globals().get('spam_tasks'), dict):
+                    globals()['spam_tasks'] = {}
+                spam_tasks = globals()['spam_tasks']
 
                 killed = False
 
@@ -2148,7 +2148,7 @@ class ForbidToken(discord.Client):
                             task.cancel()
                             killed = True
 
-                # Safe staggered confirmation (guarantees bot_id is an integer)
+                # Safe staggered confirmation
                 stagger = (bot_id % 8) * 0.5
                 await asyncio.sleep(stagger)
 
