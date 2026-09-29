@@ -6,11 +6,14 @@ import random
 import re
 import logging
 import av
-import orjson
 import math
 import aiohttp
 import textwrap
 import json
+try:
+    import orjson
+except ImportError:
+    orjson = None
 from keep_alive import keep_alive
 import warnings       # 👈 THIS 
 warnings.filterwarnings("ignore", category=DeprecationWarning) # 👈 KILLS THE WARNING SPAM
@@ -1751,13 +1754,6 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"❌ Error: {e}")
 
         elif command == "cs":
-            # 🛡️ PHASE 1: THE ARMOR (Absolute State, Validation & Cleanup)
-            try:
-                import time
-                import math
-                import asyncio
-                import aiohttp
-                
                 try:
                     import orjson as json_lib
                 except ImportError:
