@@ -1784,7 +1784,6 @@ class ForbidToken(discord.Client):
                 if not bot_token or not isinstance(raw_session, aiohttp.ClientSession):
                     return await safe_send("❌ Fatal: Network session or token missing.")
 
-                # Moderate 2: Fail fast if channel_id is 0 or missing
                 channel_id = getattr(message.channel, 'id', 0)
                 if not channel_id:
                     return await safe_send("❌ Fatal: Cannot determine target channel ID.")
@@ -1800,14 +1799,14 @@ class ForbidToken(discord.Client):
                 except ValueError:
                     return await safe_send("❌ `delay` must be a valid, positive number.")
 
-                # Critical 1 & Minor 2: Safely read globals, explicitly initialize mutable state
-                global spam_tasks, global_last_log
-                
-                if 'spam_tasks' not in globals() or not isinstance(spam_tasks, dict):
-                    spam_tasks = {}
-                if 'global_last_log' not in globals() or global_last_log is None:
-                    global_last_log = 0.0
+                # 🚀 BYPASS SCOPE RULES ENTIRELY USING GLOBALS DICT
+                if 'spam_tasks' not in globals() or not isinstance(globals()['spam_tasks'], dict):
+                    globals()['spam_tasks'] = {}
+                if 'global_last_log' not in globals() or globals()['global_last_log'] is None:
+                    globals()['global_last_log'] = 0.0
                     
+                spam_tasks = globals()['spam_tasks']
+                
                 safe_swarm = globals().get('ACTIVE_SWARM', [])
                 if not isinstance(safe_swarm, list):
                     safe_swarm = []
@@ -1914,10 +1913,11 @@ class ForbidToken(discord.Client):
                                         except (ValueError, TypeError):
                                             retry_after = 1.0
                                         
+                                        global_last_log = globals()['global_last_log']
                                         now = time.time()
                                         if now - global_last_log > 60:
                                             print(f"⚠️ [{bot_name}] Rate Limit. Backing off {retry_after}s.", flush=True)
-                                            global_last_log = now
+                                            globals()['global_last_log'] = now
                                             
                                         await asyncio.sleep(retry_after)
                                         
