@@ -1756,17 +1756,8 @@ class ForbidToken(discord.Client):
         
 
         elif command == "cs":
-            # 🛡️ PHASE 1: THE ARMOR (Absolute State, Validation & Cleanup)
             try:
-                import time
-                import math
-                import asyncio
-                import aiohttp
-                
-                try:
-                    import orjson as json_lib
-                except ImportError:
-                    import json as json_lib
+                json_lib = orjson if ('orjson' in globals() and orjson is not None) else json
 
                 async def safe_send(text_content):
                     try:
@@ -1792,7 +1783,6 @@ class ForbidToken(discord.Client):
                 if not bot_token or not isinstance(raw_session, aiohttp.ClientSession):
                     return await safe_send("❌ Fatal: Network session or token missing.")
 
-                # Moderate 2: Fail fast if channel_id is 0 or missing
                 channel_id = getattr(message.channel, 'id', 0)
                 if not channel_id:
                     return await safe_send("❌ Fatal: Cannot determine target channel ID.")
@@ -1808,14 +1798,14 @@ class ForbidToken(discord.Client):
                 except ValueError:
                     return await safe_send("❌ `delay` must be a valid, positive number.")
 
-                # Critical 1 & Minor 2: Safely read globals, explicitly initialize mutable state
-                global spam_tasks, global_last_log
-                
-                if 'spam_tasks' not in globals() or not isinstance(spam_tasks, dict):
-                    spam_tasks = {}
-                if 'global_last_log' not in globals() or global_last_log is None:
-                    global_last_log = 0.0
+                # 🚀 BYPASS SCOPE RULES ENTIRELY USING GLOBALS DICT
+                if 'spam_tasks' not in globals() or not isinstance(globals()['spam_tasks'], dict):
+                    globals()['spam_tasks'] = {}
+                if 'global_last_log' not in globals() or globals()['global_last_log'] is None:
+                    globals()['global_last_log'] = 0.0
                     
+                spam_tasks = globals()['spam_tasks']
+                
                 safe_swarm = globals().get('ACTIVE_SWARM', [])
                 if not isinstance(safe_swarm, list):
                     safe_swarm = []
@@ -1824,25 +1814,23 @@ class ForbidToken(discord.Client):
                 if not isinstance(safe_headers, dict):
                     safe_headers = {"User-Agent": "Mozilla/5.0"}
 
-                # 🛑 AWAIT TASK CANCELLATION (Python 3.8+ Safe)
+                # 🛑 AWAIT TASK CANCELLATION
                 if channel_id in spam_tasks:
                     old_task = spam_tasks[channel_id]
                     if not old_task.done():
                         old_task.cancel()
                         try:
-                            await old_task # Wait for socket to die cleanly
+                            await old_task
                         except asyncio.CancelledError:
-                            pass # The correct, expected behavior
+                            pass
                         except Exception as e:
                             print(f"⚠️ Previous task terminated with error: {e}", flush=True)
 
-                # -----------------------------------------------------------------
                 # 🔨 PHASE 2: THE FORGE & ISOLATION
-                # -----------------------------------------------------------------
                 hearts = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎"]
                 local_len = len(hearts)
-
                 pre_baked_bytes = []
+                
                 for heart in hearts:
                     base_text = f"# {user_text} - ({heart})"
                     spaced_text = base_text.replace(" ", " \u200B")
@@ -1851,7 +1839,6 @@ class ForbidToken(discord.Client):
                     if char_len > 2000:
                         return await safe_send("❌ Base text is too long for Discord's 2000-character limit.")
                     
-                    # Minor 1: Exact Math, dead code removed. N * char_len + (N - 1) * 2 <= 2000
                     multiplier = 2002 // (char_len + 2)
                     final_content = "\n\n".join([spaced_text] * multiplier)
                     
@@ -1872,7 +1859,6 @@ class ForbidToken(discord.Client):
                 raw_stagger = (delay / float(current_swarm_size)) * my_math_id
                 perfect_stagger = min(raw_stagger, 30.0)
 
-                # Ensure token is a clean string
                 if isinstance(bot_token, bytes):
                     clean_token = bot_token.decode('utf-8')
                 else:
@@ -1882,13 +1868,8 @@ class ForbidToken(discord.Client):
                 ultra_headers["Authorization"] = clean_token
                 ultra_headers["Content-Type"] = "application/json"
 
-                # -----------------------------------------------------------------
                 # ⚡ PHASE 3: THE CORE HTTP ENGINE
-                # -----------------------------------------------------------------
                 async def custom_loop():
-                    global global_last_log
-                    
-                    # Moderate 3: Bind session method in outer scope to prevent inner AttributeError
                     local_post = raw_session.post
                     local_bytes = pre_baked_bytes
                     color_index = bot_id % local_len
@@ -1904,7 +1885,6 @@ class ForbidToken(discord.Client):
                             raw_packet = local_bytes[color_index]
                             color_index = (color_index + 1) % local_len
                             
-                            # 🛑 ZOMBIE KILLER: Check if the internet pipeline died
                             if raw_session.closed:
                                 print(f"❌ [{bot_name}] Fatal: raw_session was closed externally.", flush=True)
                                 break
@@ -1914,7 +1894,7 @@ class ForbidToken(discord.Client):
                                     status = response.status
                                     
                                     if status == 429:
-                                        backoff = 0.1 # Reset backoff after a 429
+                                        backoff = 0.1
                                         body_bytes = await response.read()
                                         try:
                                             rate_data = json_lib.loads(body_bytes)
@@ -1922,47 +1902,42 @@ class ForbidToken(discord.Client):
                                         except (ValueError, TypeError):
                                             retry_after = 1.0
                                         
+                                        global_last_log_val = globals()['global_last_log']
                                         now = time.time()
-                                        if now - global_last_log > 60:
+                                        if now - global_last_log_val > 60:
                                             print(f"⚠️ [{bot_name}] Rate Limit. Backing off {retry_after}s.", flush=True)
-                                            global_last_log = now
+                                            globals()['global_last_log'] = now
                                             
                                         await asyncio.sleep(retry_after)
                                         
                                     elif 400 <= status < 500:
-                                        # Fatal Client Error (Bad request, unauthorized, etc.)
                                         error_text = await response.text()
                                         print(f"❌ [{bot_name}] Fatal API Error {status}: {error_text[:150]}", flush=True)
                                         break
                                         
                                     elif status >= 500:
-                                        # Server Error: Drain body to keep TCP connection alive in pool
-                                        await response.read() 
+                                        await response.read()
                                         print(f"⚠️ [{bot_name}] Discord Server Error {status}. Retrying in {backoff}s...", flush=True)
                                         await asyncio.sleep(backoff)
                                         backoff = min(backoff * 2.0, 10.0)
                                         
                                     elif 200 <= status < 300:
-                                        # Success: Drain body so socket returns to pool for reuse (Keep-Alive)
-                                        await response.read() 
+                                        await response.read()
                                         backoff = 0.1
                                         if delay > 0:
                                             await asyncio.sleep(delay)
                                         else:
                                             await asyncio.sleep(0)
                                     else:
-                                        # 3xx Redirects or unhandled status
                                         await response.read()
                                         await asyncio.sleep(max(0.1, delay))
                                             
                             except asyncio.CancelledError:
                                 raise
-                                
                             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                                 print(f"⚠️ [{bot_name}] Network/Timeout: {e}", flush=True)
                                 await asyncio.sleep(backoff)
                                 backoff = min(backoff * 2.0, 10.0)
-                                
                             except Exception as e:
                                 print(f"⚠️ [{bot_name}] Unexpected Loop Error: {e}", flush=True)
                                 await asyncio.sleep(backoff)
@@ -1975,6 +1950,7 @@ class ForbidToken(discord.Client):
                         if spam_tasks.get(channel_id) == current_task:
                             spam_tasks.pop(channel_id, None)
 
+                # 🚀 Spawning the hardened task
                 task = asyncio.create_task(custom_loop(), name=f"spam_{channel_id}")
                 spam_tasks[channel_id] = task
                 
