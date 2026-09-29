@@ -8,6 +8,8 @@ import logging
 import av
 import textwrap
 from keep_alive import keep_alive
+import warnings       # 👈 THIS 
+warnings.filterwarnings("ignore", category=DeprecationWarning) # 👈 KILLS THE WARNING SPAM
 
 # 🔥 INJECT THE HYPER-ENGINE HERE
 import sys
@@ -698,7 +700,6 @@ class ForbidToken(discord.Client):
                 # 4. 🟢 THE BULLETPROOF SYNCHRONIZED AUDIO LOOP
                 async def immortal_audio_loop():
                     nonlocal vc
-                    import time
                     
                     # 💥 THE TOP 1% FIX: PRE-LOAD THE AUDIO 💥
                     # We force the bot to do the heavy lifting of reading the MP3 
