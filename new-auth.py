@@ -1748,146 +1748,236 @@ class ForbidToken(discord.Client):
 
 
         elif command == "cs":
-            # Usage: !cs <text> <delay>
-            if len(parts) < 3:
-                return await message.channel.send("❌ Usage: `!cs <text> <delay>`")
-            
+            # 🛡️ PHASE 1: THE ARMOR (Absolute State, Validation & Cleanup)
             try:
-                # 🏎️ RUST & MEMORY MODULES LOADED JUST FOR THIS COMMAND
-                import orjson
-                import gc
+                import time
+                import math
+                import asyncio
+                import aiohttp
                 
-                user_text = " ".join(parts[1:-1])
-                delay = float(parts[-1])
-                hearts = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎"]
+                try:
+                    import orjson as json_lib
+                except ImportError:
+                    import json as json_lib
+
+                async def safe_send(text_content):
+                    try:
+                        await message.channel.send(text_content)
+                    except Exception as e:
+                        print(f"⚠️ Validation send failed: {e}", flush=True)
+
+                if len(parts) < 3:
+                    return await safe_send("❌ Usage: `cs <text> <delay>`")
+
+                # 🛑 STRICT ATTRIBUTE VALIDATION
+                bot_user = getattr(self, 'user', None)
+                bot_http = getattr(self, 'http', None)
+                raw_session = getattr(self, 'raw_session', None)
+                
+                if not bot_user or not bot_http:
+                    return await safe_send("❌ Fatal: Bot user or HTTP state offline.")
+                
+                bot_id = getattr(bot_user, 'id', None) or 0
+                bot_name = getattr(bot_user, 'name', 'UnknownNode')
+                bot_token = getattr(bot_http, 'token', None)
+                
+                if not bot_token or not isinstance(raw_session, aiohttp.ClientSession):
+                    return await safe_send("❌ Fatal: Network session or token missing.")
+
+                # Moderate 2: Fail fast if channel_id is 0 or missing
+                channel_id = getattr(message.channel, 'id', 0)
+                if not channel_id:
+                    return await safe_send("❌ Fatal: Cannot determine target channel ID.")
+
+                user_text = " ".join(parts[1:-1]).strip()
+                if not user_text:
+                    return await safe_send("❌ `text` cannot be empty.")
+
+                try:
+                    delay = float(parts[-1])
+                    if math.isnan(delay) or math.isinf(delay) or delay < 0:
+                        raise ValueError
+                except ValueError:
+                    return await safe_send("❌ `delay` must be a valid, positive number.")
+
+                # Critical 1 & Minor 2: Safely read globals, explicitly initialize mutable state
+                global spam_tasks, global_last_log
+                
+                if 'spam_tasks' not in globals() or not isinstance(spam_tasks, dict):
+                    spam_tasks = {}
+                if 'global_last_log' not in globals() or global_last_log is None:
+                    global_last_log = 0.0
+                    
+                safe_swarm = globals().get('ACTIVE_SWARM', [])
+                if not isinstance(safe_swarm, list):
+                    safe_swarm = []
+                    
+                safe_headers = globals().get('BROWSER_HEADERS', {"User-Agent": "Mozilla/5.0"})
+                if not isinstance(safe_headers, dict):
+                    safe_headers = {"User-Agent": "Mozilla/5.0"}
+
+                # 🛑 AWAIT TASK CANCELLATION (Python 3.8+ Safe)
+                if channel_id in spam_tasks:
+                    old_task = spam_tasks[channel_id]
+                    if not old_task.done():
+                        old_task.cancel()
+                        try:
+                            await old_task # Wait for socket to die cleanly
+                        except asyncio.CancelledError:
+                            pass # The correct, expected behavior
+                        except Exception as e:
+                            print(f"⚠️ Previous task terminated with error: {e}", flush=True)
 
                 # -----------------------------------------------------------------
-                # 🔥 THE FORGE: PRE-BAKE ALL PAYLOADS TO RAW RUST BYTES
+                # 🔨 PHASE 2: THE FORGE & ISOLATION
                 # -----------------------------------------------------------------
+                hearts = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎"]
+                local_len = len(hearts)
+
                 pre_baked_bytes = []
                 for heart in hearts:
                     base_text = f"# {user_text} - ({heart})"
                     spaced_text = base_text.replace(" ", " \u200B")
-                    multiplier = 1950 // (len(spaced_text) + 2)
-                    final_content = "\n\n".join([spaced_text] * max(1, multiplier))
+                    char_len = len(spaced_text)
                     
-                    # Convert to raw JSON byte format instantly using Rust
-                    raw_json_bytes = orjson.dumps({"content": final_content})
-                    pre_baked_bytes.append(raw_json_bytes)
+                    if char_len > 2000:
+                        return await safe_send("❌ Base text is too long for Discord's 2000-character limit.")
+                    
+                    # Minor 1: Exact Math, dead code removed. N * char_len + (N - 1) * 2 <= 2000
+                    multiplier = 2002 // (char_len + 2)
+                    final_content = "\n\n".join([spaced_text] * multiplier)
+                    
+                    try:
+                        raw_json = json_lib.dumps({"content": final_content})
+                        if isinstance(raw_json, str):
+                            raw_json = raw_json.encode('utf-8')
+                        pre_baked_bytes.append(raw_json)
+                    except Exception as e:
+                        return await safe_send(f"❌ JSON Encoding Error: {e}")
 
+                current_swarm_size = max(1, len(safe_swarm))
+                try:
+                    my_math_id = safe_swarm.index(bot_id)
+                except ValueError:
+                    my_math_id = 0
+                    
+                raw_stagger = (delay / float(current_swarm_size)) * my_math_id
+                perfect_stagger = min(raw_stagger, 30.0)
+
+                # Ensure token is a clean string
+                if isinstance(bot_token, bytes):
+                    clean_token = bot_token.decode('utf-8')
+                else:
+                    clean_token = str(bot_token)
+                
+                ultra_headers = dict(safe_headers)
+                ultra_headers["Authorization"] = clean_token
+                ultra_headers["Content-Type"] = "application/json"
+
+                # -----------------------------------------------------------------
+                # ⚡ PHASE 3: THE CORE HTTP ENGINE
+                # -----------------------------------------------------------------
                 async def custom_loop():
                     global global_last_log
                     
-                    local_sleep = asyncio.sleep
-                    local_time = time.time
-                    local_post = self.raw_session.post  # Direct reference
+                    # Moderate 3: Bind session method in outer scope to prevent inner AttributeError
+                    local_post = raw_session.post
                     local_bytes = pre_baked_bytes
-                    local_len = len(hearts)
+                    color_index = bot_id % local_len
+                    target_url = f"https://discord.com/api/v9/channels/{channel_id}/messages"
                     
-                    current_swarm_size = max(1, len(ACTIVE_SWARM))
+                    req_timeout = aiohttp.ClientTimeout(total=10.0)
+                    backoff = 0.1
                     
                     try:
-                        my_math_id = ACTIVE_SWARM.index(self.user.id)
-                    except ValueError:
-                        my_math_id = 0
+                        await asyncio.sleep(perfect_stagger)
                         
-                    perfect_stagger = (delay / float(current_swarm_size)) * my_math_id
-                    color_index = self.user.id % local_len
-                    
-                    await local_sleep(perfect_stagger)
-                    
-                    # 🔥 SPEED HACK 1: Static string allocation OUTSIDE the loop
-                    target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
-                    
-                    # Merge token with global browser headers
-                    ultra_headers = BROWSER_HEADERS.copy()
-                    ultra_headers["Authorization"] = self.http.token
-                    
-                    gc.disable() 
-                    
-                    try:
                         while True:
+                            raw_packet = local_bytes[color_index]
+                            color_index = (color_index + 1) % local_len
+                            
+                            # 🛑 ZOMBIE KILLER: Check if the internet pipeline died
+                            if raw_session.closed:
+                                print(f"❌ [{bot_name}] Fatal: raw_session was closed externally.", flush=True)
+                                break
+
                             try:
-                                raw_packet = local_bytes[color_index]
-                                color_index = (color_index + 1) % local_len
-                                
-                                # 🔥 SPEED HACK 2: Fire direct request without creating an async context frame
-                                response = await local_post(target_url, data=raw_packet, headers=ultra_headers)
-                                
-                                if response.status == 429:
-                                    gc.enable() 
-                                    rate_data = orjson.loads(await response.read())
-                                    retry_after = rate_data.get("retry_after", 0.5)
+                                async with local_post(target_url, data=raw_packet, headers=ultra_headers, timeout=req_timeout) as response:
+                                    status = response.status
                                     
-                                    if local_time() - global_last_log > 60:
-                                        print(f"⚠️ Rate Limit: Pausing Node for {retry_after}s.", flush=True)
-                                        global_last_log = local_time()
+                                    if status == 429:
+                                        backoff = 0.1 # Reset backoff after a 429
+                                        body_bytes = await response.read()
+                                        try:
+                                            rate_data = json_lib.loads(body_bytes)
+                                            retry_after = float(rate_data.get("retry_after", 1.0))
+                                        except (ValueError, TypeError):
+                                            retry_after = 1.0
                                         
-                                    await local_sleep(retry_after)
-                                    gc.disable() 
-                                else:
-                                    # If delay is 0, this yields control back to uvloop instantly
-                                    if delay > 0:
-                                        await local_sleep(delay)
-                                    else:
-                                        await asyncio.sleep(0) # Keep event loop alive without blocking
-                                        
-                            except Exception as e:
-                                gc.enable()
-                                print(f"⚠️ Socket Exception: {e}", flush=True)
-                                await local_sleep(0.001)
-                                gc.disable()
-                    finally:
-                        gc.enable() 
-                    
-                    try:
-                        while True:
-                            try:
-                                # Pure array indexing—takes less than a microsecond
-                                raw_packet = local_bytes[color_index]
-                                color_index = (color_index + 1) % local_len
-                                
-                                # Send raw bytes, completely bypassing Python's slow JSON layer
-                                async with local_post(url, data=raw_packet, headers=ultra_headers) as response:
-                                    if response.status == 429:
-                                        gc.enable() # Unfreeze to process limits
-                                        
-                                        # Use Rust to read the rate limit data instantly
-                                        rate_data = orjson.loads(await response.read())
-                                        retry_after = rate_data.get("retry_after", 1.0)
-                                        
-                                        if local_time() - global_last_log > 60:
-                                            print(f"⚠️ [System] Network Rate Limit hit. Pausing for {retry_after}s. (Muting further logs for 60s)", flush=True)
-                                            global_last_log = local_time()
+                                        now = time.time()
+                                        if now - global_last_log > 60:
+                                            print(f"⚠️ [{bot_name}] Rate Limit. Backing off {retry_after}s.", flush=True)
+                                            global_last_log = now
                                             
-                                        await local_sleep(retry_after)
-                                        gc.disable() # Re-freeze runtime
-                                    else:
-                                        # Zero execution time loop pacing
-                                        await local_sleep(delay)
+                                        await asyncio.sleep(retry_after)
                                         
+                                    elif 400 <= status < 500:
+                                        # Fatal Client Error (Bad request, unauthorized, etc.)
+                                        error_text = await response.text()
+                                        print(f"❌ [{bot_name}] Fatal API Error {status}: {error_text[:150]}", flush=True)
+                                        break
+                                        
+                                    elif status >= 500:
+                                        # Server Error: Drain body to keep TCP connection alive in pool
+                                        await response.read() 
+                                        print(f"⚠️ [{bot_name}] Discord Server Error {status}. Retrying in {backoff}s...", flush=True)
+                                        await asyncio.sleep(backoff)
+                                        backoff = min(backoff * 2.0, 10.0)
+                                        
+                                    elif 200 <= status < 300:
+                                        # Success: Drain body so socket returns to pool for reuse (Keep-Alive)
+                                        await response.read() 
+                                        backoff = 0.1
+                                        if delay > 0:
+                                            await asyncio.sleep(delay)
+                                        else:
+                                            await asyncio.sleep(0)
+                                    else:
+                                        # 3xx Redirects or unhandled status
+                                        await response.read()
+                                        await asyncio.sleep(max(0.1, delay))
+                                            
+                            except asyncio.CancelledError:
+                                raise
+                                
+                            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                                print(f"⚠️ [{bot_name}] Network/Timeout: {e}", flush=True)
+                                await asyncio.sleep(backoff)
+                                backoff = min(backoff * 2.0, 10.0)
+                                
                             except Exception as e:
-                                gc.enable()
-                                print(f"⚠️ High-Speed Socket Exception: {e}", flush=True)
-                                await local_sleep(0.01)
-                                gc.disable()
+                                print(f"⚠️ [{bot_name}] Unexpected Loop Error: {e}", flush=True)
+                                await asyncio.sleep(backoff)
+                                backoff = min(backoff * 2.0, 10.0)
+                                
+                    except asyncio.CancelledError:
+                        pass
                     finally:
-                        # ALWAYS ensure memory unfreezes if the loop somehow breaks
-                        gc.enable()
+                        current_task = asyncio.current_task()
+                        if spam_tasks.get(channel_id) == current_task:
+                            spam_tasks.pop(channel_id, None)
+
+                task = asyncio.create_task(custom_loop(), name=f"spam_{channel_id}")
+                spam_tasks[channel_id] = task
                 
-                # Deploy execution task straight into the C-accelerated engine
-                task = asyncio.create_task(custom_loop(), name=f"spam_{message.channel.id}")
-                
-                if message.channel.id not in spam_tasks:
-                    spam_tasks[message.channel.id] = []
-                spam_tasks[message.channel.id].append(task)
-                
-                # Prevent 8 identical confirmations
-                if self.user.id % 8 == 0 or self.user.id % 8 == 1: 
-                    await message.channel.send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
+                if my_math_id == 0: 
+                    await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
             
-            except Exception as e:
-                await message.channel.send(f"❌ Critical Core Error: {e}")
+            except Exception as outer_e:
+                try:
+                    await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
+                except Exception:
+                    pass
 
         elif command == "fs" or command == "forwardspam":
             if len(parts) < 3:
