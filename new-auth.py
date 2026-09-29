@@ -1751,6 +1751,12 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"❌ Error: {e}")
 
         elif command == "cs":
+            # 🛡️ PHASE 1: THE ARMOR (Absolute State, Validation & Cleanup)
+            try:
+                import time
+                import math
+                import asyncio
+                import aiohttp
                 
                 try:
                     import orjson as json_lib
@@ -1977,6 +1983,8 @@ class ForbidToken(discord.Client):
                     await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
                 except Exception:
                     pass
+
+        
  
         elif command == "fs" or command == "forwardspam":
             if len(parts) < 3:
