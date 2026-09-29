@@ -2107,20 +2107,58 @@ class ForbidToken(discord.Client):
         # 🛑 YOU WERE MISSING THIS HEADER RIGHT HERE 🛑
         # =========================================================
         elif command == "unspam":
-            
-            # Direct Core Search: Find and kill tasks by their hidden registry names
-            killed = False
-            for task in asyncio.all_tasks():
-                if task.get_name() == f"spam_{message.channel.id}":
-                    task.cancel()
-                    killed = True
-            
-            # Staggered confirmation so all 8 bots reply cleanly
-            await asyncio.sleep(self.user.id % 8 * 1.0)
-            if killed:
-                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated all zombie spam loops here.")
-            else:
-                await message.channel.send(f"⚠️ **{self.user.name}** found no active spam in this channel.")
+            try:
+                import asyncio
+
+                async def safe_send(text_content):
+                    try:
+                        await message.channel.send(text_content)
+                    except Exception:
+                        pass
+
+                # 🛡️ Safe attribute extraction (Prevents TypeError if user state is uninitialized)
+                bot_user = getattr(self, 'user', None)
+                bot_id = getattr(bot_user, 'id', None) or 0
+                bot_name = getattr(bot_user, 'name', 'UnknownNode')
+
+                channel_id = getattr(message.channel, 'id', 0)
+                if not channel_id:
+                    return await safe_send("❌ Fatal: Cannot determine target channel ID.")
+
+                # Safely access global spam dictionary
+                global spam_tasks
+                if 'spam_tasks' not in globals() or not isinstance(spam_tasks, dict):
+                    spam_tasks = {}
+
+                killed = False
+
+                # 1. Kill via our tracking dictionary (O(1) precision)
+                if channel_id in spam_tasks:
+                    task = spam_tasks[channel_id]
+                    if not task.done():
+                        task.cancel()
+                        killed = True
+                    spam_tasks.pop(channel_id, None)
+
+                # 2. Sweep event loop tasks as a backup safety net
+                target_task_name = f"spam_{channel_id}"
+                for task in asyncio.all_tasks():
+                    if task.get_name() == target_task_name:
+                        if not task.done():
+                            task.cancel()
+                            killed = True
+
+                # Safe staggered confirmation (guarantees bot_id is an integer)
+                stagger = (bot_id % 8) * 0.5
+                await asyncio.sleep(stagger)
+
+                if killed:
+                    await safe_send(f"🛑 **{bot_name}** terminated all active spam loops in this channel.")
+                else:
+                    await safe_send(f"⚠️ **{bot_name}** found no active spam running in this channel.")
+
+            except Exception as unspam_err:
+                print(f"⚠️ Unspam Execution Error: {unspam_err}", flush=True)
 
         elif command == "serverjoin":
             # Usage: !serverjoin <link> OR !serverjoin @bot <link>
