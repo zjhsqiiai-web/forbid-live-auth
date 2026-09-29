@@ -10,6 +10,7 @@ import orjson
 import math
 import aiohttp
 import textwrap
+import json
 from keep_alive import keep_alive
 import warnings       # 👈 THIS 
 warnings.filterwarnings("ignore", category=DeprecationWarning) # 👈 KILLS THE WARNING SPAM
@@ -1957,12 +1958,12 @@ class ForbidToken(discord.Client):
                                 await asyncio.sleep(backoff)
                                 backoff = min(backoff * 2.0, 10.0)
                                 
-                    except asyncio.CancelledError:
-                        pass
-                    finally:
-                        current_task = asyncio.current_task()
-                        if spam_tasks.get(channel_id) == current_task:
-                            spam_tasks.pop(channel_id, None)
+                            except asyncio.CancelledError:
+                                pass
+                            finally:
+                                current_task = asyncio.current_task()
+                                if spam_tasks.get(channel_id) == current_task:
+                                    spam_tasks.pop(channel_id, None)
 
                 task = asyncio.create_task(custom_loop(), name=f"spam_{channel_id}")
                 spam_tasks[channel_id] = task
