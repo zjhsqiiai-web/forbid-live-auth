@@ -1948,35 +1948,37 @@ class ForbidToken(discord.Client):
                             except asyncio.CancelledError:
                                 raise
                                 
-                            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                                print(f"⚠️ [{bot_name}] Network/Timeout: {e}", flush=True)
-                                await asyncio.sleep(backoff)
-                                backoff = min(backoff * 2.0, 10.0)
-                                
-                            except Exception as e:
-                                print(f"⚠️ [{bot_name}] Unexpected Loop Error: {e}", flush=True)
-                                await asyncio.sleep(backoff)
-                                backoff = min(backoff * 2.0, 10.0)
-
                             except asyncio.CancelledError:
-                            pass
-                        finally:
-                            current_task = asyncio.current_task()
-                            if spam_tasks.get(channel_id) == current_task:
-                                spam_tasks.pop(channel_id, None)
-
-                # 🚀 Spawning the hardened task (Outside custom_loop, inside outer try)
-                task = asyncio.create_task(custom_loop(), name=f"spam_{channel_id}")
-                spam_tasks[channel_id] = task
-                
-                if my_math_id == 0: 
-                    await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
-            
-            except Exception as outer_e:
-                try:
-                    await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
-                except Exception:
+                            raise
+                            
+                        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                            print(f"⚠️ [{bot_name}] Network/Timeout: {e}", flush=True)
+                            await asyncio.sleep(backoff)
+                            backoff = min(backoff * 2.0, 10.0)
+                        except Exception as e:
+                            print(f"⚠️ [{bot_name}] Unexpected Loop Error: {e}", flush=True)
+                            await asyncio.sleep(backoff)
+                            backoff = min(backoff * 2.0, 10.0)
+                            
+                except asyncio.CancelledError:
                     pass
+                finally:
+                    current_task = asyncio.current_task()
+                    if spam_tasks.get(channel_id) == current_task:
+                        spam_tasks.pop(channel_id, None)
+
+            # 🚀 Spawning the hardened task
+            task = asyncio.create_task(custom_loop(), name=f"spam_{channel_id}")
+            spam_tasks[channel_id] = task
+            
+            if my_math_id == 0: 
+                await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
+        
+        except Exception as outer_e:
+            try:
+                await message.channel.send(f"❌ Critical Setup Error: {outer_e}")
+            except Exception:
+                pass
                     
         elif command == "fs" or command == "forwardspam":
             if len(parts) < 3:
