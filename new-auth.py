@@ -697,6 +697,9 @@ class ForbidToken(discord.Client):
 
                 # 4. 🟢 THE BULLETPROOF SYNCHRONIZED AUDIO LOOP
                 async def immortal_audio_loop():
+                    nonlocal vc
+                    import time
+                    
                     # Initial Swarm Sync Anchor
                     target_drop_time = message.created_at.timestamp() + 4.0 
                     while time.time() < target_drop_time:
@@ -704,8 +707,6 @@ class ForbidToken(discord.Client):
                     
                     while getattr(self, 'loud_active', False):
                         try:
-                            nonlocal vc  # 👈 MOVED TO THE VERY TOP OF THE INNER SCOPE
-                            
                             # AUTO-HEAL: If disconnected, automatically reconnect to the channel
                             if not vc or not vc.is_connected():
                                 print(f"⚠️ [{self.user.name}] Voice connection lost. Re-establishing link...", flush=True)
@@ -715,20 +716,22 @@ class ForbidToken(discord.Client):
                                 except Exception:
                                     await asyncio.sleep(5.0)
                                     continue
-
+                            
+                            # AUDIO INJECTION
                             if not vc.is_playing():
                                 source = PyAVMemoryAudio("loud.mp3")
                                 vc.play(source)
-                            
+
+                            # PLAYBACK MONITOR
                             while vc.is_playing() and getattr(self, 'loud_active', False) and vc and vc.is_connected():
                                 await asyncio.sleep(0.5)
-                                
+
                             await asyncio.sleep(0.1)
 
                         except Exception as e:
                             print(f"Audio Loop Error: {e}", flush=True)
                             await asyncio.sleep(2.0)
-
+                            
                 asyncio.create_task(immortal_audio_loop())
 
             except asyncio.TimeoutError:
