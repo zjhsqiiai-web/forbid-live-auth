@@ -699,6 +699,7 @@ class ForbidToken(discord.Client):
 
                 # 4. 🟢 THE BULLETPROOF SYNCHRONIZED AUDIO LOOP
                 async def immortal_audio_loop():
+                    import time as sys_time  # 👈 TRICKS PYTHON'S SCOPE ENGINE
                     nonlocal vc
                     
                     # 💥 THE TOP 1% FIX: PRE-LOAD THE AUDIO 💥
