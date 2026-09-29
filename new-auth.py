@@ -1780,7 +1780,7 @@ class ForbidToken(discord.Client):
                 if not bot_user or not bot_http:
                     return await safe_send("❌ Fatal: Bot user or HTTP state offline.")
                 
-                bot_id = getattr(bot_user, 'id', 0)
+                bot_id = getattr(bot_user, 'id', None) or 0
                 bot_name = getattr(bot_user, 'name', 'UnknownNode')
                 bot_token = getattr(bot_http, 'token', None)
                 
@@ -1946,11 +1946,9 @@ class ForbidToken(discord.Client):
                                         else:
                                             await asyncio.sleep(0)
                                     else:
-                                        # 3xx Redirects or weird edge cases
+                                        # 3xx Redirects or unhandled status
                                         await response.read()
-                                        await asyncio.sleep(delayed := delay if delay > 0 else 0) # Fallback pacing
-                                        await asyncio.sleep(backoff)
-                                        backoff = min(backoff * 2.0, 10.0)
+                                        await asyncio.sleep(max(0.1, delay))
                                             
                             except asyncio.CancelledError:
                                 raise
