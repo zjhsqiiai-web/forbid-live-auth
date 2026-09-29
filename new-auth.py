@@ -6,6 +6,8 @@ import random
 import re
 import logging
 import av
+import math
+import aiohttp
 import textwrap
 from keep_alive import keep_alive
 import warnings       # 👈 THIS 
@@ -1748,12 +1750,6 @@ class ForbidToken(discord.Client):
 
 
         elif command == "cs":
-            # 🛡️ PHASE 1: THE ARMOR (Absolute State, Validation & Cleanup)
-            try:
-                import time
-                import math
-                import asyncio
-                import aiohttp
                 
                 try:
                     import orjson as json_lib
