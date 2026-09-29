@@ -1753,7 +1753,16 @@ class ForbidToken(discord.Client):
             except Exception as e:
                 await message.channel.send(f"❌ Error: {e}")
 
+        
+
         elif command == "cs":
+            # 🛡️ PHASE 1: THE ARMOR (Absolute State, Validation & Cleanup)
+            try:
+                import time
+                import math
+                import asyncio
+                import aiohttp
+                
                 try:
                     import orjson as json_lib
                 except ImportError:
@@ -1799,6 +1808,8 @@ class ForbidToken(discord.Client):
                 except ValueError:
                     return await safe_send("❌ `delay` must be a valid, positive number.")
 
+                # Critical 1 & Minor 2: Safely read globals, explicitly initialize mutable state
+                global spam_tasks, global_last_log
                 
                 if 'spam_tasks' not in globals() or not isinstance(spam_tasks, dict):
                     spam_tasks = {}
