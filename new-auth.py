@@ -184,7 +184,7 @@ class ForbidToken(discord.Client):
             print(f"⚠️ [System] {self.user.name} dropped connection! Swarm auto-healed to {len(ACTIVE_SWARM)} Nodes.", flush=True)
                 
     
-    async def on_message(message):
+    async def on_message(self, message):
         # 🛡️ BULLETPROOF GLOBAL SCOPE SAFETY NET FOR ALL COMMANDS
         global spam_tasks, gcnc_tasks, ACTIVE_SWARM, SLIDE_TARGETS, SSPAM_TARGETS, SGCNC_TARGETS, global_last_log
         spam_tasks = globals().setdefault('spam_tasks', {})
