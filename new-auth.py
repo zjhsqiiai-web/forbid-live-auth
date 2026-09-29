@@ -1933,20 +1933,20 @@ class ForbidToken(discord.Client):
                                         backoff = min(backoff * 2.0, 10.0)
                                         
                                     elif 200 <= status < 300:
-                                        # Success: Drain body so socket returns to pool for reuse (Keep-Alive)
-                                        await response.read() 
-                                        backoff = 0.1
-                                        if delay > 0:
-                                            await asyncio.sleep(delay)
-                                        else:
-                                            await asyncio.sleep(0)
+                                    # Success: Drain body so socket returns to pool for reuse (Keep-Alive)
+                                    await response.read()
+                                    backoff = 0.1
+                                    if delay > 0:
+                                        await asyncio.sleep(delay)
                                     else:
-                                        # 3xx Redirects or unhandled status
-                                        await response.read()
-                                        await asyncio.sleep(max(0.1, delay))
-                                            
-                            
-                            
+                                        await asyncio.sleep(0)
+                                else:
+                                    # 3xx Redirects or unhandled status
+                                    await response.read()
+                                    await asyncio.sleep(max(0.1, delay))
+                                        
+                        except asyncio.CancelledError:
+                            raise
                         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                             print(f"⚠️ [{bot_name}] Network/Timeout: {e}", flush=True)
                             await asyncio.sleep(backoff)
