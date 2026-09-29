@@ -1757,7 +1757,10 @@ class ForbidToken(discord.Client):
 
         elif command == "cs":
             try:
-                json_lib = orjson if ('orjson' in globals() and orjson is not None) else json
+                # 🚀 BULLETPROOF COMPILER BYPASS: Fetch as a string so Python doesn't panic
+                json_lib = globals().get('orjson')
+                if json_lib is None:
+                    import json as json_lib
 
                 async def safe_send(text_content):
                     try:
