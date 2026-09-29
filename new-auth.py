@@ -2093,8 +2093,6 @@ class ForbidToken(discord.Client):
         # 🛑 YOU WERE MISSING THIS HEADER RIGHT HERE 🛑
         # =========================================================
         elif command == "unspam":
-            try:
-                import asyncio
 
                 async def safe_send(text_content):
                     try:
