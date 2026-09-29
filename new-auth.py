@@ -184,7 +184,16 @@ class ForbidToken(discord.Client):
             print(f"⚠️ [System] {self.user.name} dropped connection! Swarm auto-healed to {len(ACTIVE_SWARM)} Nodes.", flush=True)
                 
     
-    async def on_message(self, message):
+    async def on_message(message):
+        # 🛡️ BULLETPROOF GLOBAL SCOPE SAFETY NET FOR ALL COMMANDS
+        global spam_tasks, gcnc_tasks, ACTIVE_SWARM, SLIDE_TARGETS, SSPAM_TARGETS, SGCNC_TARGETS, global_last_log
+        spam_tasks = globals().setdefault('spam_tasks', {})
+        gcnc_tasks = globals().setdefault('gcnc_tasks', {})
+        ACTIVE_SWARM = globals().setdefault('ACTIVE_SWARM', [])
+        SLIDE_TARGETS = globals().setdefault('SLIDE_TARGETS', {})
+        SSPAM_TARGETS = globals().setdefault('SSPAM_TARGETS', {})
+        SGCNC_TARGETS = globals().setdefault('SGCNC_TARGETS', {})
+        global_last_log = globals().setdefault('global_last_log', 0.0)
             
         # 1. Bot ignores its own messages to prevent infinite loops
         if message.author == self.user:
@@ -1316,8 +1325,6 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC spam running.")
 
         elif command == "gcncall":
-            # 🚀 Force Python to recognize spam_tasks globally in this block
-            spam_tasks = globals().setdefault('spam_tasks', {})
             if len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcncall <text>` or `^gcncall stop`")
             
