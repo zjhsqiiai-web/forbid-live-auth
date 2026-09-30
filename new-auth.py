@@ -1677,37 +1677,40 @@ class ForbidToken(discord.Client):
                 # YOUR TEMPLATES LIST: Cycles through these infinitely!
                 templates = [
                     "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} तेरी माँ की चूत ] ☠️",
-    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} तुम मेरा रेप कर रहे हो। ] ☠️",
-    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} आपके परिवार के साथ बलात्कार किया गया। ] ☠️",
-    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} तेरी माँ को बिना कंडोम के चौदा। ] ☠️",
-    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} चल, अपनी औकात बना, गीले टट्टे। ] ☠️",
-    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} तेरे बाप को छोड़ दिया। ] ☠️",
-    "# █▓▒░ 👑 FORBID KING ║ ➔ 🪓 **{user_text} SON OF FAGG0T** ⪧ 【💀】",
-    "# █▓▒░ 👑 FORBID KING ║ ➔ ⚡ **{user_text} FXKEED UR MOM RAW** ⪧ 【🔥】",
-    "# █▓▒░ 👑 FORBID KING ║ ➔ 🌌 **{user_text} घी खत्म हो गया है।** ⪧ 【🤯】",
-    "# █▓▒░ 👑 FORBID KING ║ ➔ 🛑 **{user_text} BITCH** ⪧ 【😂】",
-    "# █▓▒░ 👑 FORBID KING ║ ➔ ⚔️ **{user_text} CUDKAD** ⪧ 【💥】",
-    "# █▓▒░ 👑 FORBID KING ║ ➔ 👿 **{user_text} GULAMI KR** ⪧ 【🔱】"
+                    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} तुम मेरा रेप कर रहे हो। ] ☠️",
+                    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} आपके परिवार के साथ बलात्कार किया गया। ] ☠️",
+                    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} तेरी माँ को बिना कंडोम के चौदा। ] ☠️",
+                    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} चल, अपनी औकात बना, गीले टट्टे। ] ☠️",
+                    "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} तेरे बाप को छोड़ दिया। ] ☠️",
+                    "# █▓▒░ 👑 FORBID KING ║ ➔ 🪓 **{user_text} SON OF FAGG0T** ⪧ 【💀】",
+                    "# █▓▒░ 👑 FORBID KING ║ ➔ ⚡ **{user_text} FXKEED UR MOM RAW** ⪧ 【🔥】",
+                    "# █▓▒░ 👑 FORBID KING ║ ➔ 🌌 **{user_text} घी खत्म हो गया है।** ⪧ 【🤯】",
+                    "# █▓▒░ 👑 FORBID KING ║ ➔ 🛑 **{user_text} BITCH** ⪧ 【😂】",
+                    "# █▓▒░ 👑 FORBID KING ║ ➔ ⚔️ **{user_text} CUDKAD** ⪧ 【💥】",
+                    "# █▓▒░ 👑 FORBID KING ║ ➔ 👿 **{user_text} GULAMI KR** ⪧ 【🔱】"
                 ]
 
+                # 🚀 BULLETPROOF BYPASS: Protect global registries
+                _rs_tasks = globals().setdefault('spam_tasks', {})
+                _rs_swarm = globals().setdefault('ACTIVE_SWARM', [])
+
                 async def spam_loop():
-                    # ⚡ CHANGED: client.user.id -> self.user.id
-                    # 🟢 ENTERPRISE MATH: Auto-adjusts to the live swarm size!
-                    current_swarm_size = max(1, len(ACTIVE_SWARM))
+                    current_swarm_size = max(1, len(_rs_swarm))
                     
                     try:
-                        # Bot finds its exact place in the live line-up (0, 1, 2, 3...)
-                        my_math_id = ACTIVE_SWARM.index(self.user.id)
+                        my_math_id = _rs_swarm.index(self.user.id)
                     except ValueError:
                         my_math_id = 0
                         
                     perfect_stagger = (delay / float(current_swarm_size)) * my_math_id
                     
-                    # ⚡ CHANGED: client.user.id -> self.user.id
                     emoji_index = self.user.id % len(emojis)
                     template_index = self.user.id % len(templates)
                     
                     await asyncio.sleep(perfect_stagger)
+
+                    # 🚀 SECURE MODULE FETCH: Pull time directly from C-memory
+                    _g_time = globals().get('time')
 
                     while True:
                         try:
@@ -1726,7 +1729,7 @@ class ForbidToken(discord.Client):
                             
                             final_content = "\n\n".join([spaced_text] * multiplier)
                             
-                            # 🚀 PURE SOCKET INJECTION INSTEAD
+                            # 🚀 PURE SOCKET INJECTION
                             url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                             payload = {"content": final_content}
                             
@@ -1735,29 +1738,35 @@ class ForbidToken(discord.Client):
                                     rate_data = await response.json()
                                     retry_after = rate_data.get("retry_after", 1.0)
                                     
-                                    # 🟢 THIS IS THE NEW PART YOU NEED TO ADD:
-                                    global global_last_log
-                                    if time.time() - global_last_log > 60:
+                                    # 🟢 SCOPE-SAFE RATE LIMIT LOGGER
+                                    global_last_log_val = globals().get('global_last_log', 0.0)
+                                    now = _g_time.time() if _g_time else 0
+                                    
+                                    if now - global_last_log_val > 60:
                                         print(f"⚠️ [System] Network Rate Limit hit. Pausing for {retry_after}s. (Muting further logs for 60s)", flush=True)
-                                        global_last_log = time.time()
+                                        globals()['global_last_log'] = now
                                         
                                     await asyncio.sleep(retry_after)
                                 else:
                                     await asyncio.sleep(delay)
-                        
+                                    
                         except Exception as e:
                             print(f"⚠️ Socket Error: {e}", flush=True)
                             await asyncio.sleep(0.1)
                 
-                task = asyncio.create_task(spam_loop(), name=f"spam_{message.channel.id}")
+                # 🚀 UNIQUE SIDE-BY-SIDE TASK CREATION
+                # Matches the "spam_<id>" pattern so unspam still perfectly kills it!
+                unique_rs_name = f"spam_{message.channel.id}_rs_{message.id}"
+                task = asyncio.create_task(spam_loop(), name=unique_rs_name)
                 
-                # ⚡ ADDED: Explicit global call so it finds your dictionary
+                # Safely append to the global task list
+                if message.channel.id not in _rs_tasks:
+                    _rs_tasks[message.channel.id] = []
+                elif not isinstance(_rs_tasks[message.channel.id], list):
+                    _rs_tasks[message.channel.id] = [_rs_tasks[message.channel.id]]
+                    
+                _rs_tasks[message.channel.id].append(task)
                 
-                if message.channel.id not in spam_tasks:
-                    spam_tasks[message.channel.id] = []
-                spam_tasks[message.channel.id].append(task)
-                
-                # ⚡ CHANGED: client.user.id -> self.user.id
                 if self.user.id % 8 == 0 or self.user.id % 8 == 1: 
                     await message.channel.send(f"✅ FORB1D🔥 Template-Cycling Math Spam started.")
             
