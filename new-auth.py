@@ -1,4 +1,6 @@
 import discord
+import itertools
+import uuid
 import asyncio
 import os
 import time
@@ -132,7 +134,8 @@ class ForbidToken(discord.Client):
 
     # 🛑 ADD THIS RIGHT AT THE TOP OF YOUR CLASS
     async def on_ready(self):
-        import aiohttp
+        # 🚫 Deleted local 'import aiohttp' to prevent scope crashes!
+        
         print(f"🟢 [{self.user.name}] Self-Bot Account Operational.", flush=True)
         
         # 🟢 HEALTH MONITOR: Bot registers itself as ALIVE
@@ -140,25 +143,35 @@ class ForbidToken(discord.Client):
             ACTIVE_SWARM.append(self.user.id)
             print(f"📊 [System] Swarm Capacity updated: {len(ACTIVE_SWARM)} Nodes Active.", flush=True)
 
-        # 🚀 ULTRA-ACCELERATED TCP POOL: Uncapped connection reuse for maximum velocity
+        # 🚀 1. FAST JSON SERIALIZER FETCH
+        # We grab orjson safely from globals so we don't trigger scope traps
+        _g_orjson = globals().get('orjson')
+        _g_json = globals().get('json')
+        fast_json_dumps = _g_orjson.dumps if _g_orjson else _g_json.dumps
+
+        # 🚀 2. GOD-LEVEL TCP POOL: HFT-style connection reuse
         connector = aiohttp.TCPConnector(
-            limit=None,
-            limit_per_host=0,
-            enable_cleanup_closed=True,
-            force_close=False,
-            use_dns_cache=True
+            limit=0,                 # Infinite overall concurrency
+            limit_per_host=0,        # Infinite concurrency specifically for discord.com
+            force_close=False,       # NEVER close the socket; keep it warm
+            keepalive_timeout=30,    # Keep sockets open for 30s waiting for the next burst
+            ttl_dns_cache=300,       # Cache Discord's IP for 5 minutes (saves massive milliseconds)
+            enable_cleanup_closed=True
         )
 
+        # 🚀 3. THE BLAZING SESSION
         self.raw_session = aiohttp.ClientSession(
             connector=connector,
+            json_serialize=fast_json_dumps, # 🔥 Uses orjson natively for ALL payloads!
             headers={
-                "Authorization": self.http.token,
+                "Authorization": str(self.http.token),
                 "Content-Type": "application/json",
                 "Connection": "keep-alive"
             }
         )
+        
         self.loop.create_task(self.ram_cleaner_loop())
-        # 🔥 MOVE IT HERE: Starts safely once the event loop is running
+        # 🔥 IMMORTAL PRESENCE: Starts safely once the event loop is running
         self.loop.create_task(self.immortal_presence_loop())
 
     async def immortal_presence_loop(self):
@@ -1664,7 +1677,6 @@ class ForbidToken(discord.Client):
                 
 
         elif command == "rs":
-            # Usage: !rs <text> <delay>
             if len(parts) < 3:
                 return await message.channel.send("❌ Usage: `!rs <text> <delay>`")
             
@@ -1674,7 +1686,6 @@ class ForbidToken(discord.Client):
                 
                 emojis = ["🔱", "👑", "🔥", "⚡", "💀", "💎", "⚔️"]
                 
-                # YOUR TEMPLATES LIST: Cycles through these infinitely!
                 templates = [
                     "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} तेरी माँ की चूत ] ☠️",
                     "# ╬═❖ 👑 FORBID 👑 ❖═╬ ➔ ☠️ [ {user_text} तुम मेरा रेप कर रहे हो। ] ☠️",
@@ -1690,13 +1701,42 @@ class ForbidToken(discord.Client):
                     "# █▓▒░ 👑 FORBID KING ║ ➔ 👿 **{user_text} GULAMI KR** ⪧ 【🔱】"
                 ]
 
-                # 🚀 BULLETPROOF BYPASS: Protect global registries
+                # 🚀 BULLETPROOF BYPASS
                 _rs_tasks = globals().setdefault('spam_tasks', {})
                 _rs_swarm = globals().setdefault('ACTIVE_SWARM', [])
 
+                # 🔨 HFT PHASE: PRE-RENDER EVERY PAYLOAD ONCE
+                # Zero string math happens inside the hot loop anymore.
+                pre_rendered_bases = []
+                for t in templates:
+                    for e in emojis:
+                        base_text = t.replace("{user_text}", user_text).replace("{chosen_emoji}", e)
+                        # We dropped the ZWSP hack to evade anti-spam detection
+                        line_length = len(base_text) + 2
+                        multiplier = 1950 // line_length if line_length > 0 else 1
+                        if multiplier < 1: multiplier = 1
+                        
+                        wall_of_text = "\n\n".join([base_text] * multiplier)
+                        pre_rendered_bases.append(wall_of_text)
+
                 async def spam_loop():
-                    current_swarm_size = max(1, len(_rs_swarm))
+                    # 🚀 SECURE MODULE FETCH
+                    _g_time = globals().get('time')
+                    _g_itertools = globals().get('itertools')
+                    _g_uuid = globals().get('uuid')
+
+                    if not _g_time or not _g_itertools or not _g_uuid:
+                        print(f"❌ [{self.user.name}] Fatal: Modules missing! Make sure itertools and uuid are imported.", flush=True)
+                        return
+
+                    # ⚡ HOT PATH HOISTING: Lock everything into local memory C-pointers
+                    local_post = self.raw_session.post
+                    target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                     
+                    # ✨ NO MORE MODULO MATH! Cycles infinitely in C-speed
+                    payload_cycle = _g_itertools.cycle(pre_rendered_bases)
+                    
+                    current_swarm_size = max(1, len(_rs_swarm))
                     try:
                         my_math_id = _rs_swarm.index(self.user.id)
                     except ValueError:
@@ -1704,62 +1744,64 @@ class ForbidToken(discord.Client):
                         
                     perfect_stagger = (delay / float(current_swarm_size)) * my_math_id
                     
-                    emoji_index = self.user.id % len(emojis)
-                    template_index = self.user.id % len(templates)
-                    
-                    await asyncio.sleep(perfect_stagger)
-
-                    # 🚀 SECURE MODULE FETCH: Pull time directly from C-memory
-                    _g_time = globals().get('time')
+                    # ⏱️ ZERO-DRIFT ABSOLUTE TIME TRACKER
+                    next_fire = _g_time.time() + perfect_stagger
 
                     while True:
                         try:
-                            chosen_emoji = emojis[emoji_index]
-                            emoji_index = (emoji_index + 1) % len(emojis)
+                            # 1. ABSOLUTE TIME SCHEDULING
+                            now = _g_time.time()
+                            sleep_amount = next_fire - now
                             
-                            raw_template = templates[template_index]
-                            template_index = (template_index + 1) % len(templates)
+                            if sleep_amount > 0:
+                                await asyncio.sleep(sleep_amount)
+                            else:
+                                # Resync if we fell behind (never spiral out of control)
+                                next_fire = now 
+                                
+                            # 2. SCHEDULE THE NEXT FIRE BEFORE DOING NETWORK IO
+                            next_fire += delay
                             
-                            base_text = raw_template.replace("{user_text}", user_text).replace("{chosen_emoji}", chosen_emoji)
-                            spaced_text = base_text.replace(" ", " \u200B")
+                            # 3. PAYLOAD INJECTION (Zero String Math)
+                            raw_payload = next(payload_cycle)
+                            nonce = _g_uuid.uuid4().hex[:8] # Cryptographic uniqueness
+                            final_content = f"{raw_payload}\n[{nonce}]"
                             
-                            line_length = len(spaced_text) + 2
-                            multiplier = 1950 // line_length
-                            if multiplier < 1: multiplier = 1
-                            
-                            final_content = "\n\n".join([spaced_text] * multiplier)
-                            
-                            # 🚀 PURE SOCKET INJECTION
-                            url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
                             payload = {"content": final_content}
                             
-                            async with self.raw_session.post(url, json=payload) as response:
-                                if response.status == 429:
+                            # 4. PURE SOCKET IO
+                            async with local_post(target_url, json=payload) as response:
+                                status = response.status
+                                
+                                if status == 429:
                                     rate_data = await response.json()
                                     retry_after = rate_data.get("retry_after", 1.0)
                                     
-                                    # 🟢 SCOPE-SAFE RATE LIMIT LOGGER
                                     global_last_log_val = globals().get('global_last_log', 0.0)
-                                    now = _g_time.time() if _g_time else 0
+                                    current_time = _g_time.time()
                                     
-                                    if now - global_last_log_val > 60:
-                                        print(f"⚠️ [System] Network Rate Limit hit. Pausing for {retry_after}s. (Muting further logs for 60s)", flush=True)
-                                        globals()['global_last_log'] = now
+                                    if current_time - global_last_log_val > 60:
+                                        print(f"⚠️ [System] Network Rate Limit. Pausing for {retry_after}s.", flush=True)
+                                        globals()['global_last_log'] = current_time
                                         
-                                    await asyncio.sleep(retry_after)
-                                else:
-                                    await asyncio.sleep(delay)
+                                    # Advance the absolute clock by the penalty duration
+                                    next_fire = _g_time.time() + retry_after
                                     
+                                elif 200 <= status < 300:
+                                    # HFT TACTIC: We don't await response.read() on success! 
+                                    # We just discard the body and keep moving.
+                                    pass
+                                    
+                        except asyncio.CancelledError:
+                            raise
                         except Exception as e:
                             print(f"⚠️ Socket Error: {e}", flush=True)
                             await asyncio.sleep(0.1)
+                            next_fire = _g_time.time() + 0.1
                 
-                # 🚀 UNIQUE SIDE-BY-SIDE TASK CREATION
-                # Matches the "spam_<id>" pattern so unspam still perfectly kills it!
                 unique_rs_name = f"spam_{message.channel.id}_rs_{message.id}"
                 task = asyncio.create_task(spam_loop(), name=unique_rs_name)
                 
-                # Safely append to the global task list
                 if message.channel.id not in _rs_tasks:
                     _rs_tasks[message.channel.id] = []
                 elif not isinstance(_rs_tasks[message.channel.id], list):
@@ -1768,7 +1810,7 @@ class ForbidToken(discord.Client):
                 _rs_tasks[message.channel.id].append(task)
                 
                 if self.user.id % 8 == 0 or self.user.id % 8 == 1: 
-                    await message.channel.send(f"✅ FORB1D🔥 Template-Cycling Math Spam started.")
+                    await message.channel.send(f"✅ FORB1D🔥 **HFT Zero-Drift Engine Started.**")
             
             except Exception as e:
                 await message.channel.send(f"❌ Error: {e}")
