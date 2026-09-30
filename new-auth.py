@@ -4,6 +4,7 @@ import uuid
 import asyncio
 import os
 import time
+import secrets
 import random 
 import re
 import logging
@@ -2079,9 +2080,7 @@ class ForbidToken(discord.Client):
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^fs <text> <delay>`")
             
             try:
-                import secrets
-                import random
-                from time import perf_counter
+                # 🚫 ZERO LOCAL IMPORTS HERE. SCOPE TRAP AVOIDED.
                 
                 user_text = " ".join(parts[1:-1]).strip()
                 if not user_text:
@@ -2098,7 +2097,7 @@ class ForbidToken(discord.Client):
                 
                 forward_styles = [
                     "👑 **【 F O R B 1 D   K I N G   M A J E S T Y 】** 👑\n> ⚡ *HEIR TO THE THRONE OF ABSOLUTE TERROR*\n> ☠️ `{user_text} ({chosen_emoji})`",
-                    "⚔️ **【 F O R B 1 D   K I N G   R U L E 】** ⚔️\n> 🩸 *BOW DOWN TO THE KING OF KINGS*\n> 👑 `{user_text} ({chosen_emoji})`",
+                    "⚔️️ **【 F O R B 1 D   K I N G   R U L E 】** ⚔️\n> 🩸 *BOW DOWN TO THE KING OF KINGS*\n> 👑 `{user_text} ({chosen_emoji})`",
                     "🔥 **【 F O R B 1 D   K I N G   D E C R E E 】** 🔥\n> 🔱 *THE SUPREME RULER HAS SPOKEN*\n> 💀 `{user_text} ({chosen_emoji})`"
                 ]
 
@@ -2108,7 +2107,6 @@ class ForbidToken(discord.Client):
                     for emoji in emojis:
                         base_text = style.replace("{user_text}", user_text).replace("{chosen_emoji}", emoji)
                         
-                        # Perfect UTF-16 math
                         b_encoded = base_text.encode("utf-16-le")
                         utf16_len = len(b_encoded) // 2 + 2
                         multiplier = (1990 - 2) // utf16_len if utf16_len > 0 else 1
@@ -2116,12 +2114,10 @@ class ForbidToken(discord.Client):
                         
                         wall_of_text = "\n\n".join([base_text] * multiplier)
                         
-                        # Hard slice at 3980 bytes (1990 UTF-16 codepoints) to prevent 400 Bad Request
                         b_wall = wall_of_text.encode("utf-16-le")
                         if len(b_wall) > 3980:
                             wall_of_text = b_wall[:3980].decode("utf-16-le", "ignore")
                             
-                        # Pre-build dictionaries to save memory allocs in the hot loop
                         base_payloads.append({"content": wall_of_text})
 
                 # 🛡️ 2. GLOBAL REGISTRY & STATE INITIALIZATION
@@ -2139,18 +2135,29 @@ class ForbidToken(discord.Client):
                     old_tasks = _fs_tasks[channel_id]
                     if isinstance(old_tasks, list):
                         for t in old_tasks:
-                            if not t.done():
+                            if hasattr(t, 'done') and not t.done():
                                 t.cancel()
-                    elif not old_tasks.done():
+                    elif hasattr(old_tasks, 'done') and not old_tasks.done():
                         old_tasks.cancel()
                 _fs_tasks[channel_id] = []
 
                 async def forward_loop():
+                    # 🚀 SECURE MODULE FETCH (100% Compiler Safe)
+                    _g_time = globals().get('time')
+                    _g_secrets = globals().get('secrets')
+                    _g_random = globals().get('random')
+                    
+                    if not _g_time or not _g_secrets or not _g_random:
+                        print(f"❌ [{self.user.name}] Missing time, secrets, or random global modules!", flush=True)
+                        return
+                        
+                    perf_counter = _g_time.perf_counter
+                    
                     local_post = self.raw_session.post
                     target_url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
                     
                     ultra_headers = {
-                        "Authorization": self.http.token,
+                        "Authorization": str(self.http.token),
                         "Content-Type": "application/json"
                     }
                     
@@ -2160,15 +2167,14 @@ class ForbidToken(discord.Client):
                     except ValueError:
                         my_math_id = 0
                         
-                    # Fix: Hard floor of 0.05s so we don't tight-spin the event loop
                     step = delay if delay >= 0.05 else 0.05
                     perfect_stagger = (step / float(current_swarm_size)) * my_math_id
                     
                     next_fire = perf_counter() + perfect_stagger
                     
-                    # 🚦 PIPELINE SEMAPHORE (Caps concurrent requests so we don't exhaust sockets)
+                    # 🚦 PIPELINE SEMAPHORE
                     sem = asyncio.Semaphore(5)
-                    fatal_error = False # Shared state to kill the metronome on 401/403
+                    fatal_error = False 
                     
                     # 🚀 THE BACKGROUND WORKER
                     async def fire_request(payload_dict):
@@ -2178,13 +2184,11 @@ class ForbidToken(discord.Client):
                                 async with local_post(target_url, json=payload_dict, headers=ultra_headers) as response:
                                     status = response.status
                                     
-                                    # 🟢 PROACTIVE BUCKET SLEEPING (The ultimate anti-ban move)
                                     if 200 <= status < 300:
                                         rem = response.headers.get("X-RateLimit-Remaining")
                                         if rem == "0":
                                             reset = response.headers.get("X-RateLimit-Reset-After", "1.0")
                                             try:
-                                                # Shift schedule preemptively, NEVER compound drift
                                                 next_fire = max(next_fire, perf_counter() + float(reset))
                                             except ValueError:
                                                 pass
@@ -2204,28 +2208,26 @@ class ForbidToken(discord.Client):
                                                 retry = 1.0
                                                 
                                         if retry > 120.0:
-                                            fatal_error = True # Abort if ban is years long
+                                            fatal_error = True 
                                             return
                                             
                                         is_global = response.headers.get("X-RateLimit-Global", "false").lower() == "true"
                                         if is_global:
                                             globals()['GLOBAL_PAUSE_UNTIL'] = perf_counter() + retry
                                         else:
-                                            # Safely push the metronome back, cap drift!
                                             next_fire = max(next_fire, perf_counter() + retry)
                                             
                                     elif 400 <= status < 500:
-                                        fatal_error = True # Bad token/payload, kill the metronome
+                                        fatal_error = True 
                         except Exception:
                             pass
 
                     payload_idx = 0
                     num_payloads = len(base_payloads)
                     
-                    # ⏱️ THE METRONOME (Zero I/O blocking)
+                    # ⏱️ THE METRONOME 
                     while not fatal_error:
                         try:
-                            # 1. Global Pause Check
                             global_pause = globals().get('GLOBAL_PAUSE_UNTIL', 0.0)
                             now = perf_counter()
                             if now < global_pause:
@@ -2233,7 +2235,6 @@ class ForbidToken(discord.Client):
                                 next_fire = max(next_fire, perf_counter() + step)
                                 continue
                                 
-                            # 2. Absolute Schedule Sync
                             now = perf_counter()
                             sleep_amount = next_fire - now
                             if sleep_amount > 0:
@@ -2241,15 +2242,12 @@ class ForbidToken(discord.Client):
                             else:
                                 next_fire = now
                                 
-                            # 3. Advance schedule with 5% Jitter to evade ML pattern detection
-                            next_fire += step * random.uniform(0.95, 1.05)
+                            next_fire += step * _g_random.uniform(0.95, 1.05)
                             
-                            # 4. Dictionary Mutation & 16-char Nonce Evasion
                             p = base_payloads[payload_idx].copy()
                             payload_idx = (payload_idx + 1) % num_payloads
-                            p["nonce"] = secrets.token_hex(8) # Invisible to users, Discord dedupes it!
+                            p["nonce"] = _g_secrets.token_hex(8) 
                             
-                            # 5. FIRE AND FORGET (Loop immediately resets!)
                             asyncio.create_task(fire_request(p))
                             
                         except asyncio.CancelledError:
@@ -2257,7 +2255,6 @@ class ForbidToken(discord.Client):
                         except Exception:
                             await asyncio.sleep(0.5)
 
-                # Safe Task Name
                 unique_fs_name = f"spam_{channel_id}_fs_{message.id}"
                 task = asyncio.create_task(forward_loop(), name=unique_fs_name)
                 _fs_tasks[channel_id].append(task)
