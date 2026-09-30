@@ -1825,17 +1825,6 @@ class ForbidToken(discord.Client):
                 if not isinstance(_cs_headers, dict):
                     _cs_headers = {"User-Agent": "Mozilla/5.0"}
 
-                # 🛑 AWAIT TASK CANCELLATION
-                if channel_id in _cs_tasks:
-                    old_task = _cs_tasks[channel_id]
-                    if not old_task.done():
-                        old_task.cancel()
-                        try:
-                            await old_task
-                        except asyncio.CancelledError:
-                            pass
-                        except Exception as e:
-                            print(f"⚠️ Previous task terminated with error: {e}", flush=True)
 
                 # 🔨 PHASE 2: THE FORGE & ISOLATION
                 hearts = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎"]
@@ -1956,17 +1945,23 @@ class ForbidToken(discord.Client):
                                 
                     except asyncio.CancelledError:
                         pass
-                    finally:
-                        current_task = asyncio.current_task()
-                        if _cs_tasks.get(channel_id) == current_task:
-                            _cs_tasks.pop(channel_id, None)
+                    # No finally block needed here anymore since we want them to run side-by-side!
 
-                # 🚀 Spawning the hardened task
-                task = asyncio.create_task(custom_loop(), name=f"spam_{channel_id}")
-                _cs_tasks[channel_id] = task
+                # 🚀 Spawning the hardened task SIDE-BY-SIDE (NO IMPORTS NEEDED!)
+                # We use message.id to make the task perfectly unique every time you run the command
+                unique_task_name = f"spam_{channel_id}_{message.id}"
+                task = asyncio.create_task(custom_loop(), name=unique_task_name)
+                
+                # Safely append to a list so multiple tasks track perfectly side-by-side
+                if channel_id not in _cs_tasks:
+                    _cs_tasks[channel_id] = []
+                elif not isinstance(_cs_tasks[channel_id], list):
+                    _cs_tasks[channel_id] = [_cs_tasks[channel_id]]
+                
+                _cs_tasks[channel_id].append(task)
                 
                 if my_math_id == 0: 
-                    await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online: '{user_text}'")
+                    await safe_send(f"🌌 **UNIVERSAL SPEEDS ATTAINED.** Hyper-Engine Online (Side-by-Side): '{user_text}'")
             
             except Exception as outer_e:
                 try:
