@@ -2074,114 +2074,199 @@ class ForbidToken(discord.Client):
                     pass
         
  
-        elif command == "fs" or command == "forwardspam":
+        elif command in ["fs", "forwardspam"]:
             if len(parts) < 3:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^fs <text> <delay>`")
             
             try:
-                import orjson
-                import gc
+                import secrets
+                import random
+                from time import perf_counter
                 
-                user_text = " ".join(parts[1:-1])
-                delay = float(parts[-1])
+                user_text = " ".join(parts[1:-1]).strip()
+                if not user_text:
+                    return await message.channel.send("❌ Text cannot be empty.")
+                    
+                try:
+                    delay = float(parts[-1])
+                    if delay < 0 or delay > 60:
+                        return await message.channel.send("❌ Delay must be between 0 and 60 seconds.")
+                except ValueError:
+                    return await message.channel.send("❌ Delay must be a valid number.")
+
+                emojis = ["💀", "👑", "⚡", "🔥", "🔪", "🗡️", "⚔", "🩸", "☠️", "🔱"]
                 
-                # 🔥 LETHAL HATER EMOJI POOL
-                emojis = ["💀", "👑", "⚡", "🔥", "🔪", "🗡️", "⚔️", "🩸", "☠️", "🔱"]
-                
-                # 🔥 ELITE FORB1D SOVEREIGN SYSTEM CARD TEMPLATES
                 forward_styles = [
                     "👑 **【 F O R B 1 D   K I N G   M A J E S T Y 】** 👑\n> ⚡ *HEIR TO THE THRONE OF ABSOLUTE TERROR*\n> ☠️ `{user_text} ({chosen_emoji})`",
                     "⚔️ **【 F O R B 1 D   K I N G   R U L E 】** ⚔️\n> 🩸 *BOW DOWN TO THE KING OF KINGS*\n> 👑 `{user_text} ({chosen_emoji})`",
                     "🔥 **【 F O R B 1 D   K I N G   D E C R E E 】** 🔥\n> 🔱 *THE SUPREME RULER HAS SPOKEN*\n> 💀 `{user_text} ({chosen_emoji})`"
                 ]
 
-                # -----------------------------------------------------------------
-                # 🔥 THE FORGE: PRE-BAKE STACKED FORB1D CARDS TO RAW RUST BYTES
-                # -----------------------------------------------------------------
-                pre_baked_forward_bytes = []
+                # 🚀 1. HFT PRE-RENDERING (Discord UTF-16 Native Math)
+                base_payloads = []
                 for style in forward_styles:
                     for emoji in emojis:
                         base_text = style.replace("{user_text}", user_text).replace("{chosen_emoji}", emoji)
-                        spaced_text = base_text.replace(" ", " \u200B")
                         
-                        # Scale it up big to fill the message block instantly
-                        multiplier = 1950 // (len(spaced_text) + 2)
+                        # Perfect UTF-16 math
+                        b_encoded = base_text.encode("utf-16-le")
+                        utf16_len = len(b_encoded) // 2 + 2
+                        multiplier = (1990 - 2) // utf16_len if utf16_len > 0 else 1
                         if multiplier < 1: multiplier = 1
                         
-                        final_content = "\n\n".join([spaced_text] * multiplier)
-                        raw_json_bytes = orjson.dumps({"content": final_content})
-                        pre_baked_forward_bytes.append(raw_json_bytes)
+                        wall_of_text = "\n\n".join([base_text] * multiplier)
+                        
+                        # Hard slice at 3980 bytes (1990 UTF-16 codepoints) to prevent 400 Bad Request
+                        b_wall = wall_of_text.encode("utf-16-le")
+                        if len(b_wall) > 3980:
+                            wall_of_text = b_wall[:3980].decode("utf-16-le", "ignore")
+                            
+                        # Pre-build dictionaries to save memory allocs in the hot loop
+                        base_payloads.append({"content": wall_of_text})
+
+                # 🛡️ 2. GLOBAL REGISTRY & STATE INITIALIZATION
+                if 'spam_tasks' not in globals():
+                    globals()['spam_tasks'] = {}
+                if 'GLOBAL_PAUSE_UNTIL' not in globals():
+                    globals()['GLOBAL_PAUSE_UNTIL'] = 0.0
+
+                _fs_tasks = globals()['spam_tasks']
+                _fs_swarm = globals().get('ACTIVE_SWARM', [self.user.id])
+                channel_id = message.channel.id
+
+                # 🛑 3. TASK DEDUP (O(1) cancellation)
+                if channel_id in _fs_tasks:
+                    old_tasks = _fs_tasks[channel_id]
+                    if isinstance(old_tasks, list):
+                        for t in old_tasks:
+                            if not t.done():
+                                t.cancel()
+                    elif not old_tasks.done():
+                        old_tasks.cancel()
+                _fs_tasks[channel_id] = []
 
                 async def forward_loop():
-                    global global_last_log
-                    local_sleep = asyncio.sleep
-                    local_time = time.time
                     local_post = self.raw_session.post
-                    local_bytes = pre_baked_forward_bytes
-                    local_len = len(local_bytes)
+                    target_url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
                     
-                    current_swarm_size = max(1, len(ACTIVE_SWARM))
+                    ultra_headers = {
+                        "Authorization": self.http.token,
+                        "Content-Type": "application/json"
+                    }
+                    
+                    current_swarm_size = max(1, len(_fs_swarm))
                     try:
-                        my_math_id = ACTIVE_SWARM.index(self.user.id)
+                        my_math_id = _fs_swarm.index(self.user.id)
                     except ValueError:
                         my_math_id = 0
                         
-                    perfect_stagger = (delay / float(current_swarm_size)) * my_math_id
-                    packet_index = (self.user.id + int(time.time())) % local_len
+                    # Fix: Hard floor of 0.05s so we don't tight-spin the event loop
+                    step = delay if delay >= 0.05 else 0.05
+                    perfect_stagger = (step / float(current_swarm_size)) * my_math_id
                     
-                    await local_sleep(perfect_stagger)
+                    next_fire = perf_counter() + perfect_stagger
                     
-                    target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
+                    # 🚦 PIPELINE SEMAPHORE (Caps concurrent requests so we don't exhaust sockets)
+                    sem = asyncio.Semaphore(5)
+                    fatal_error = False # Shared state to kill the metronome on 401/403
                     
-                    # Merge token with global browser headers
-                    ultra_headers = BROWSER_HEADERS.copy()
-                    ultra_headers["Authorization"] = self.http.token
-                    
-                    gc.disable()
-                    try:
-                        while True:
-                            try:
-                                raw_packet = local_bytes[packet_index]
-                                packet_index = (packet_index + 1) % local_len
-                                
-                                response = await local_post(target_url, data=raw_packet, headers=ultra_headers)
-                                
-                                if response.status == 429:
-                                    gc.enable()
-                                    rate_data = orjson.loads(await response.read())
-                                    retry_after = rate_data.get("retry_after", 0.5)
+                    # 🚀 THE BACKGROUND WORKER
+                    async def fire_request(payload_dict):
+                        nonlocal next_fire, fatal_error
+                        try:
+                            async with sem:
+                                async with local_post(target_url, json=payload_dict, headers=ultra_headers) as response:
+                                    status = response.status
                                     
-                                    if local_time() - global_last_log > 60:
-                                        print(f"⚠️ [System] Forward Rate Limit hit. Pausing Node for {retry_after}s.", flush=True)
-                                        global_last_log = local_time()
-                                        
-                                    await local_sleep(retry_after)
-                                    gc.disable()
-                                else:
-                                    if delay > 0:
-                                        await local_sleep(delay)
-                                    else:
-                                        await asyncio.sleep(0)
-                                        
-                            except Exception as e:
-                                gc.enable()
-                                print(f"⚠️ Forward Socket Exception: {e}", flush=True)
-                                await local_sleep(0.01)
-                                gc.disable()
-                    finally:
-                        gc.enable()
+                                    # 🟢 PROACTIVE BUCKET SLEEPING (The ultimate anti-ban move)
+                                    if 200 <= status < 300:
+                                        rem = response.headers.get("X-RateLimit-Remaining")
+                                        if rem == "0":
+                                            reset = response.headers.get("X-RateLimit-Reset-After", "1.0")
+                                            try:
+                                                # Shift schedule preemptively, NEVER compound drift
+                                                next_fire = max(next_fire, perf_counter() + float(reset))
+                                            except ValueError:
+                                                pass
+                                                
+                                    elif status == 429:
+                                        reset_after = response.headers.get("X-RateLimit-Reset-After")
+                                        if reset_after:
+                                            try:
+                                                retry = float(reset_after)
+                                            except ValueError:
+                                                retry = 1.0
+                                        else:
+                                            try:
+                                                rate_data = await response.json()
+                                                retry = float(rate_data.get("retry_after", 1.0))
+                                            except Exception:
+                                                retry = 1.0
+                                                
+                                        if retry > 120.0:
+                                            fatal_error = True # Abort if ban is years long
+                                            return
+                                            
+                                        is_global = response.headers.get("X-RateLimit-Global", "false").lower() == "true"
+                                        if is_global:
+                                            globals()['GLOBAL_PAUSE_UNTIL'] = perf_counter() + retry
+                                        else:
+                                            # Safely push the metronome back, cap drift!
+                                            next_fire = max(next_fire, perf_counter() + retry)
+                                            
+                                    elif 400 <= status < 500:
+                                        fatal_error = True # Bad token/payload, kill the metronome
+                        except Exception:
+                            pass
 
-                task = asyncio.create_task(forward_loop(), name=f"forward_{message.channel.id}")
-                
-                if message.channel.id not in spam_tasks:
-                    spam_tasks[message.channel.id] = []
-                spam_tasks[message.channel.id].append(task)
+                    payload_idx = 0
+                    num_payloads = len(base_payloads)
+                    
+                    # ⏱️ THE METRONOME (Zero I/O blocking)
+                    while not fatal_error:
+                        try:
+                            # 1. Global Pause Check
+                            global_pause = globals().get('GLOBAL_PAUSE_UNTIL', 0.0)
+                            now = perf_counter()
+                            if now < global_pause:
+                                await asyncio.sleep(global_pause - now)
+                                next_fire = max(next_fire, perf_counter() + step)
+                                continue
+                                
+                            # 2. Absolute Schedule Sync
+                            now = perf_counter()
+                            sleep_amount = next_fire - now
+                            if sleep_amount > 0:
+                                await asyncio.sleep(sleep_amount)
+                            else:
+                                next_fire = now
+                                
+                            # 3. Advance schedule with 5% Jitter to evade ML pattern detection
+                            next_fire += step * random.uniform(0.95, 1.05)
+                            
+                            # 4. Dictionary Mutation & 16-char Nonce Evasion
+                            p = base_payloads[payload_idx].copy()
+                            payload_idx = (payload_idx + 1) % num_payloads
+                            p["nonce"] = secrets.token_hex(8) # Invisible to users, Discord dedupes it!
+                            
+                            # 5. FIRE AND FORGET (Loop immediately resets!)
+                            asyncio.create_task(fire_request(p))
+                            
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception:
+                            await asyncio.sleep(0.5)
+
+                # Safe Task Name
+                unique_fs_name = f"spam_{channel_id}_fs_{message.id}"
+                task = asyncio.create_task(forward_loop(), name=unique_fs_name)
+                _fs_tasks[channel_id].append(task)
                 
                 if self.user.id % 8 == 0 or self.user.id % 8 == 1: 
-                    await message.channel.send(f"📦 **FORB1D SOVEREIGN FORWARD ENGINE ONLINE.**")
+                    await message.channel.send(f"📦 **FORB1D🔥 SOVEREIGN FORWARD ENGINE ONLINE.** (HFT Pipelined, {delay}s pace)")
             
-            except Exception as e:
-                await message.channel.send(f"❌ Core Error: {e}")
+            except Exception:
+                pass
 
         elif command == "unfs" or command == "unforwardspam":
             killed = False
