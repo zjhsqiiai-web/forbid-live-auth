@@ -1868,7 +1868,7 @@ class ForbidToken(discord.Client):
                 ultra_headers["Authorization"] = clean_token
                 ultra_headers["Content-Type"] = "application/json"
                 
-                # ⚡ PHASE 3: THE CORE HTTP ENGINE
+                # ⚡ PHASE 3: THE CORE HTTP ENGINE (GOD-LEVEL BURST FIRE)
                 async def custom_loop():
                     local_post = raw_session.post
                     local_bytes = pre_baked_bytes
@@ -1877,6 +1877,9 @@ class ForbidToken(discord.Client):
                     
                     req_timeout = aiohttp.ClientTimeout(total=10.0)
                     backoff = 0.1
+                    
+                    # 🚀 The Burst Timer Clock
+                    burst_start = time.time()
                     
                     try:
                         await asyncio.sleep(perfect_stagger)
@@ -1902,13 +1905,14 @@ class ForbidToken(discord.Client):
                                         except (ValueError, TypeError):
                                             retry_after = 1.0
                                         
-                                        global_last_log_val = globals()['global_last_log']
+                                        global_last_log_val = globals().get('global_last_log', 0.0)
                                         now = time.time()
                                         if now - global_last_log_val > 60:
                                             print(f"⚠️ [{bot_name}] Rate Limit. Backing off {retry_after}s.", flush=True)
                                             globals()['global_last_log'] = now
                                             
                                         await asyncio.sleep(retry_after)
+                                        burst_start = time.time()  # Reset burst clock after recovering
                                         
                                     elif 400 <= status < 500:
                                         error_text = await response.text()
@@ -1920,14 +1924,25 @@ class ForbidToken(discord.Client):
                                         print(f"⚠️ [{bot_name}] Discord Server Error {status}. Retrying in {backoff}s...", flush=True)
                                         await asyncio.sleep(backoff)
                                         backoff = min(backoff * 2.0, 10.0)
+                                        burst_start = time.time()  # Reset burst clock
                                         
                                     elif 200 <= status < 300:
                                         await response.read()
                                         backoff = 0.1
-                                        if delay > 0:
-                                            await asyncio.sleep(delay)
+                                        
+                                        if delay == 0.0:
+                                            # 💥 OP BURST MECHANIC: Run max speed for 5s, break for 3-5s
+                                            if time.time() - burst_start >= 5.0:
+                                                # Take a randomized ghost break to trick anti-spam
+                                                break_duration = random.uniform(3.0, 5.0)
+                                                await asyncio.sleep(break_duration)
+                                                burst_start = time.time() # Reset clock for the next 5s sprint!
+                                            else:
+                                                # Absolute raw max speed yield
+                                                await asyncio.sleep(0)
                                         else:
-                                            await asyncio.sleep(0)
+                                            # Normal custom delay (e.g. if you typed ^cs text 1.5)
+                                            await asyncio.sleep(delay)
                                     else:
                                         await response.read()
                                         await asyncio.sleep(max(0.1, delay))
@@ -1938,10 +1953,12 @@ class ForbidToken(discord.Client):
                                 print(f"⚠️ [{bot_name}] Network/Timeout: {e}", flush=True)
                                 await asyncio.sleep(backoff)
                                 backoff = min(backoff * 2.0, 10.0)
+                                burst_start = time.time() # Reset burst clock
                             except Exception as e:
                                 print(f"⚠️ [{bot_name}] Unexpected Loop Error: {e}", flush=True)
                                 await asyncio.sleep(backoff)
                                 backoff = min(backoff * 2.0, 10.0)
+                                burst_start = time.time() # Reset burst clock
                                 
                     except asyncio.CancelledError:
                         pass
