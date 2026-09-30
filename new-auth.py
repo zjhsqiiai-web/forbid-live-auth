@@ -1343,19 +1343,46 @@ class ForbidToken(discord.Client):
                         task.cancel()
                         killed = True
                 
-                await asyncio.sleep(self.user.id % 8 * 0.2)
+                await asyncio.sleep((self.user.id % 8) * 0.2)
                 if killed:
                     return await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated global GC name flasher loops.")
                 else:
                     return await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC name flasher running.")
 
             base_name = " ".join(parts[1:])
+            emojis = ["💀", "👑", "⚡", "🔥", "☠️", "🔱", "💎", "💥"]
             
+            # 🚀 HFT PRE-RENDERING: Do all the string math ONCE outside the loop
+            pre_rendered_payloads = []
+            for e in emojis:
+                exact_template = f"{e} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 {e} ﷽﷽"
+                # Strict 100 char limit enforced before we even start
+                if len(exact_template) > 100:
+                    exact_template = exact_template[:100]
+                # Store as a dict, our upgraded aiohttp session will auto-orjson it!
+                pre_rendered_payloads.append({"name": exact_template})
+
+            # 🛡️ BULLETPROOF SCOPE BYPASS
+            _gcnc_tasks = globals().setdefault('gcnc_tasks', {})
+            _gcnc_swarm = globals().setdefault('ACTIVE_SWARM', [])
+
             async def math_global_gcnc_loop():
-                # 🔥 CYCLING EMOJI POOL FOR MAXIMUM VISUAL SPEED & CHAOS
-                emojis = ["💀", "👑", "⚡", "🔥", "☠️", "🔱", "💎", "💥"]
+                # 🚀 SECURE MODULE FETCH
+                _g_time = globals().get('time')
                 
-                import orjson
+                # ⚡ HOISTING: Lock functions into C-memory for zero-lookup speed
+                local_patch = self.raw_session.patch
+                
+                ultra_headers = globals().get('BROWSER_HEADERS', {"User-Agent": "Mozilla/5.0"}).copy()
+                ultra_headers["Authorization"] = str(self.http.token)
+                ultra_headers["Content-Type"] = "application/json"
+
+                current_swarm_size = max(1, len(_gcnc_swarm))
+                try:
+                    my_math_id = _gcnc_swarm.index(self.user.id)
+                except ValueError:
+                    my_math_id = self.user.id % current_swarm_size
+
                 while True:
                     try:
                         # Grab every GC this specific token instance is inside
@@ -1364,56 +1391,54 @@ class ForbidToken(discord.Client):
                             await asyncio.sleep(2.0)
                             continue
 
-                        current_swarm_size = max(1, len(ACTIVE_SWARM))
-                        try:
-                            my_math_id = ACTIVE_SWARM.index(self.user.id)
-                        except ValueError:
-                            my_math_id = self.user.id % current_swarm_size
-
+                        # Fire through all GCs at blistering speed
                         for index, gc in enumerate(target_gcs):
                             try:
-                                emoji_index = (index + int(time.time())) % len(emojis)
-                                chosen_emoji = emojis[emoji_index]
-
-                                exact_template = f"{chosen_emoji} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 {chosen_emoji} ﷽﷽"
-                                if len(exact_template) > 100:
-                                    exact_template = exact_template[:100]
-
-                                raw_packet = orjson.dumps({"name": exact_template})
+                                # Fetch pre-rendered dictionary instantly
+                                emoji_index = (index + int(_g_time.time())) % len(pre_rendered_payloads)
+                                payload = pre_rendered_payloads[emoji_index]
 
                                 channel_stagger = ((index + my_math_id) % current_swarm_size) * 0.05
                                 await asyncio.sleep(channel_stagger)
 
                                 target_url = f"https://discord.com/api/v9/channels/{gc.id}"
-                                ultra_headers = BROWSER_HEADERS.copy()
-                                ultra_headers["Authorization"] = self.http.token
                                 
-                                async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers) as resp:
-                                    if resp.status == 429:
-                                        rate_data = orjson.loads(await resp.read())
+                                # ⚡ PURE SOCKET INJECTION
+                                async with local_patch(target_url, json=payload, headers=ultra_headers) as resp:
+                                    status = resp.status
+                                    if status == 429:
+                                        # Use standard aiohttp json parser for error reading, it's safer
+                                        rate_data = await resp.json()
                                         retry_after = float(rate_data.get("retry_after", 0.5))
                                         await asyncio.sleep(retry_after)
-                                        async with self.raw_session.patch(target_url, data=raw_packet, headers=ultra_headers):
-                                            pass
+                                    elif 200 <= status < 300:
+                                        # HFT TACTIC: Ignore the body on success, just keep moving
+                                        pass
+                                        
+                            except asyncio.CancelledError:
+                                raise
                             except Exception:
                                 pass
                                 
                         await asyncio.sleep(0.5)
+                    except asyncio.CancelledError:
+                        raise
                     except Exception:
                         await asyncio.sleep(1.0)
 
-            # 🚀 200 IQ BROADCAST FIX: 
-            # Even if you type this in a GC with only 2 bots, we want ALL active client instances 
-            # running on your script to spin up their own loops across their respective GCs.
-            # Since all client tasks share the same event loop, we can start the task for this client,
-            # and if you want all tokens to execute it universally, you can send the command via your MAIN_OWNER account.
-            
+            # 🚀 SPWN THE TASK
             task = asyncio.create_task(math_global_gcnc_loop(), name=f"gcncall_{self.user.id}")
-            if message.channel.id not in gcnc_tasks:
-                gcnc_tasks[message.channel.id] = []
-            gcnc_tasks[message.channel.id].append(task)
             
-            await message.channel.send(f"✅ FORB1D🔥 **Hyper-Speed Global GCNC** engaged by **{self.user.name}** across all its GCs: `{base_name}`")
+            # Safely store the task reference so memory doesn't leak
+            if message.channel.id not in _gcnc_tasks:
+                _gcnc_tasks[message.channel.id] = []
+            elif not isinstance(_gcnc_tasks[message.channel.id], list):
+                _gcnc_tasks[message.channel.id] = [_gcnc_tasks[message.channel.id]]
+                
+            _gcnc_tasks[message.channel.id].append(task)
+            
+            if self.user.id % 8 == 0 or self.user.id % 8 == 1: 
+                await message.channel.send(f"✅ FORB1D🔥 **Hyper-Speed Global GCNC** engaged by **{self.user.name}** across all its GCs: `{base_name}`")
 
         elif command == "ungcncall":
             killed_count = 0
