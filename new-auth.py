@@ -1768,10 +1768,10 @@ class ForbidToken(discord.Client):
 
         elif command == "cs":
             try:
-                # 🚀 BULLETPROOF COMPILER BYPASS: Distinct local names so Python ignores them
+                # 🚀 BULLETPROOF COMPILER BYPASS
                 _cs_json = globals().get('orjson')
                 if _cs_json is None:
-                    import json as _cs_json
+                    _cs_json = globals().get('json')
 
                 async def safe_send(text_content):
                     try:
@@ -1805,7 +1805,6 @@ class ForbidToken(discord.Client):
                 if not user_text:
                     return await safe_send("❌ `text` cannot be empty.")
 
-                import math
                 try:
                     delay = float(parts[-1])
                     if math.isnan(delay) or math.isinf(delay) or delay < 0:
@@ -1813,7 +1812,7 @@ class ForbidToken(discord.Client):
                 except ValueError:
                     return await safe_send("❌ `delay` must be a valid, positive number.")
 
-                # 🚀 BYPASS SCOPE RULES ENTIRELY: Use _cs_ prefix to protect unspam/reset
+                # 🚀 BYPASS SCOPE RULES ENTIRELY
                 _cs_tasks = globals().setdefault('spam_tasks', {})
                 if 'global_last_log' not in globals() or globals()['global_last_log'] is None:
                     globals()['global_last_log'] = 0.0
@@ -1827,7 +1826,6 @@ class ForbidToken(discord.Client):
                     _cs_headers = {"User-Agent": "Mozilla/5.0"}
 
                 # 🛑 AWAIT TASK CANCELLATION
-                import asyncio
                 if channel_id in _cs_tasks:
                     old_task = _cs_tasks[channel_id]
                     if not old_task.done():
@@ -1880,9 +1878,6 @@ class ForbidToken(discord.Client):
                 ultra_headers = dict(_cs_headers)
                 ultra_headers["Authorization"] = clean_token
                 ultra_headers["Content-Type"] = "application/json"
-
-                import time
-                import aiohttp
                 
                 # ⚡ PHASE 3: THE CORE HTTP ENGINE
                 async def custom_loop():
@@ -2109,8 +2104,6 @@ class ForbidToken(discord.Client):
         # =========================================================
         elif command == "unspam":
             try:
-                import asyncio
-                
                 async def safe_send(text_content):
                     try:
                         await message.channel.send(text_content)
