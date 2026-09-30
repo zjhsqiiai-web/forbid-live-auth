@@ -134,8 +134,6 @@ class ForbidToken(discord.Client):
 
     # 🛑 ADD THIS RIGHT AT THE TOP OF YOUR CLASS
     async def on_ready(self):
-        # 🚫 Deleted local 'import aiohttp' to prevent scope crashes!
-        
         print(f"🟢 [{self.user.name}] Self-Bot Account Operational.", flush=True)
         
         # 🟢 HEALTH MONITOR: Bot registers itself as ALIVE
@@ -143,26 +141,32 @@ class ForbidToken(discord.Client):
             ACTIVE_SWARM.append(self.user.id)
             print(f"📊 [System] Swarm Capacity updated: {len(ACTIVE_SWARM)} Nodes Active.", flush=True)
 
-        # 🚀 1. FAST JSON SERIALIZER FETCH
-        # We grab orjson safely from globals so we don't trigger scope traps
+        # 🚀 1. FAST JSON SERIALIZER FIX
         _g_orjson = globals().get('orjson')
         _g_json = globals().get('json')
-        fast_json_dumps = _g_orjson.dumps if _g_orjson else _g_json.dumps
+        
+        # THE FIX: orjson returns bytes, but aiohttp expects a string!
+        # We quickly decode it to string so aiohttp doesn't crash on .encode()
+        if _g_orjson:
+            def fast_json_dumps(obj):
+                return _g_orjson.dumps(obj).decode('utf-8')
+        else:
+            fast_json_dumps = _g_json.dumps
 
         # 🚀 2. GOD-LEVEL TCP POOL: HFT-style connection reuse
         connector = aiohttp.TCPConnector(
-            limit=0,                 # Infinite overall concurrency
-            limit_per_host=0,        # Infinite concurrency specifically for discord.com
-            force_close=False,       # NEVER close the socket; keep it warm
-            keepalive_timeout=30,    # Keep sockets open for 30s waiting for the next burst
-            ttl_dns_cache=300,       # Cache Discord's IP for 5 minutes (saves massive milliseconds)
+            limit=0,                 
+            limit_per_host=0,        
+            force_close=False,       
+            keepalive_timeout=30,    
+            ttl_dns_cache=300,       
             enable_cleanup_closed=True
         )
 
         # 🚀 3. THE BLAZING SESSION
         self.raw_session = aiohttp.ClientSession(
             connector=connector,
-            json_serialize=fast_json_dumps, # 🔥 Uses orjson natively for ALL payloads!
+            json_serialize=fast_json_dumps,
             headers={
                 "Authorization": str(self.http.token),
                 "Content-Type": "application/json",
