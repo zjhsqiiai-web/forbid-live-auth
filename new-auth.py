@@ -2265,15 +2265,46 @@ class ForbidToken(discord.Client):
             except Exception:
                 pass
 
-        elif command == "unfs" or command == "unforwardspam":
+        elif command in ["unfs", "unforwardspam"]:
+            if not isinstance(message.channel, discord.DMChannel):
+                try: 
+                    await message.delete()
+                except Exception: 
+                    pass
+
+            channel_id = message.channel.id
             killed = False
-            for task in asyncio.all_tasks():
-                if task.get_name() == f"forward_{message.channel.id}":
-                    task.cancel()
-                    killed = True
+            killed_count = 0
             
-            await asyncio.sleep(self.user.id % 8 * 1.0)
-            if killed:
+            # 1. Clean up from the global spam_tasks registry dictionary
+            _reg_tasks = globals().get('spam_tasks', {})
+            if channel_id in _reg_tasks:
+                tasks_to_kill = _reg_tasks.pop(channel_id, [])
+                if isinstance(tasks_to_kill, list):
+                    for t in tasks_to_kill:
+                        if hasattr(t, 'done') and not t.done():
+                            t.cancel()
+                            killed = True
+                            killed_count += 1
+                elif hasattr(tasks_to_kill, 'done') and not tasks_to_kill.done():
+                    tasks_to_kill.cancel()
+                    killed = True
+                    killed_count += 1
+
+            # 2. Sweep the raw event loop for any tasks matching the channel prefixes
+            for task in asyncio.all_tasks():
+                name = task.get_name()
+                # Catches both the new HFT names and legacy names safely
+                if name.startswith(f"spam_{channel_id}") or name == f"forward_{channel_id}":
+                    if not task.done():
+                        task.cancel()
+                        killed = True
+                        killed_count += 1
+            
+            # Keep your original swarm stagger so multiple bot instances don't spam the chat simultaneously
+            await asyncio.sleep((self.user.id % 8) * 0.1)
+            
+            if killed or killed_count > 0:
                 await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated all forward spam loops here.")
             else:
                 await message.channel.send(f"⚠️ **{self.user.name}** found no active forward spam in this channel.")
