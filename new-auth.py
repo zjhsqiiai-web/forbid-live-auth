@@ -525,7 +525,6 @@ class ForbidToken(discord.Client):
                     )
 
                 def is_quest_active(q_config):
-                    # 🚀 DATE FILTERING: Kills 404 errors by ignoring expired/future quests
                     try:
                         now = time.time()
                         expires = q_config.get("expires_at")
@@ -541,7 +540,7 @@ class ForbidToken(discord.Client):
                     return True
 
                 try:
-                    # 1. FORGE DESKTOP CLIENT HEADERS (Anti-Cheat Bypass)
+                    # FORGE DESKTOP CLIENT HEADERS
                     client_uuid = str(uuid.uuid4())
                     super_props = {
                         "os": "Windows", "browser": "Discord Client", "release_channel": "stable",
@@ -576,7 +575,7 @@ class ForbidToken(discord.Client):
                         if (q.get("user_status") or {}).get("completed_at"): continue
                         
                         cfg = q.get("config", {})
-                        if not is_quest_active(cfg): continue # 🚫 Blocks the 404s
+                        if not is_quest_active(cfg): continue 
                         
                         tcfg = cfg.get("task_config_v2") or cfg.get("task_config") or {}
                         tasks = tcfg.get("tasks", {})
@@ -604,6 +603,21 @@ class ForbidToken(discord.Client):
                     if total_quests == 0:
                         return await panel_msg.edit(content=build_hyper_panel("NO ACTIVE QUESTS FOUND.", target_val=1))
 
+                    # 🛑 LIVE JAIL COUNTDOWN ENGINE 🛑
+                    async def absorb_penalty(wait_seconds, phase_name, q_name, q_type, c_prog, t_prog, q_done, t_quests):
+                        rem = float(wait_seconds)
+                        while rem > 0:
+                            sys_msg = f"🛑 ANTI-CHEAT JAIL. AUTO-RESUMING IN {int(rem)}s..."
+                            try: await panel_msg.edit(content=build_hyper_panel(sys_msg, q_name, q_type, c_prog, t_prog, q_done, t_quests))
+                            except: pass
+                            
+                            step = min(10.0, rem)
+                            await asyncio.sleep(step)
+                            rem -= step
+                        
+                        try: await panel_msg.edit(content=build_hyper_panel(f"♻️ JAIL CLEARED. RESUMING {phase_name}...", q_name, q_type, c_prog, t_prog, q_done, t_quests))
+                        except: pass
+
                     # EXECUTE QUEUE
                     for quest in valid_quests:
                         quest_id = quest.get("id")
@@ -617,7 +631,6 @@ class ForbidToken(discord.Client):
 
                         await panel_msg.edit(content=build_hyper_panel("CHECKING ENROLLMENT...", quest_name, q_type, 0, target_time, quests_done, total_quests))
                         
-                        # 🚀 ROBUST ENROLLMENT (Fixes 429s dynamically)
                         user_status = quest.get("user_status") or {}
                         if not user_status.get("enrolled_at"):
                             enroll_url = f"https://discord.com/api/v10/quests/{quest_id}/enroll"
@@ -633,11 +646,9 @@ class ForbidToken(discord.Client):
                                         break
                                     elif e_resp.status == 429:
                                         r_data = await e_resp.json()
-                                        wait_time = float(r_data.get("retry_after", 2.0))
-                                        await panel_msg.edit(content=build_hyper_panel(f"429 RATE LIMIT. ABSORBING {wait_time}s...", quest_name, q_type, 0, target_time, quests_done, total_quests))
-                                        await asyncio.sleep(wait_time + 0.5)
+                                        await absorb_penalty(r_data.get("retry_after", 5.0), "ENROLLMENT", quest_name, q_type, 0, target_time, quests_done, total_quests)
                                     else:
-                                        break # 404 or other failure
+                                        break 
                                         
                             if not enrolled:
                                 await panel_msg.edit(content=build_hyper_panel("ENROLLMENT FAILED. SKIPPING.", quest_name, q_type, 0, target_time, quests_done, total_quests))
@@ -646,48 +657,28 @@ class ForbidToken(discord.Client):
 
                         current_progress = 0.0
                         
-                        if q_type == "VIDEO":  # <--- CHANGED FROM elif TO if
+                        if q_type == "VIDEO":
                             video_url = f"https://discord.com/api/v10/quests/{quest_id}/video-progress"
                             
-                            # 1. SLOWER POLLING: Mimic a real browser's batching
                             while current_progress < target_time:
-                                # Spoof 10 to 15 seconds of watch time per tick
-                                current_progress += random.uniform(10.0, 15.0)
+                                # 🚀 1:1 REAL TIME MATH: No more time-traveling bans
+                                chunk_time = random.uniform(8.0, 12.0)
+                                current_progress += chunk_time
                                 if current_progress > target_time: current_progress = target_time
                                 
                                 async with self.raw_session.post(video_url, json={"timestamp": current_progress}, headers=desktop_headers) as v_resp:
                                     if v_resp.status == 200:
                                         v_data = await v_resp.json()
-                                        if (v_data or {}).get("completed_at"): 
-                                            break
+                                        if (v_data or {}).get("completed_at"): break
                                     elif v_resp.status == 429:
-                                        # 2. PENALTY ABSORPTION
                                         r_data = await v_resp.json()
-                                        penalty = float(r_data.get("retry_after", 5.0))
-                                        try: await panel_msg.edit(content=build_hyper_panel(f"API PENALTY. HOLDING FOR {penalty}s...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
-                                        except: pass
-                                        await asyncio.sleep(penalty + 1.0)
+                                        await absorb_penalty(r_data.get("retry_after", 5.0), "VIDEO SPOOFING", quest_name, q_type, current_progress, target_time, quests_done, total_quests)
                                         
                                 try: await panel_msg.edit(content=build_hyper_panel("SPOOFING VIDEO TIMESTAMPS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
                                 except: pass
                                 
-                                # Wait 5-8 seconds between requests to perfectly match Discord's native client behavior
-                                await asyncio.sleep(random.uniform(5.0, 8.0))
-                                
-                        # [GAME logic remains unchanged here...]
-
-                        quests_done += 1
-                        await panel_msg.edit(content=build_hyper_panel("QUEST NEUTRALIZED. REWARD UNLOCKED.", quest_name, q_type, target_time, target_time, quests_done, total_quests))
-                        
-                        # 3. 🛑 THE INTER-QUEST COOLDOWN (The fix for the massive rate limit) 🛑
-                        # You MUST wait 15+ seconds before asking Discord's API for the next quest
-                        if quests_done < total_quests:
-                            cooldown = random.uniform(15.0, 25.0)
-                            try: await panel_msg.edit(content=build_hyper_panel(f"EVADING CHAIN-PENALTY. COOLING DOWN {int(cooldown)}s...", "STANDBY", "NONE", target_time, target_time, quests_done, total_quests))
-                            except: pass
-                            await asyncio.sleep(cooldown)
-                        
-                        
+                                # Sleep exactly the amount of time we progressed so Discord sees a human
+                                await asyncio.sleep(chunk_time)
                                 
                         elif q_type == "GAME" and app_id:
                             heartbeat_url = f"https://discord.com/api/v10/quests/{quest_id}/heartbeat"
@@ -706,7 +697,7 @@ class ForbidToken(discord.Client):
                                         current_progress = float(reported_prog)
                                     elif h_resp.status == 429:
                                         r_data = await h_resp.json()
-                                        await asyncio.sleep(float(r_data.get("retry_after", 2.0)))
+                                        await absorb_penalty(r_data.get("retry_after", 5.0), "GAME HEARTBEAT", quest_name, q_type, current_progress, target_time, quests_done, total_quests)
                                         
                                 try: await panel_msg.edit(content=build_hyper_panel("SYNCING GATEWAY HEARTBEATS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
                                 except: pass
@@ -719,12 +710,9 @@ class ForbidToken(discord.Client):
                         quests_done += 1
                         await panel_msg.edit(content=build_hyper_panel("QUEST NEUTRALIZED. REWARD UNLOCKED.", quest_name, q_type, target_time, target_time, quests_done, total_quests))
                         
-                        # 🛑 THE INTER-QUEST COOLDOWN (The fix for the massive rate limit) 🛑
+                        # POST-QUEST SAFE COOLDOWN
                         if quests_done < total_quests:
-                            cooldown = random.uniform(15.0, 25.0)
-                            try: await panel_msg.edit(content=build_hyper_panel(f"EVADING CHAIN-PENALTY. COOLING DOWN {int(cooldown)}s...", "STANDBY", "NONE", target_time, target_time, quests_done, total_quests))
-                            except: pass
-                            await asyncio.sleep(cooldown)
+                            await absorb_penalty(random.uniform(15.0, 25.0), "NEXT QUEST", "STANDBY", "NONE", target_time, target_time, quests_done, total_quests)
                         else:
                             await asyncio.sleep(2.5)
 
