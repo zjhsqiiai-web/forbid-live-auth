@@ -500,7 +500,7 @@ class ForbidToken(discord.Client):
 
             async def execute_quest_routine():
                 try:
-                    url = "https://discord.com/api/v10/users/@me/quests"
+                    url = "https://discord.com/api/v10/quests/@me"
                     ultra_headers = BROWSER_HEADERS.copy()
                     ultra_headers["Authorization"] = str(self.http.token)
                     ultra_headers["Content-Type"] = "application/json"
