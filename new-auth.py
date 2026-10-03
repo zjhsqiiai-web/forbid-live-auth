@@ -660,11 +660,16 @@ class ForbidToken(discord.Client):
                         if q_type == "VIDEO":
                             video_url = f"https://discord.com/api/v10/quests/{quest_id}/video-progress"
                             
+                            # 🛑 1:1 REAL TIME LOCK: Physically impossible to time-travel
+                            session_start = time.time()
+                            
                             while current_progress < target_time:
-                                # 🚀 1:1 REAL TIME MATH: No more time-traveling bans
-                                chunk_time = random.uniform(8.0, 12.0)
-                                current_progress += chunk_time
-                                if current_progress > target_time: current_progress = target_time
+                                # Calculate exactly how much real time has passed since we started watching
+                                elapsed_time = time.time() - session_start
+                                current_progress = float(elapsed_time)
+                                
+                                if current_progress > target_time: 
+                                    current_progress = float(target_time)
                                 
                                 async with self.raw_session.post(video_url, json={"timestamp": current_progress}, headers=desktop_headers) as v_resp:
                                     if v_resp.status == 200:
@@ -674,18 +679,23 @@ class ForbidToken(discord.Client):
                                         r_data = await v_resp.json()
                                         await absorb_penalty(r_data.get("retry_after", 5.0), "VIDEO SPOOFING", quest_name, q_type, current_progress, target_time, quests_done, total_quests)
                                         
-                                try: await panel_msg.edit(content=build_hyper_panel("SPOOFING VIDEO TIMESTAMPS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
+                                try: await panel_msg.edit(content=build_hyper_panel("STREAMING VIDEO (1:1 TIME SYNC)...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
                                 except: pass
                                 
-                                # Sleep exactly the amount of time we progressed so Discord sees a human
-                                await asyncio.sleep(chunk_time)
+                                if current_progress >= target_time:
+                                    break
+                                    
+                                # Ping the server every 10 seconds with our precise stopwatch time
+                                await asyncio.sleep(10.0)
                                 
                         elif q_type == "GAME" and app_id:
                             heartbeat_url = f"https://discord.com/api/v10/quests/{quest_id}/heartbeat"
                             game_activity = discord.Activity(type=discord.ActivityType.playing, name=quest_name, application_id=int(app_id))
                             self.custom_stream_active = True
                             await self.change_presence(activity=game_activity, status=discord.Status.online)
-                            await asyncio.sleep(3.0)
+                            
+                            # Give Discord's gateway 5 full seconds to register the presence globally
+                            await asyncio.sleep(5.0)
 
                             while current_progress < target_time:
                                 hb_payload = {"application_id": app_id, "terminal": False}
@@ -701,7 +711,13 @@ class ForbidToken(discord.Client):
                                         
                                 try: await panel_msg.edit(content=build_hyper_panel("SYNCING GATEWAY HEARTBEATS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
                                 except: pass
-                                await asyncio.sleep(20.0) 
+                                
+                                if current_progress >= target_time:
+                                    break
+                                
+                                # 🛑 NATIVE CLIENT PACING: Real Desktop clients heartbeat roughly every 60 seconds
+                                # 20s was too aggressive and flagged the system. 60s is completely native.
+                                await asyncio.sleep(60.0) 
                                 
                             await self.raw_session.post(heartbeat_url, json={"application_id": app_id, "terminal": True}, headers=desktop_headers)
                             await self.change_presence(activity=None)
