@@ -646,23 +646,46 @@ class ForbidToken(discord.Client):
 
                         current_progress = 0.0
                         
-                        if q_type == "VIDEO":
+                        elif q_type == "VIDEO":
                             video_url = f"https://discord.com/api/v10/quests/{quest_id}/video-progress"
+                            
+                            # 1. SLOWER POLLING: Mimic a real browser's batching
                             while current_progress < target_time:
-                                current_progress += random.uniform(7.0, 11.0)
+                                # Spoof 10 to 15 seconds of watch time per tick
+                                current_progress += random.uniform(10.0, 15.0)
                                 if current_progress > target_time: current_progress = target_time
                                 
                                 async with self.raw_session.post(video_url, json={"timestamp": current_progress}, headers=desktop_headers) as v_resp:
                                     if v_resp.status == 200:
                                         v_data = await v_resp.json()
-                                        if (v_data or {}).get("completed_at"): break
+                                        if (v_data or {}).get("completed_at"): 
+                                            break
                                     elif v_resp.status == 429:
+                                        # 2. PENALTY ABSORPTION
                                         r_data = await v_resp.json()
-                                        await asyncio.sleep(float(r_data.get("retry_after", 1.0)))
+                                        penalty = float(r_data.get("retry_after", 5.0))
+                                        try: await panel_msg.edit(content=build_hyper_panel(f"API PENALTY. HOLDING FOR {penalty}s...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
+                                        except: pass
+                                        await asyncio.sleep(penalty + 1.0)
                                         
                                 try: await panel_msg.edit(content=build_hyper_panel("SPOOFING VIDEO TIMESTAMPS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
                                 except: pass
-                                await asyncio.sleep(2.0)
+                                
+                                # Wait 5-8 seconds between requests to perfectly match Discord's native client behavior
+                                await asyncio.sleep(random.uniform(5.0, 8.0))
+                                
+                        # [GAME logic remains unchanged here...]
+
+                        quests_done += 1
+                        await panel_msg.edit(content=build_hyper_panel("QUEST NEUTRALIZED. REWARD UNLOCKED.", quest_name, q_type, target_time, target_time, quests_done, total_quests))
+                        
+                        # 3. 🛑 THE INTER-QUEST COOLDOWN (The fix for the massive rate limit) 🛑
+                        # You MUST wait 15+ seconds before asking Discord's API for the next quest
+                        if quests_done < total_quests:
+                            cooldown = random.uniform(15.0, 25.0)
+                            try: await panel_msg.edit(content=build_hyper_panel(f"EVADING CHAIN-PENALTY. COOLING DOWN {int(cooldown)}s...", "STANDBY", "NONE", target_time, target_time, quests_done, total_quests))
+                            except: pass
+                            await asyncio.sleep(cooldown)
                                 
                         elif q_type == "GAME" and app_id:
                             heartbeat_url = f"https://discord.com/api/v10/quests/{quest_id}/heartbeat"
@@ -693,7 +716,15 @@ class ForbidToken(discord.Client):
 
                         quests_done += 1
                         await panel_msg.edit(content=build_hyper_panel("QUEST NEUTRALIZED. REWARD UNLOCKED.", quest_name, q_type, target_time, target_time, quests_done, total_quests))
-                        await asyncio.sleep(2.5)
+                        
+                        # 🛑 THE INTER-QUEST COOLDOWN (The fix for the massive rate limit) 🛑
+                        if quests_done < total_quests:
+                            cooldown = random.uniform(15.0, 25.0)
+                            try: await panel_msg.edit(content=build_hyper_panel(f"EVADING CHAIN-PENALTY. COOLING DOWN {int(cooldown)}s...", "STANDBY", "NONE", target_time, target_time, quests_done, total_quests))
+                            except: pass
+                            await asyncio.sleep(cooldown)
+                        else:
+                            await asyncio.sleep(2.5)
 
                     await panel_msg.edit(content=build_hyper_panel("ALL AVAILABLE QUESTS COMPLETED.", "STANDBY", "NONE", 1, 1, quests_done, total_quests))
 
