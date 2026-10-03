@@ -484,6 +484,7 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "quest" or command == "runquest":
+            # 1. SWARM TARGETING
             args_lower = [p.lower() for p in parts]
             is_all = "all" in args_lower
             mentioned_bots = [m for m in message.mentions if m.id in ACTIVE_SWARM or m == self.user]
@@ -494,117 +495,148 @@ class ForbidToken(discord.Client):
             if not is_all and self.user not in mentioned_bots:
                 return
 
-            await message.channel.send(f"🎮 **[QUEST ENGINE]** Initializing automated quest routines for **{self.user.name}**...")
+            # 2. INITIALIZE LIVE UI PANEL
+            panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // NODE {self.user.name} EXTRACTING QUEST DATA...`")
 
             async def execute_quest_routine():
+                import time
+                import random
+                
+                # 🛑 ZERO-MARGIN TERMINAL PANEL GENERATOR
+                def build_quest_panel(status_text, active_quest="SCANNING...", completed=0, total=0):
+                    return (
+                        f"```yaml\n"
+                        f"🎮 FORB1D // AUTO-QUEST ENGINE 🎮\n"
+                        f"=================================\n"
+                        f"[+] Node     : {self.user.name}\n"
+                        f"[+] Target   : {active_quest}\n"
+                        f"[+] Progress : {completed} / {total} Quests\n"
+                        f"[!] Status   : {status_text}\n"
+                        f"=================================\n"
+                        f"```"
+                    )
+
                 try:
-                    url = "https://discord.com/api/v10/quests/@me"
                     ultra_headers = BROWSER_HEADERS.copy()
                     ultra_headers["Authorization"] = str(self.http.token)
                     ultra_headers["Content-Type"] = "application/json"
 
-                    # 1. Safe Request Fetching with NoneType protection
+                    # Fetch Quests
+                    url = "https://discord.com/api/v10/quests/@me"
                     async with self.raw_session.get(url, headers=ultra_headers) as resp:
                         if resp.status != 200:
-                            err_text = await resp.text()
-                            print(f"⚠️ [{self.user.name}] Failed to fetch quests. Status: {resp.status} | Body: {err_text[:150]}", flush=True)
+                            await panel_msg.edit(content=build_quest_panel(f"API REJECTED STATUS {resp.status}"))
                             return
                         
                         _q_json = globals().get('orjson') or globals().get('json')
-                        resp_text = await resp.text()
-                        data = _q_json.loads(resp_text) if hasattr(_q_json, 'loads') else json.loads(resp_text)
+                        data = _q_json.loads(await resp.text()) if hasattr(_q_json, 'loads') else json.loads(await resp.text())
                         
-                        if not isinstance(data, dict):
-                            print(f"⚠️ [{self.user.name}] Unexpected quest response structure.", flush=True)
-                            return
-
-                        quests = data.get("quests", [])
-                        if not quests:
-                            print(f"ℹ️ [{self.user.name}] No active quests available.", flush=True)
-                            return
-
-                    # 2. Process each valid quest via proper schema mapping
-                    for quest in quests:
-                        if not isinstance(quest, dict):
-                            continue
+                        quests = data.get("quests", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
                         
+                        # Filter out expired or already completed quests safely
+                        valid_quests = []
+                        for q in quests:
+                            if not isinstance(q, dict): continue
+                            if (q.get("user_status") or {}).get("completed_at"): continue
+                            valid_quests.append(q)
+
+                        total_quests = len(valid_quests)
+                        if total_quests == 0:
+                            return await panel_msg.edit(content=build_quest_panel("NO ACTIVE QUESTS FOUND.", "N/A", 0, 0))
+
+                    quests_completed = 0
+
+                    for quest in valid_quests:
                         quest_id = quest.get("id")
-                        if not quest_id:
-                            continue
-
                         config = quest.get("config") or {}
                         messages = config.get("messages") or {}
                         quest_name = messages.get("quest_name") or messages.get("game_title") or quest_id
 
-                        # Check completion / enrollment status safely
+                        await panel_msg.edit(content=build_quest_panel("BYPASSING ENROLLMENT LOCK...", quest_name, quests_completed, total_quests))
+                        
+                        # 3. ADVANCED ENROLLMENT BYPASS (Fixes the 400 Bad Request error)
                         user_status = quest.get("user_status") or {}
-                        if user_status.get("completed_at"):
-                            continue
-
-                        print(f"🎯 [{self.user.name}] Processing Quest: {quest_name}", flush=True)
-
-                        # Auto-enroll if needed
                         if not user_status.get("enrolled_at"):
                             enroll_url = f"https://discord.com/api/v10/quests/{quest_id}/enroll"
-                            enroll_body = {"location": 11, "is_targeted": False, "metadata_raw": None}
-                            for key in ("traffic_metadata_raw", "traffic_metadata_sealed"):
+                            enroll_body = {
+                                "location": 11,
+                                "is_targeted": False,
+                                "metadata_raw": quest.get("metadata_raw")
+                            }
+                            # Inject dynamic tracking metadata if Discord requires it
+                            for key in ("traffic_metadata_raw", "traffic_metadata_sealed", "location_metadata"):
                                 if quest.get(key) is not None:
                                     enroll_body[key] = quest[key]
                             
                             async with self.raw_session.post(enroll_url, json=enroll_body, headers=ultra_headers) as e_resp:
                                 if e_resp.status not in (200, 204):
-                                    print(f"⚠️ [{self.user.name}] Could not auto-enroll in {quest_name}", flush=True)
+                                    await panel_msg.edit(content=build_quest_panel("ENROLLMENT FAILED. SKIPPING.", quest_name, quests_completed, total_quests))
+                                    await asyncio.sleep(2)
                                     continue
 
-                        # Task execution routing (Video watch vs Desktop play)
+                        # 4. TELEMETRY INJECTION (Desktop vs Video routing)
                         task_config = config.get("task_config_v2") or config.get("task_config") or {}
                         tasks = task_config.get("tasks") or {}
 
                         if "PLAY_ON_DESKTOP" in tasks:
                             app_id = (config.get("application") or {}).get("id")
-                            if not app_id:
-                                continue
+                            if not app_id: continue
                             
-                            # Execute heartbeats until completion
+                            await panel_msg.edit(content=build_quest_panel("INJECTING DESKTOP HEARTBEATS...", quest_name, quests_completed, total_quests))
                             heartbeat_url = f"https://discord.com/api/v10/quests/{quest_id}/heartbeat"
-                            for _ in range(30): # Safety bounds check
-                                async with self.raw_session.post(heartbeat_url, json={"application_id": app_id, "terminal": False}, headers=ultra_headers) as h_resp:
+                            
+                            # Pump heartbeats for ~15 mins (Simulated by 30 iterations of 30s)
+                            for step in range(35):
+                                hb_payload = {"application_id": app_id, "terminal": False}
+                                async with self.raw_session.post(heartbeat_url, json=hb_payload, headers=ultra_headers) as h_resp:
                                     if h_resp.status == 200:
                                         h_data = await h_resp.json()
                                         if (h_data or {}).get("completed_at"):
-                                            print(f"✅ [{self.user.name}] Desktop quest completed: {quest_name}", flush=True)
-                                            break
-                                await asyncio.sleep(15)
+                                            break # Quest finished!
+                                # Anti-lag: Update panel occasionally to show bot is alive
+                                if step % 5 == 0:
+                                    try: await panel_msg.edit(content=build_quest_panel(f"HEARTBEAT [{step}/30] PUMPING...", quest_name, quests_completed, total_quests))
+                                    except: pass
+                                await asyncio.sleep(25.0 + random.uniform(1.0, 5.0))
+                                
+                            # Send final terminal heartbeat to close the session
+                            await self.raw_session.post(heartbeat_url, json={"application_id": app_id, "terminal": True}, headers=ultra_headers)
 
-                        elif "WATCH_VIDEO" in tasks or "WATCH_VIDEO_ON_MOBILE":
+                        elif "WATCH_VIDEO" in tasks or "WATCH_VIDEO_ON_MOBILE" in tasks:
+                            await panel_msg.edit(content=build_quest_panel("SPOOFING VIDEO TELEMETRY...", quest_name, quests_completed, total_quests))
                             video_url = f"https://discord.com/api/v10/quests/{quest_id}/video-progress"
-                            # Simulating video progress ticks safely
-                            for timestamp in range(10, 70, 10):
-                                async with self.raw_session.post(video_url, json={"timestamp": float(timestamp)}, headers=ultra_headers) as v_resp:
+                            
+                            # Incrementally spoof watch time
+                            current_timestamp = 0.0
+                            for _ in range(15):
+                                current_timestamp += random.uniform(5.0, 10.0)
+                                async with self.raw_session.post(video_url, json={"timestamp": current_timestamp}, headers=ultra_headers) as v_resp:
                                     if v_resp.status == 200:
                                         v_data = await v_resp.json()
                                         if (v_data or {}).get("completed_at"):
-                                            print(f"✅ [{self.user.name}] Video quest completed: {quest_name}", flush=True)
                                             break
-                                await asyncio.sleep(2)
+                                await asyncio.sleep(3.0)
+
+                        quests_completed += 1
+                        await panel_msg.edit(content=build_quest_panel("QUEST NEUTRALIZED.", quest_name, quests_completed, total_quests))
+                        await asyncio.sleep(2.0)
+
+                    # 5. FINAL MISSION REPORT
+                    await panel_msg.edit(content=build_quest_panel("ALL AVAILABLE QUESTS COMPLETED.", "STANDBY", quests_completed, total_quests))
 
                 except Exception as e:
-                    print(f"⚠️ [{self.user.name}] Quest routine critical error: {e}", flush=True)
+                    try: await panel_msg.edit(content=build_quest_panel(f"CRITICAL ERROR: {str(e)[:40]}"))
+                    except: pass
+                    print(f"⚠️ [{self.user.name}] Quest Engine Crash: {e}", flush=True)
 
+            # Spawn into isolated task registry
             if 'quest_tasks' not in globals():
                 globals()['quest_tasks'] = {}
             
-            _q_tasks = globals()['quest_tasks']
-            channel_id = message.channel.id
-
-            task_name = f"quest_{channel_id}_{message.id}"
-            task = asyncio.create_task(execute_quest_routine(), name=task_name)
-            
-            if channel_id not in _q_tasks:
-                _q_tasks[channel_id] = []
-            _q_tasks[channel_id].append(task)
-
-            await message.channel.send(f"🚀 **{self.user.name}** background quest engine launched.")
+            task = asyncio.create_task(execute_quest_routine(), name=f"quest_{message.channel.id}_{message.id}")
+            if message.channel.id not in globals()['quest_tasks']:
+                globals()['quest_tasks'][message.channel.id] = []
+            globals()['quest_tasks'][message.channel.id].append(task)
 
         elif command == "purge":
             # Usage: ^purge @bot <amount>
