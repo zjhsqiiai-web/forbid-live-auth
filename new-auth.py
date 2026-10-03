@@ -484,7 +484,6 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "quest" or command == "runquest":
-            # 1. SWARM TARGETING
             args_lower = [p.lower() for p in parts]
             is_all = "all" in args_lower
             mentioned_bots = [m for m in message.mentions if m.id in ACTIVE_SWARM or m == self.user]
@@ -494,25 +493,24 @@ class ForbidToken(discord.Client):
             if not is_all and self.user not in mentioned_bots:
                 return
 
-            panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // NODE {self.user.name} BOOTING NEURAL INJECTOR...`")
+            panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // NODE {self.user.name} BOOTING GATEWAY INJECTOR...`")
 
             async def execute_quest_routine():
                 import time
                 import random
+                import base64
+                import uuid
+                import json
                 
-                # 🛑 THE TIER-1 CYBERPUNK PANEL GENERATOR 🛑
                 def build_hyper_panel(sys_status, q_name="AWAITING...", q_type="SCAN", curr_val=0, target_val=1, done=0, total=0):
-                    # Mathematical progress bar generation
                     pct = min(100, int((curr_val / max(1, target_val)) * 100))
                     filled = int(pct / 10)
                     bar = "█" * filled + "▒" * (10 - filled)
-                    
-                    t_str = f"{target_val}s" if target_val < 60 else f"{target_val//60}m {target_val%60}s"
+                    t_str = f"{target_val}s" if target_val < 60 else f"{int(target_val)//60}m {int(target_val)%60}s"
                     c_str = f"{int(curr_val)}s" if curr_val < 60 else f"{int(curr_val)//60}m {int(curr_val)%60}s"
-                    
                     return (
                         f"```yaml\n"
-                        f"⚡ FORB1D // NEURAL QUEST INJECTOR ⚡\n"
+                        f"⚡ FORB1D // GATEWAY QUEST INJECTOR ⚡\n"
                         f"=======================================\n"
                         f"[+] Node      : {self.user.name}\n"
                         f"[+] Queue     : {done} / {total} Neutralized\n\n"
@@ -526,21 +524,48 @@ class ForbidToken(discord.Client):
                     )
 
                 try:
-                    ultra_headers = BROWSER_HEADERS.copy()
-                    ultra_headers["Authorization"] = str(self.http.token)
-                    ultra_headers["Content-Type"] = "application/json"
+                    # 1. FORGE DESKTOP CLIENT HEADERS (Critical for Anti-Cheat Bypass)
+                    client_uuid = str(uuid.uuid4())
+                    super_props = {
+                        "os": "Windows",
+                        "browser": "Discord Client",
+                        "release_channel": "stable",
+                        "client_version": "1.0.9215",
+                        "os_version": "10.0.19045",
+                        "os_arch": "x64",
+                        "app_arch": "x64",
+                        "system_locale": "en-US",
+                        "has_client_mods": False,
+                        "client_launch_id": client_uuid,
+                        "browser_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9215 Chrome/138.0.7204.251 Electron/37.6.0 Safari/537.36",
+                        "browser_version": "37.6.0",
+                        "os_sdk_version": "19045",
+                        "client_build_number": 471091,
+                        "native_build_number": 72186,
+                        "client_event_source": None,
+                    }
+                    encoded_props = base64.b64encode(json.dumps(super_props).encode()).decode()
 
-                    # 1. FETCH & PARSE
+                    desktop_headers = {
+                        "Authorization": str(self.http.token),
+                        "Content-Type": "application/json",
+                        "User-Agent": super_props["browser_user_agent"],
+                        "X-Super-Properties": encoded_props,
+                        "X-Discord-Locale": "en-US",
+                        "Origin": "https://discord.com",
+                        "Referer": "https://discord.com/channels/@me"
+                    }
+
+                    # FETCH QUESTS
                     url = "https://discord.com/api/v10/quests/@me"
-                    async with self.raw_session.get(url, headers=ultra_headers) as resp:
+                    async with self.raw_session.get(url, headers=desktop_headers) as resp:
                         if resp.status != 200:
                             return await panel_msg.edit(content=build_hyper_panel(f"API REJECTED STATUS {resp.status}"))
                         
-                        _q_json = globals().get('orjson') or globals().get('json')
-                        data = _q_json.loads(await resp.text()) if hasattr(_q_json, 'loads') else json.loads(await resp.text())
+                        data = await resp.json()
                         quests = data.get("quests", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
 
-                    # 2. FILTER & SMART-SORT (Shortest Quests First)
+                    # FILTER & SMART-SORT
                     valid_quests = []
                     for q in quests:
                         if not isinstance(q, dict): continue
@@ -550,7 +575,6 @@ class ForbidToken(discord.Client):
                         tcfg = cfg.get("task_config_v2") or cfg.get("task_config") or {}
                         tasks = tcfg.get("tasks", {})
                         
-                        # Extract exact duration targets required by Discord
                         target_time = 9999
                         q_type = "UNKNOWN"
                         if "WATCH_VIDEO" in tasks:
@@ -563,20 +587,18 @@ class ForbidToken(discord.Client):
                             target_time = tasks["PLAY_ON_DESKTOP"].get("target", 900)
                             q_type = "GAME"
                             
-                        # Store extracted data back into the dict
                         q["_parsed_target"] = target_time
                         q["_parsed_type"] = q_type
                         valid_quests.append(q)
 
-                    if not valid_quests:
-                        return await panel_msg.edit(content=build_hyper_panel("NO ACTIVE QUESTS FOUND.", target_val=1))
-
-                    # 🚀 THE SORTING ENGINE: Ascending order (Shortest videos first, 15m games last)
                     valid_quests.sort(key=lambda x: x["_parsed_target"])
                     total_quests = len(valid_quests)
                     quests_done = 0
 
-                    # 3. EXECUTE QUEUE
+                    if total_quests == 0:
+                        return await panel_msg.edit(content=build_hyper_panel("NO ACTIVE QUESTS FOUND.", target_val=1))
+
+                    # EXECUTE QUEUE
                     for quest in valid_quests:
                         quest_id = quest.get("id")
                         q_type = quest["_parsed_type"]
@@ -585,10 +607,11 @@ class ForbidToken(discord.Client):
                         config = quest.get("config") or {}
                         messages = config.get("messages") or {}
                         quest_name = messages.get("quest_name") or messages.get("game_title") or quest_id
+                        app_id = (config.get("application") or {}).get("id")
 
                         await panel_msg.edit(content=build_hyper_panel("BYPASSING ENROLLMENT LOCK...", quest_name, q_type, 0, target_time, quests_done, total_quests))
                         
-                        # ENROLLMENT BYPASS (Fixes the 400 Bad Request error dynamically)
+                        # ENROLLMENT
                         user_status = quest.get("user_status") or {}
                         if not user_status.get("enrolled_at"):
                             enroll_url = f"https://discord.com/api/v10/quests/{quest_id}/enroll"
@@ -596,60 +619,67 @@ class ForbidToken(discord.Client):
                             for key in ("traffic_metadata_raw", "traffic_metadata_sealed", "location_metadata"):
                                 if quest.get(key) is not None: enroll_body[key] = quest[key]
                             
-                            async with self.raw_session.post(enroll_url, json=enroll_body, headers=ultra_headers) as e_resp:
+                            async with self.raw_session.post(enroll_url, json=enroll_body, headers=desktop_headers) as e_resp:
                                 if e_resp.status not in (200, 204):
-                                    await panel_msg.edit(content=build_hyper_panel("ENROLLMENT FAILED. SKIPPING.", quest_name, q_type, 0, target_time, quests_done, total_quests))
+                                    await panel_msg.edit(content=build_hyper_panel(f"ENROLLMENT FAILED ({e_resp.status}). SKIPPING.", quest_name, q_type, 0, target_time, quests_done, total_quests))
                                     await asyncio.sleep(2)
                                     continue
 
-                        # TELEMETRY INJECTION PROTOCOLS
                         current_progress = 0.0
                         
                         if q_type == "VIDEO":
                             video_url = f"https://discord.com/api/v10/quests/{quest_id}/video-progress"
-                            # Fast-forward video spoofing: Spoofs 7-12s of watch time every 2 seconds.
                             while current_progress < target_time:
-                                current_progress += random.uniform(7.0, 12.0)
+                                # Micro-variance to trick ML detection
+                                current_progress += 1.0 + random.random()
                                 if current_progress > target_time: current_progress = target_time
                                 
-                                async with self.raw_session.post(video_url, json={"timestamp": current_progress}, headers=ultra_headers) as v_resp:
+                                async with self.raw_session.post(video_url, json={"timestamp": current_progress}, headers=desktop_headers) as v_resp:
                                     if v_resp.status == 200:
                                         v_data = await v_resp.json()
                                         if (v_data or {}).get("completed_at"): break
                                         
                                 try: await panel_msg.edit(content=build_hyper_panel("SPOOFING VIDEO TIMESTAMPS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
                                 except: pass
-                                await asyncio.sleep(2.0)
+                                await asyncio.sleep(1.0)
                                 
-                        elif q_type == "GAME":
-                            app_id = (config.get("application") or {}).get("id")
-                            if not app_id: continue
+                        elif q_type == "GAME" and app_id:
                             heartbeat_url = f"https://discord.com/api/v10/quests/{quest_id}/heartbeat"
                             
-                            # Real-time game telemetry. Discord strictly requires time passing. 
-                            # We pulse a heartbeat exactly every 20s until the 15m mark is reached.
+                            # 🚀 GATEWAY PRESENCE HOOK: Discord requires us to ACTUALLY "play" the game
+                            game_activity = discord.Activity(type=discord.ActivityType.playing, name=quest_name, application_id=int(app_id))
+                            self.custom_stream_active = True # Pause standard stream
+                            await self.change_presence(activity=game_activity, status=discord.Status.online)
+                            
+                            # Give the gateway a second to register our status to Discord's servers
+                            await asyncio.sleep(3.0)
+
                             while current_progress < target_time:
                                 hb_payload = {"application_id": app_id, "terminal": False}
-                                async with self.raw_session.post(heartbeat_url, json=hb_payload, headers=ultra_headers) as h_resp:
+                                async with self.raw_session.post(heartbeat_url, json=hb_payload, headers=desktop_headers) as h_resp:
                                     if h_resp.status == 200:
                                         h_data = await h_resp.json()
                                         if (h_data or {}).get("completed_at"): break
+                                        # Use Discord's actual reported progress instead of our blind math
+                                        reported_prog = (h_data.get("progress") or {}).get("PLAY_ON_DESKTOP", {}).get("value", current_progress)
+                                        current_progress = float(reported_prog)
                                         
-                                try: await panel_msg.edit(content=build_hyper_panel("PUMPING GAME HEARTBEATS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
+                                try: await panel_msg.edit(content=build_hyper_panel("SYNCING GATEWAY HEARTBEATS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
                                 except: pass
                                 
-                                current_progress += 20.0
-                                if current_progress > target_time: current_progress = target_time
-                                await asyncio.sleep(20.0)
+                                await asyncio.sleep(20.0) # Discord expects heartbeats every ~20s
                                 
-                            # Final terminal heartbeat to secure the reward
-                            await self.raw_session.post(heartbeat_url, json={"application_id": app_id, "terminal": True}, headers=ultra_headers)
+                            # Final terminal heartbeat
+                            await self.raw_session.post(heartbeat_url, json={"application_id": app_id, "terminal": True}, headers=desktop_headers)
+                            
+                            # Clear presence
+                            await self.change_presence(activity=None)
+                            self.custom_stream_active = False
 
                         quests_done += 1
                         await panel_msg.edit(content=build_hyper_panel("QUEST NEUTRALIZED. REWARD UNLOCKED.", quest_name, q_type, target_time, target_time, quests_done, total_quests))
                         await asyncio.sleep(2.5)
 
-                    # 4. FINAL MISSION REPORT
                     await panel_msg.edit(content=build_hyper_panel("ALL AVAILABLE QUESTS COMPLETED.", "STANDBY", "NONE", 1, 1, quests_done, total_quests))
 
                 except Exception as e:
@@ -657,13 +687,9 @@ class ForbidToken(discord.Client):
                     except: pass
                     print(f"⚠️ [{self.user.name}] Quest Engine Crash: {e}", flush=True)
 
-            # Spawn securely into the isolated task registry
-            if 'quest_tasks' not in globals():
-                globals()['quest_tasks'] = {}
-            
+            if 'quest_tasks' not in globals(): globals()['quest_tasks'] = {}
             task = asyncio.create_task(execute_quest_routine(), name=f"quest_{message.channel.id}_{message.id}")
-            if message.channel.id not in globals()['quest_tasks']:
-                globals()['quest_tasks'][message.channel.id] = []
+            if message.channel.id not in globals()['quest_tasks']: globals()['quest_tasks'][message.channel.id] = []
             globals()['quest_tasks'][message.channel.id].append(task)
 
         elif command == "purge":
