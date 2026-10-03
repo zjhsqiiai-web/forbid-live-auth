@@ -483,6 +483,96 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "quest" or command == "runquest":
+            # 1. Parse Targeting Arguments Properly ("all" or specific @mentions)
+            args_lower = [p.lower() for p in parts]
+            is_all = "all" in args_lower
+            mentioned_bots = [m for m in message.mentions if m.id in ACTIVE_SWARM or m == self.user]
+
+            if not is_all and not mentioned_bots:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^quest @bot1 @bot2` or `^quest all`")
+
+            # If targeted, ignore if this specific client instance wasn't mentioned
+            if not is_all and self.user not in mentioned_bots:
+                return
+
+            await message.channel.send(f"🎮 **[QUEST ENGINE]** Initializing automated quest synchronization for **{self.user.name}**...")
+
+            async def execute_quest_routine():
+                try:
+                    url = "https://discord.com/api/v10/users/@me/quests"
+                    ultra_headers = BROWSER_HEADERS.copy()
+                    ultra_headers["Authorization"] = str(self.http.token)
+                    ultra_headers["Content-Type"] = "application/json"
+
+                    async with self.raw_session.get(url, headers=ultra_headers) as resp:
+                        if resp.status != 200:
+                            err_body = await resp.text()
+                            print(f"⚠️ [{self.user.name}] Failed to fetch quests. Status: {resp.status} | Body: {err_body[:150]}", flush=True)
+                            return
+                        
+                        _q_json = globals().get('orjson') or globals().get('json')
+                        resp_text = await resp.text()
+                        data = _q_json.loads(resp_text) if hasattr(_q_json, 'loads') else json.loads(resp_text)
+                        
+                        quests = data.get("quests", data) if isinstance(data, dict) else data
+
+                        if not quests:
+                            print(f"ℹ️ [{self.user.name}] No active uncompleted quests found.", flush=True)
+                            return
+
+                    for quest in quests:
+                        quest_id = quest.get("id")
+                        quest_config = quest.get("config", {})
+                        
+                        messages_cfg = quest_config.get("messages", {})
+                        quest_name = messages_cfg.get("quest_name") or messages_cfg.get("game_title") or "Promotional Quest"
+                        user_status = quest.get("user_status", {})
+                        
+                        if user_status.get("completed_at"):
+                            continue
+
+                        print(f"🎯 [{self.user.name}] Processing Quest: {quest_name} (ID: {quest_id})", flush=True)
+
+                        progress_url = f"https://discord.com/api/v10/users/@me/quests/{quest_id}/progress"
+                        
+                        # 2. Diagnostic Error Logging (Catches 400 schemas instead of swallowing them)
+                        for tick in range(3):
+                            async with self.raw_session.post(progress_url, json={"progress": 100}, headers=ultra_headers) as p_resp:
+                                status = p_resp.status
+                                if status in (200, 204):
+                                    print(f"✅ [{self.user.name}] Progress synchronized for: {quest_name}", flush=True)
+                                    break
+                                elif status == 429:
+                                    rate_data = await p_resp.json()
+                                    retry = float(rate_data.get("retry_after", 1.0))
+                                    await asyncio.sleep(retry)
+                                else:
+                                    # Log the exact schema failure so you can inspect it in the console
+                                    fail_body = await p_resp.text()
+                                    print(f"⚠️ [{self.user.name}] Progress sync rejected ({status}) for {quest_name}: {fail_body[:150]}", flush=True)
+                                    break
+                            await asyncio.sleep(1.5)
+
+                except Exception as e:
+                    print(f"⚠️ [{self.user.name}] Quest routine critical error: {e}", flush=True)
+
+            # 3. Isolated Task Registry (Goodbye spam_tasks code smell)
+            if 'quest_tasks' not in globals():
+                globals()['quest_tasks'] = {}
+            
+            _q_tasks = globals()['quest_tasks']
+            channel_id = message.channel.id
+
+            task_name = f"quest_{channel_id}_{message.id}"
+            task = asyncio.create_task(execute_quest_routine(), name=task_name)
+            
+            if channel_id not in _q_tasks:
+                _q_tasks[channel_id] = []
+            _q_tasks[channel_id].append(task)
+
+            await message.channel.send(f"🚀 **{self.user.name}** background quest worker active.")
+
         elif command == "purge":
             # Usage: ^purge @bot <amount>
             if not message.mentions or self.user not in message.mentions:
