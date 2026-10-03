@@ -484,7 +484,6 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "quest" or command == "runquest":
-            # 1. Parse Targeting Arguments Properly ("all" or specific @mentions)
             args_lower = [p.lower() for p in parts]
             is_all = "all" in args_lower
             mentioned_bots = [m for m in message.mentions if m.id in ACTIVE_SWARM or m == self.user]
@@ -492,11 +491,10 @@ class ForbidToken(discord.Client):
             if not is_all and not mentioned_bots:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^quest @bot1 @bot2` or `^quest all`")
 
-            # If targeted, ignore if this specific client instance wasn't mentioned
             if not is_all and self.user not in mentioned_bots:
                 return
 
-            await message.channel.send(f"🎮 **[QUEST ENGINE]** Initializing automated quest synchronization for **{self.user.name}**...")
+            await message.channel.send(f"🎮 **[QUEST ENGINE]** Initializing automated quest routines for **{self.user.name}**...")
 
             async def execute_quest_routine():
                 try:
@@ -505,59 +503,94 @@ class ForbidToken(discord.Client):
                     ultra_headers["Authorization"] = str(self.http.token)
                     ultra_headers["Content-Type"] = "application/json"
 
+                    # 1. Safe Request Fetching with NoneType protection
                     async with self.raw_session.get(url, headers=ultra_headers) as resp:
                         if resp.status != 200:
-                            err_body = await resp.text()
-                            print(f"⚠️ [{self.user.name}] Failed to fetch quests. Status: {resp.status} | Body: {err_body[:150]}", flush=True)
+                            err_text = await resp.text()
+                            print(f"⚠️ [{self.user.name}] Failed to fetch quests. Status: {resp.status} | Body: {err_text[:150]}", flush=True)
                             return
                         
                         _q_json = globals().get('orjson') or globals().get('json')
                         resp_text = await resp.text()
                         data = _q_json.loads(resp_text) if hasattr(_q_json, 'loads') else json.loads(resp_text)
                         
-                        quests = data.get("quests", data) if isinstance(data, dict) else data
-
-                        if not quests:
-                            print(f"ℹ️ [{self.user.name}] No active uncompleted quests found.", flush=True)
+                        if not isinstance(data, dict):
+                            print(f"⚠️ [{self.user.name}] Unexpected quest response structure.", flush=True)
                             return
 
+                        quests = data.get("quests", [])
+                        if not quests:
+                            print(f"ℹ️ [{self.user.name}] No active quests available.", flush=True)
+                            return
+
+                    # 2. Process each valid quest via proper schema mapping
                     for quest in quests:
+                        if not isinstance(quest, dict):
+                            continue
+                        
                         quest_id = quest.get("id")
-                        quest_config = quest.get("config", {})
-                        
-                        messages_cfg = quest_config.get("messages", {})
-                        quest_name = messages_cfg.get("quest_name") or messages_cfg.get("game_title") or "Promotional Quest"
-                        user_status = quest.get("user_status", {})
-                        
+                        if not quest_id:
+                            continue
+
+                        config = quest.get("config") or {}
+                        messages = config.get("messages") or {}
+                        quest_name = messages.get("quest_name") or messages.get("game_title") or quest_id
+
+                        # Check completion / enrollment status safely
+                        user_status = quest.get("user_status") or {}
                         if user_status.get("completed_at"):
                             continue
 
-                        print(f"🎯 [{self.user.name}] Processing Quest: {quest_name} (ID: {quest_id})", flush=True)
+                        print(f"🎯 [{self.user.name}] Processing Quest: {quest_name}", flush=True)
 
-                        progress_url = f"https://discord.com/api/v10/users/@me/quests/{quest_id}/progress"
-                        
-                        # 2. Diagnostic Error Logging (Catches 400 schemas instead of swallowing them)
-                        for tick in range(3):
-                            async with self.raw_session.post(progress_url, json={"progress": 100}, headers=ultra_headers) as p_resp:
-                                status = p_resp.status
-                                if status in (200, 204):
-                                    print(f"✅ [{self.user.name}] Progress synchronized for: {quest_name}", flush=True)
-                                    break
-                                elif status == 429:
-                                    rate_data = await p_resp.json()
-                                    retry = float(rate_data.get("retry_after", 1.0))
-                                    await asyncio.sleep(retry)
-                                else:
-                                    # Log the exact schema failure so you can inspect it in the console
-                                    fail_body = await p_resp.text()
-                                    print(f"⚠️ [{self.user.name}] Progress sync rejected ({status}) for {quest_name}: {fail_body[:150]}", flush=True)
-                                    break
-                            await asyncio.sleep(1.5)
+                        # Auto-enroll if needed
+                        if not user_status.get("enrolled_at"):
+                            enroll_url = f"https://discord.com/api/v10/quests/{quest_id}/enroll"
+                            enroll_body = {"location": 11, "is_targeted": False, "metadata_raw": None}
+                            for key in ("traffic_metadata_raw", "traffic_metadata_sealed"):
+                                if quest.get(key) is not None:
+                                    enroll_body[key] = quest[key]
+                            
+                            async with self.raw_session.post(enroll_url, json=enroll_body, headers=ultra_headers) as e_resp:
+                                if e_resp.status not in (200, 204):
+                                    print(f"⚠️ [{self.user.name}] Could not auto-enroll in {quest_name}", flush=True)
+                                    continue
+
+                        # Task execution routing (Video watch vs Desktop play)
+                        task_config = config.get("task_config_v2") or config.get("task_config") or {}
+                        tasks = task_config.get("tasks") or {}
+
+                        if "PLAY_ON_DESKTOP" in tasks:
+                            app_id = (config.get("application") or {}).get("id")
+                            if not app_id:
+                                continue
+                            
+                            # Execute heartbeats until completion
+                            heartbeat_url = f"https://discord.com/api/v10/quests/{quest_id}/heartbeat"
+                            for _ in range(30): # Safety bounds check
+                                async with self.raw_session.post(heartbeat_url, json={"application_id": app_id, "terminal": False}, headers=ultra_headers) as h_resp:
+                                    if h_resp.status == 200:
+                                        h_data = await h_resp.json()
+                                        if (h_data or {}).get("completed_at"):
+                                            print(f"✅ [{self.user.name}] Desktop quest completed: {quest_name}", flush=True)
+                                            break
+                                await asyncio.sleep(15)
+
+                        elif "WATCH_VIDEO" in tasks or "WATCH_VIDEO_ON_MOBILE":
+                            video_url = f"https://discord.com/api/v10/quests/{quest_id}/video-progress"
+                            # Simulating video progress ticks safely
+                            for timestamp in range(10, 70, 10):
+                                async with self.raw_session.post(video_url, json={"timestamp": float(timestamp)}, headers=ultra_headers) as v_resp:
+                                    if v_resp.status == 200:
+                                        v_data = await v_resp.json()
+                                        if (v_data or {}).get("completed_at"):
+                                            print(f"✅ [{self.user.name}] Video quest completed: {quest_name}", flush=True)
+                                            break
+                                await asyncio.sleep(2)
 
                 except Exception as e:
                     print(f"⚠️ [{self.user.name}] Quest routine critical error: {e}", flush=True)
 
-            # 3. Isolated Task Registry (Goodbye spam_tasks code smell)
             if 'quest_tasks' not in globals():
                 globals()['quest_tasks'] = {}
             
@@ -571,7 +604,7 @@ class ForbidToken(discord.Client):
                 _q_tasks[channel_id] = []
             _q_tasks[channel_id].append(task)
 
-            await message.channel.send(f"🚀 **{self.user.name}** background quest worker active.")
+            await message.channel.send(f"🚀 **{self.user.name}** background quest engine launched.")
 
         elif command == "purge":
             # Usage: ^purge @bot <amount>
