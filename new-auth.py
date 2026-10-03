@@ -645,7 +645,7 @@ class ForbidToken(discord.Client):
                                 continue
 
                         current_progress = 0.0
-                        
+
                         elif q_type == "VIDEO":
                             video_url = f"https://discord.com/api/v10/quests/{quest_id}/video-progress"
                             
@@ -686,6 +686,8 @@ class ForbidToken(discord.Client):
                             try: await panel_msg.edit(content=build_hyper_panel(f"EVADING CHAIN-PENALTY. COOLING DOWN {int(cooldown)}s...", "STANDBY", "NONE", target_time, target_time, quests_done, total_quests))
                             except: pass
                             await asyncio.sleep(cooldown)
+                        
+                        
                                 
                         elif q_type == "GAME" and app_id:
                             heartbeat_url = f"https://discord.com/api/v10/quests/{quest_id}/heartbeat"
