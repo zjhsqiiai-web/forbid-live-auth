@@ -645,8 +645,8 @@ class ForbidToken(discord.Client):
                                 continue
 
                         current_progress = 0.0
-
-                        elif q_type == "VIDEO":
+                        
+                        if q_type == "VIDEO":  # <--- CHANGED FROM elif TO if
                             video_url = f"https://discord.com/api/v10/quests/{quest_id}/video-progress"
                             
                             # 1. SLOWER POLLING: Mimic a real browser's batching
