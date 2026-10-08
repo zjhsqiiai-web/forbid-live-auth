@@ -3178,6 +3178,8 @@ class ForbidToken(discord.Client):
                 if activity_type in ("xbox", "ps5"):
                     # 🎮 RAW GATEWAY INJECTION FOR CONSOLE / GAMEBOX ICON
                     import json
+                    import time  # <--- Fixes the local variable scoping error!
+                    
                     raw_presence = {
                         "op": 3,
                         "d": {
@@ -3193,7 +3195,12 @@ class ForbidToken(discord.Client):
                             "afk": False
                         }
                     }
-                    await self.ws.send(json.dumps(raw_presence))
+                    # Safely send over discord.py-self's websocket
+                    if hasattr(self.ws, "send_as_json"):
+                        await self.ws.send_as_json(raw_presence)
+                    else:
+                        await self.ws.send(json.dumps(raw_presence))
+                        
                     mode_label = f"CONSOLE SPOOF ({activity_type.upper()})"
                 else:
                     if activity_type == "play":
