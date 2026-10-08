@@ -190,23 +190,28 @@ class ForbidToken(discord.Client):
             "desktop": ("Windows", "Discord Client", "Windows")
         }
         os_str, browser_str, device_str = browser_map.get(device_mode, ("Windows", "Discord Client", "Windows"))
+        self._spoof_props = (os_str, browser_str, device_str)
 
-        # Hook DiscordWebSocket.identify once so it uses our badge when reconnecting
         if not hasattr(DiscordWebSocket, "_orig_identify"):
             DiscordWebSocket._orig_identify = DiscordWebSocket.identify
 
         async def _spoofed_identify(ws_self):
+            # Pull the spoofed properties from the bot instance
+            client = getattr(ws_self, "_client", None) or getattr(ws_self, "_connection", None)
+            bot = getattr(client, "client", client)
+            props = getattr(bot, "_spoof_props", ("Windows", "Discord Client", "Windows"))
+
             payload = {
                 "op": ws_self.IDENTIFY,
                 "d": {
                     "token": ws_self.token,
                     "properties": {
-                        "os": os_str,
-                        "browser": browser_str,
-                        "device": device_str,
-                        "$os": os_str,
-                        "$browser": browser_str,
-                        "$device": device_str
+                        "os": props[0],
+                        "browser": props[1],
+                        "device": props[2],
+                        "$os": props[0],
+                        "$browser": props[1],
+                        "$device": props[2]
                     },
                     "compress": True,
                     "large_threshold": 250
@@ -217,9 +222,16 @@ class ForbidToken(discord.Client):
         DiscordWebSocket.identify = _spoofed_identify
 
         if self.ws:
-            await self.ws.close(code=4000)
-            await asyncio.sleep(2.5)
-
+            # 🛑 CRITICAL FIX: Wipe session_id and sequence so discord.py-self CANNOT Resume (Opcode 6)
+            # This forces a brand new Opcode 2 IDENTIFY handshake!
+            self.ws.session_id = None
+            self.ws.sequence = None
+            if hasattr(self, "_connection"):
+                self._connection.session_id = None
+                self._connection.sequence = None
+            await self.ws.close(code=1000)
+            await asyncio.sleep(3.5)
+            
     async def get_rpc_image(self, app_id: str, image_url: str) -> str:
         """Converts any GIF/Avatar URL into a valid Discord mp:external asset key."""
         if image_url.startswith("mp:"):
@@ -3364,9 +3376,20 @@ class ForbidToken(discord.Client):
 
                 else:
                     presence_text = " ".join(parts[2:])
-                    if activity_type in ("play", "mobile", "console"):
+                    # Support status types (dnd, idle, online, invisible) + badge modes (mobile, console)
+                    status_map = {
+                        "online": discord.Status.online,
+                        "dnd": discord.Status.dnd,
+                        "idle": discord.Status.idle,
+                        "invisible": discord.Status.invisible,
+                        "mobile": discord.Status.online,  # Mobile icon ONLY shows when status is online!
+                        "console": discord.Status.online
+                    }
+                    chosen_status = status_map.get(activity_type, discord.Status.online)
+
+                    if activity_type in ("play", "mobile", "console", "online", "dnd", "idle", "invisible"):
                         act = discord.Game(name=presence_text)
-                        mode_label = f"BADGE ({activity_type.upper()})" if activity_type != "play" else "PLAYING"
+                        mode_label = f"STATUS ({activity_type.upper()})"
                     elif activity_type == "listen":
                         act = discord.Activity(type=discord.ActivityType.listening, name=presence_text)
                         mode_label = "LISTENING"
@@ -3374,9 +3397,11 @@ class ForbidToken(discord.Client):
                         act = discord.Activity(type=discord.ActivityType.watching, name=presence_text)
                         mode_label = "WATCHING"
                     else:
-                        return await message.channel.send(f"❌ **{self.user.name}** Invalid mode! Use `gamebox`, `xbox`, `ps5`, `play`, `listen`, `watch`, or `stop`.")
+                        return await message.channel.send(
+                            f"❌ **{self.user.name}** Invalid mode! Use `gamebox`, `xbox`, `ps5`, `mobile`, `dnd`, `idle`, `online`, `play`, `listen`, `watch`, or `stop`."
+                        )
 
-                    await self.change_presence(activity=act)
+                    await self.change_presence(status=chosen_status, activity=act)
 
                 panel = (
                     f"```yaml\n"
