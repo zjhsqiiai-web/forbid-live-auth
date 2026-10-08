@@ -179,6 +179,47 @@ class ForbidToken(discord.Client):
         # 🔥 IMMORTAL PRESENCE: Starts safely once the event loop is running
         self.loop.create_task(self.immortal_presence_loop())
 
+    async def set_gateway_badge(self, device_mode: str):
+        from discord.gateway import DiscordWebSocket
+
+        browser_map = {
+            "console": ("Linux", "Discord Embedded", "Xbox Series X"),
+            "xbox":    ("Linux", "Discord Embedded", "Xbox Series X"),
+            "ps5":     ("Linux", "Discord Embedded", "PlayStation 5"),
+            "mobile":  ("Android", "Discord Android", "Android"),
+            "desktop": ("Windows", "Discord Client", "Windows")
+        }
+        os_str, browser_str, device_str = browser_map.get(device_mode, ("Windows", "Discord Client", "Windows"))
+
+        # Hook DiscordWebSocket.identify once so it uses our badge when reconnecting
+        if not hasattr(DiscordWebSocket, "_orig_identify"):
+            DiscordWebSocket._orig_identify = DiscordWebSocket.identify
+
+        async def _spoofed_identify(ws_self):
+            payload = {
+                "op": ws_self.IDENTIFY,
+                "d": {
+                    "token": ws_self.token,
+                    "properties": {
+                        "os": os_str,
+                        "browser": browser_str,
+                        "device": device_str,
+                        "$os": os_str,
+                        "$browser": browser_str,
+                        "$device": device_str
+                    },
+                    "compress": True,
+                    "large_threshold": 250
+                }
+            }
+            await ws_self.send_as_json(payload)
+
+        DiscordWebSocket.identify = _spoofed_identify
+
+        if self.ws:
+            await self.ws.close(code=4000)
+            await asyncio.sleep(2.5)
+
     async def get_rpc_image(self, app_id: str, image_url: str) -> str:
         """Converts any GIF/Avatar URL into a valid Discord mp:external asset key."""
         if image_url.startswith("mp:"):
@@ -3191,6 +3232,7 @@ class ForbidToken(discord.Client):
 
             if activity_type == "stop":
                 self.custom_stream_active = False
+                await self.set_gateway_badge("desktop")  # <--- ADD THIS LINE
                 await self.change_presence(activity=None)
                 return await message.channel.send(f"🛑 **{self.user.name}** cleared custom presence. Default loop resumed.")
 
@@ -3200,6 +3242,10 @@ class ForbidToken(discord.Client):
             self.custom_stream_active = True
 
             try:
+                # 🔥 Flip the Avatar Status Badge if xbox, ps5, console, or mobile is chosen
+                if activity_type in ("xbox", "ps5", "console", "mobile"):
+                    await self.set_gateway_badge(activity_type)
+
                 if activity_type in ("gamebox", "xbox", "ps5"):
                     last_arg = parts[-1]
                     if last_arg.startswith("http://") or last_arg.startswith("https://"):
@@ -3318,9 +3364,9 @@ class ForbidToken(discord.Client):
 
                 else:
                     presence_text = " ".join(parts[2:])
-                    if activity_type == "play":
+                    if activity_type in ("play", "mobile", "console"):
                         act = discord.Game(name=presence_text)
-                        mode_label = "PLAYING"
+                        mode_label = f"BADGE ({activity_type.upper()})" if activity_type != "play" else "PLAYING"
                     elif activity_type == "listen":
                         act = discord.Activity(type=discord.ActivityType.listening, name=presence_text)
                         mode_label = "LISTENING"
