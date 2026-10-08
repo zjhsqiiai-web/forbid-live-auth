@@ -178,41 +178,6 @@ class ForbidToken(discord.Client):
         self.loop.create_task(self.ram_cleaner_loop())
         # 🔥 IMMORTAL PRESENCE: Starts safely once the event loop is running
         self.loop.create_task(self.immortal_presence_loop())
-
-    async def set_gateway_badge(self, device_mode: str):
-        browser_map = {
-            "console": ("Linux", "Discord Embedded", "Xbox Series X"),
-            "xbox":    ("Linux", "Discord Embedded", "Xbox Series X"),
-            "ps5":     ("Linux", "Discord Embedded", "PlayStation 5"),
-            "mobile":  ("Android", "Discord Android", "Android"),
-            "desktop": ("Windows", "Discord Client", "Windows")
-        }
-        os_str, browser_str, device_str = browser_map.get(device_mode, ("Windows", "Discord Client", "Windows"))
-
-        # 🔥 Edit discord.py-self's own super_properties directly so READY never breaks!
-        try:
-            sp = self._connection.http.super_properties
-            if isinstance(sp, dict):
-                sp["os"] = os_str
-                sp["browser"] = browser_str
-                sp["device"] = device_str
-                sp["$os"] = os_str
-                sp["$browser"] = browser_str
-                sp["$device"] = device_str
-        except Exception:
-            pass
-
-        # If we previously monkey-patched DiscordWebSocket.identify, restore the original!
-        from discord.gateway import DiscordWebSocket
-        if hasattr(DiscordWebSocket, "_orig_identify"):
-            DiscordWebSocket.identify = DiscordWebSocket._orig_identify
-
-        if self.ws:
-            # Force discord.py-self to do a clean official IDENTIFY with the new super_properties
-            self.ws.session_id = None
-            self.ws.sequence = None
-            await self.ws.close(code=4000)
-            await asyncio.sleep(3.0)
             
     async def get_rpc_image(self, app_id: str, image_url: str) -> str:
         """Converts any GIF/Avatar URL into a valid Discord mp:external asset key."""
@@ -3205,126 +3170,107 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"❌ **{self.user.name}** Failed to update status: {e}")
 
         elif command == "presence":
-            # Usage: 
-            # ^presence gamebox <text> <tenor/klipy/gif_url>
-            # ^presence <xbox/ps5/play/listen/watch> <text>
-            # ^presence stop
-            if len(parts) < 2:
-                await asyncio.sleep(self.user.id % 8 * 1.0)
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}presence <gamebox/xbox/ps5/play/listen/watch/stop> <text> [gif_link]`")
-
             import json
             import time
-            import re
 
-            activity_type = parts[1].lower()
-            stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
+            stagger = (self.user.id % 8 * 0.8) + random.uniform(0.1, 0.4)
             await asyncio.sleep(stagger)
 
-            # 🛑 Kill any running RGB loop first
+            # 📋 1. BEGINNER-FRIENDLY MENU (If typed with no arguments)
+            if len(parts) < 2:
+                help_panel = (
+                    f"```yaml\n"
+                    f"🎭 FORB1D // PRESENCE CONTROL MENU 🎭\n"
+                    f"=======================================\n"
+                    f"[1] Rich RPC : {PREFIX}presence gamebox <text> [gif_link]\n"
+                    f"[2] Console  : {PREFIX}presence <xbox/ps5> <game_name>\n"
+                    f"[3] Activity : {PREFIX}presence <play/listen/watch/compete> <text>\n"
+                    f"[4] Status   : {PREFIX}presence <dnd/idle/online/invisible> <text>\n"
+                    f"[5] Reset    : {PREFIX}presence stop\n"
+                    f"---------------------------------------\n"
+                    f"💡 Tip: Use '|' in text for 2 lines! (Ex: FORB1D | TOP 1%)\n"
+                    f"=======================================\n"
+                    f"```"
+                )
+                return await message.channel.send(help_panel)
+
+            mode = parts[1].lower()
+
+            # 🛑 Always stop RGB loop first so nothing clashes
             self.stop_rgb_task()
 
-            if activity_type == "stop":
+            # 🛑 2. STOP / RESET MODE
+            if mode == "stop":
                 self.custom_stream_active = False
-                await self.set_gateway_badge("desktop")  # <--- ADD THIS LINE
-                await self.change_presence(activity=None)
-                return await message.channel.send(f"🛑 **{self.user.name}** cleared custom presence. Default loop resumed.")
+                await self.change_presence(status=discord.Status.online, activity=None)
+                return await message.channel.send(f"🛑 **{self.user.name}** presence reset. Default loop resumed.")
 
-            if len(parts) < 3:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}presence {activity_type} <text> [optional_gif_url]`")
-
+            # Default text if user only typed the mode (e.g., "^presence dnd" or "^presence gamebox")
+            raw_args = parts[2:] if len(parts) > 2 else ["FORB1D // OPS"]
             self.custom_stream_active = True
 
             try:
-                # 🔥 Flip the Avatar Status Badge if xbox, ps5, console, or mobile is chosen
-                if activity_type in ("xbox", "ps5", "console", "mobile"):
-                    await self.set_gateway_badge(activity_type)
-
-                if activity_type in ("gamebox", "xbox", "ps5"):
-                    last_arg = parts[-1]
-                    if last_arg.startswith("http://") or last_arg.startswith("https://"):
-                        raw_url = last_arg.strip("<>")
-                        presence_text = " ".join(parts[2:-1]) if len(parts) > 3 else "FORB1D // OPS"
+                # 🕹️ 3. RICH PRESENCE MODES (gamebox, xbox, ps5)
+                if mode in ("gamebox", "xbox", "ps5"):
+                    if raw_args[-1].startswith(("http://", "https://")):
+                        gif_url = raw_args[-1].strip("<>")
+                        full_text = " ".join(raw_args[:-1]) if len(raw_args) > 1 else "FORB1D // OPS"
                     else:
-                        raw_url = None
-                        presence_text = " ".join(parts[2:])
+                        gif_url = None
+                        full_text = " ".join(raw_args)
+
+                    # Support "Title | Subtitle" with '|'
+                    if "|" in full_text:
+                        main_title, sub_state = [x.strip() for x in full_text.split("|", 1)]
+                    else:
+                        main_title, sub_state = full_text, "FORB1D // NETWORK"
 
                     rpc_app_id = "363445589247131668"
-                    final_asset = None
-                    asset_status = "AVATAR FALLBACK"
+                    av_url = str(self.user.display_avatar.url).split("?")[0]
+                    mp_avatar = "mp:" + av_url.split("discordapp.com/")[1] if "discordapp.com/" in av_url else None
+                    large_asset = mp_avatar
+                    asset_tag = "AVATAR RPC"
 
-                    # 🔥 1. ZERO-API DISCORD EMBED SNATCHER (Works 100% on Tenor, Klipy, Giphy) 🔥
-                    if raw_url:
+                    # Grab GIF from Discord Embed Proxy if a link was given
+                    if gif_url:
                         try:
-                            # Wait 0.8s for Discord to auto-embed the Tenor/Klipy link you just sent
-                            await asyncio.sleep(0.8)
-                            fresh_msg = await message.channel.fetch_message(message.id)
-                            
-                            proxy_url = None
-                            if fresh_msg.embeds:
-                                emb = fresh_msg.embeds[0]
-                                # Grab the animated proxy URL directly from Discord's embed!
-                                if emb.thumbnail and emb.thumbnail.proxy_url:
-                                    proxy_url = str(emb.thumbnail.proxy_url)
-                                elif emb.image and emb.image.proxy_url:
-                                    proxy_url = str(emb.image.proxy_url)
-                                elif emb.video and emb.video.url:
-                                    proxy_url = str(emb.video.url)
-
-                            target_url = proxy_url or raw_url
-
-                            # Convert Discord's proxy URL directly into an mp:external string!
-                            if "/external/" in target_url:
-                                ext_part = target_url.split("/external/")[1].split("?")[0]
-                                # Force .gif on Tenor mp4/webp proxies so RPC animates it
-                                if "tenor.com" in ext_part and ext_part.endswith(".mp4"):
-                                    ext_part = ext_part[:-4] + ".gif"
-                                final_asset = f"mp:external/{ext_part}"
-                                asset_status = "ANIMATED GIF LOCKED"
-                            elif "discordapp.com/" in target_url:
-                                final_asset = "mp:" + target_url.split("discordapp.com/")[1].split("?")[0]
-                                asset_status = "DISCORD CDN GIF"
-                            elif "discordapp.net/" in target_url:
-                                final_asset = "mp:" + target_url.split("discordapp.net/")[1].split("?")[0]
-                                asset_status = "DISCORD MEDIA GIF"
-                            else:
-                                # Fallback to external-assets API if message wasn't embedded
-                                ext_url = f"https://discord.com/api/v10/applications/{rpc_app_id}/external-assets"
-                                ext_headers = {"Authorization": str(self.http.token), "Content-Type": "application/json"}
-                                async with self.raw_session.post(ext_url, json={"urls": [target_url]}, headers=ext_headers) as ext_resp:
-                                    if ext_resp.status == 200:
-                                        ext_data = await ext_resp.json()
-                                        if ext_data and isinstance(ext_data, list) and "external_asset_path" in ext_data[0]:
-                                            final_asset = f"mp:{ext_data[0]['external_asset_path']}"
-                                            asset_status = "ANIMATED GIF LOCKED"
+                            await asyncio.sleep(0.7)
+                            fresh = await message.channel.fetch_message(message.id)
+                            target = gif_url
+                            if fresh.embeds:
+                                e = fresh.embeds[0]
+                                target = str(
+                                    (e.thumbnail and e.thumbnail.proxy_url)
+                                    or (e.image and e.image.proxy_url)
+                                    or (e.video and e.video.url)
+                                    or gif_url
+                                )
+                            if "/external/" in target:
+                                ext = target.split("/external/")[1].split("?")[0]
+                                if "tenor.com" in ext and ext.endswith(".mp4"):
+                                    ext = ext[:-4] + ".gif"
+                                large_asset = f"mp:external/{ext}"
+                                asset_tag = "ANIMATED GIF"
+                            elif "discordapp." in target:
+                                large_asset = "mp:" + target.split("discordapp.")[1].split("/", 1)[1].split("?")[0]
+                                asset_tag = "DISCORD GIF"
                         except Exception:
                             pass
 
-                    # 🔥 2. BOT AVATAR FOR SMALL BADGE (OR FALLBACK) 🔥
-                    av_url = str(self.user.display_avatar.url).split("?")[0]
-                    mp_avatar = "mp:" + av_url.split("discordapp.com/")[1] if "discordapp.com/" in av_url else None
-                    if not final_asset:
-                        final_asset = mp_avatar
-
-                    assets_dict = {
-                        "large_text": f"NODE // {self.user.name}",
-                        "small_text": "FORB1D // VERIFIED"
-                    }
-                    if final_asset:
-                        assets_dict["large_image"] = final_asset
+                    assets = {"large_text": f"NODE // {self.user.name}", "small_text": "VERIFIED"}
+                    if large_asset:
+                        assets["large_image"] = large_asset
                     if mp_avatar:
-                        assets_dict["small_image"] = mp_avatar
+                        assets["small_image"] = mp_avatar
 
-                    activity_dict = {
-                        "name": presence_text,
+                    act_data = {
+                        "name": main_title,
                         "type": 0,
                         "application_id": rpc_app_id,
-                        "state": "FORB1D // NETWORK",
                         "details": f"⚡ Node: {self.user.name}",
-                        "timestamps": {
-                            "start": int(time.time() * 1000)
-                        },
-                        "assets": assets_dict,
+                        "state": sub_state,
+                        "timestamps": {"start": int(time.time() * 1000)},
+                        "assets": assets,
                         "buttons": ["FORB1D NETWORK", "SYSTEM OPS"],
                         "metadata": {
                             "button_urls": [
@@ -3333,73 +3279,66 @@ class ForbidToken(discord.Client):
                             ]
                         }
                     }
+                    if mode in ("xbox", "ps5"):
+                        act_data["platform"] = mode
+                        asset_tag = f"CONSOLE ({mode.upper()})"
 
-                    # 🛑 CRITICAL FIX: Only attach "platform" on xbox/ps5!
-                    # Leaving "platform" off "gamebox" forces Discord to render the custom GIF & Avatar box!
-                    if activity_type in ("xbox", "ps5"):
-                        activity_dict["platform"] = activity_type
-
-                    raw_presence = {
+                    payload = {
                         "op": 3,
                         "d": {
                             "since": int(time.time() * 1000),
-                            "activities": [activity_dict],
+                            "activities": [act_data],
                             "status": "online",
                             "afk": False
                         }
                     }
+                    await self.ws.send_as_json(payload)
+                    mode_label = f"{mode.upper()} [{asset_tag}]"
+                    display_text = main_title
 
-                    if hasattr(self.ws, "send_as_json"):
-                        await self.ws.send_as_json(raw_presence)
-                    else:
-                        await self.ws.send(json.dumps(raw_presence))
-
-                    mode_label = f"GAMEBOX ({asset_status})"
-
+                # 🎭 4. CLEAN ACTIVITY & STATUS MODES (play, listen, watch, compete, dnd, idle, online, invisible)
                 else:
-                    presence_text = " ".join(parts[2:])
-                    # Support status types (dnd, idle, online, invisible) + badge modes (mobile, console)
-                    status_map = {
-                        "online": discord.Status.online,
+                    display_text = " ".join(raw_args)
+                    status_Lookup = {
                         "dnd": discord.Status.dnd,
                         "idle": discord.Status.idle,
                         "invisible": discord.Status.invisible,
-                        "mobile": discord.Status.online,  # Mobile icon ONLY shows when status is online!
-                        "console": discord.Status.online
+                        "online": discord.Status.online
                     }
-                    chosen_status = status_map.get(activity_type, discord.Status.online)
+                    chosen_status = status_Lookup.get(mode, discord.Status.online)
 
-                    if activity_type in ("play", "mobile", "console", "online", "dnd", "idle", "invisible"):
-                        act = discord.Game(name=presence_text)
-                        mode_label = f"STATUS ({activity_type.upper()})"
-                    elif activity_type == "listen":
-                        act = discord.Activity(type=discord.ActivityType.listening, name=presence_text)
-                        mode_label = "LISTENING"
-                    elif activity_type == "watch":
-                        act = discord.Activity(type=discord.ActivityType.watching, name=presence_text)
-                        mode_label = "WATCHING"
+                    if mode in ("play", "dnd", "idle", "online", "invisible"):
+                        act = discord.Game(name=display_text)
+                    elif mode == "listen":
+                        act = discord.Activity(type=discord.ActivityType.listening, name=display_text)
+                    elif mode == "watch":
+                        act = discord.Activity(type=discord.ActivityType.watching, name=display_text)
+                    elif mode == "compete":
+                        act = discord.Activity(type=discord.ActivityType.competing, name=display_text)
                     else:
                         return await message.channel.send(
-                            f"❌ **{self.user.name}** Invalid mode! Use `gamebox`, `xbox`, `ps5`, `mobile`, `dnd`, `idle`, `online`, `play`, `listen`, `watch`, or `stop`."
+                            f"❌ **{self.user.name}** Unknown mode `{mode}`! Type `{PREFIX}presence` to see the menu."
                         )
 
                     await self.change_presence(status=chosen_status, activity=act)
+                    mode_label = mode.upper()
 
+                # ⚡ 5. CLEAN CYBERPUNK CONFIRMATION PANEL
                 panel = (
                     f"```yaml\n"
                     f"🎭 FORB1D // PRESENCE ENGINE 🎭\n"
                     f"=================================\n"
                     f"[+] Node     : {self.user.name}\n"
                     f"[+] Mode     : {mode_label}\n"
-                    f"[+] Payload  : {presence_text}\n"
-                    f"[!] Status   : GATEWAY OVERRIDDEN\n"
+                    f"[+] Payload  : {display_text}\n"
+                    f"[!] Status   : LOCKED & ACTIVE\n"
                     f"=================================\n"
                     f"```"
                 )
                 await message.channel.send(panel)
 
             except Exception as e:
-                await message.channel.send(f"❌ **{self.user.name}** Failed to update presence: {e}")
+                await message.channel.send(f"❌ **{self.user.name}** Presence error: {e}")
 
         elif command == "help":
             # STAGGER MATH: All 8 bots respond, staggered by 1 second so Discord doesn't block them!
