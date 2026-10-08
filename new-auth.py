@@ -222,13 +222,9 @@ class ForbidToken(discord.Client):
         DiscordWebSocket.identify = _spoofed_identify
 
         if self.ws:
-            # 🛑 CRITICAL FIX: Wipe session_id and sequence so discord.py-self CANNOT Resume (Opcode 6)
-            # This forces a brand new Opcode 2 IDENTIFY handshake!
+            # 🛑 Only wipe self.ws (ConnectionState reads from self.ws automatically!)
             self.ws.session_id = None
             self.ws.sequence = None
-            if hasattr(self, "_connection"):
-                self._connection.session_id = None
-                self._connection.sequence = None
             await self.ws.close(code=1000)
             await asyncio.sleep(3.5)
             
