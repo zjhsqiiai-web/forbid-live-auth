@@ -3201,7 +3201,6 @@ class ForbidToken(discord.Client):
 
             try:
                 if activity_type in ("gamebox", "xbox", "ps5"):
-                    # Check if the user put a Tenor / Klipy / GIF link at the end
                     last_arg = parts[-1]
                     if last_arg.startswith("http://") or last_arg.startswith("https://"):
                         raw_url = last_arg.strip("<>")
@@ -3214,36 +3213,45 @@ class ForbidToken(discord.Client):
                     final_asset = None
                     asset_status = "AVATAR FALLBACK"
 
-                    # 🔥 1. AUTO-EXTRACTOR FOR TENOR, KLIPY & DIRECT GIFS 🔥
+                    # 🔥 1. ZERO-API DISCORD EMBED SNATCHER (Works 100% on Tenor, Klipy, Giphy) 🔥
                     if raw_url:
                         try:
-                            # If it's a webpage link (like tenor.com/view/... or klipy.com/...), scrape the true .gif URL
-                            if not any(raw_url.lower().split("?")[0].endswith(ext) for ext in (".gif", ".png", ".jpg", ".jpeg", ".webp")):
-                                async with self.raw_session.get(raw_url, headers={"User-Agent": "Mozilla/5.0"}) as page_resp:
-                                    if page_resp.status == 200:
-                                        html_text = await page_resp.text()
-                                        # Find the og:image or direct media .gif link inside the page
-                                        match = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](https://[^"\']+\.gif[^"\']*)["\']', html_text, re.I)
-                                        if not match:
-                                            match = re.search(r'(https://media[^"\'\s>]+\.gif)', html_text, re.I)
-                                        if match:
-                                            raw_url = match.group(1)
+                            # Wait 0.8s for Discord to auto-embed the Tenor/Klipy link you just sent
+                            await asyncio.sleep(0.8)
+                            fresh_msg = await message.channel.fetch_message(message.id)
+                            
+                            proxy_url = None
+                            if fresh_msg.embeds:
+                                emb = fresh_msg.embeds[0]
+                                # Grab the animated proxy URL directly from Discord's embed!
+                                if emb.thumbnail and emb.thumbnail.proxy_url:
+                                    proxy_url = str(emb.thumbnail.proxy_url)
+                                elif emb.image and emb.image.proxy_url:
+                                    proxy_url = str(emb.image.proxy_url)
+                                elif emb.video and emb.video.url:
+                                    proxy_url = str(emb.video.url)
 
-                            # Convert the extracted .gif URL into a Discord mp:external asset
-                            if "discordapp.com/" in raw_url:
-                                final_asset = "mp:" + raw_url.split("discordapp.com/")[1].split("?")[0]
+                            target_url = proxy_url or raw_url
+
+                            # Convert Discord's proxy URL directly into an mp:external string!
+                            if "/external/" in target_url:
+                                ext_part = target_url.split("/external/")[1].split("?")[0]
+                                # Force .gif on Tenor mp4/webp proxies so RPC animates it
+                                if "tenor.com" in ext_part and ext_part.endswith(".mp4"):
+                                    ext_part = ext_part[:-4] + ".gif"
+                                final_asset = f"mp:external/{ext_part}"
+                                asset_status = "ANIMATED GIF LOCKED"
+                            elif "discordapp.com/" in target_url:
+                                final_asset = "mp:" + target_url.split("discordapp.com/")[1].split("?")[0]
                                 asset_status = "DISCORD CDN GIF"
-                            elif "discordapp.net/" in raw_url:
-                                final_asset = "mp:" + raw_url.split("discordapp.net/")[1].split("?")[0]
+                            elif "discordapp.net/" in target_url:
+                                final_asset = "mp:" + target_url.split("discordapp.net/")[1].split("?")[0]
                                 asset_status = "DISCORD MEDIA GIF"
                             else:
+                                # Fallback to external-assets API if message wasn't embedded
                                 ext_url = f"https://discord.com/api/v10/applications/{rpc_app_id}/external-assets"
-                                ext_headers = {
-                                    "Authorization": str(self.http.token),
-                                    "Content-Type": "application/json",
-                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                                }
-                                async with self.raw_session.post(ext_url, json={"urls": [raw_url]}, headers=ext_headers) as ext_resp:
+                                ext_headers = {"Authorization": str(self.http.token), "Content-Type": "application/json"}
+                                async with self.raw_session.post(ext_url, json={"urls": [target_url]}, headers=ext_headers) as ext_resp:
                                     if ext_resp.status == 200:
                                         ext_data = await ext_resp.json()
                                         if ext_data and isinstance(ext_data, list) and "external_asset_path" in ext_data[0]:
@@ -3252,7 +3260,7 @@ class ForbidToken(discord.Client):
                         except Exception:
                             pass
 
-                    # 🔥 2. IF NO GIF LINK (OR IF LINK FAILED), USE BOT'S OWN AVATAR 🔥
+                    # 🔥 2. BOT AVATAR FOR SMALL BADGE (OR FALLBACK) 🔥
                     av_url = str(self.user.display_avatar.url).split("?")[0]
                     mp_avatar = "mp:" + av_url.split("discordapp.com/")[1] if "discordapp.com/" in av_url else None
                     if not final_asset:
@@ -3265,31 +3273,37 @@ class ForbidToken(discord.Client):
                     if final_asset:
                         assets_dict["large_image"] = final_asset
                     if mp_avatar:
-                        assets_dict["small_image"] = mp_avatar # Bot's avatar in the little corner circle!
+                        assets_dict["small_image"] = mp_avatar
+
+                    activity_dict = {
+                        "name": presence_text,
+                        "type": 0,
+                        "application_id": rpc_app_id,
+                        "state": "FORB1D // NETWORK",
+                        "details": f"⚡ Node: {self.user.name}",
+                        "timestamps": {
+                            "start": int(time.time() * 1000)
+                        },
+                        "assets": assets_dict,
+                        "buttons": ["FORB1D NETWORK", "SYSTEM OPS"],
+                        "metadata": {
+                            "button_urls": [
+                                "https://www.guns.lol/forbiddenway",
+                                "https://forb1dd.netlify.app/"
+                            ]
+                        }
+                    }
+
+                    # 🛑 CRITICAL FIX: Only attach "platform" on xbox/ps5!
+                    # Leaving "platform" off "gamebox" forces Discord to render the custom GIF & Avatar box!
+                    if activity_type in ("xbox", "ps5"):
+                        activity_dict["platform"] = activity_type
 
                     raw_presence = {
                         "op": 3,
                         "d": {
                             "since": int(time.time() * 1000),
-                            "activities": [{
-                                "name": presence_text,
-                                "type": 0,
-                                "application_id": rpc_app_id,
-                                "platform": "xbox" if activity_type == "gamebox" else activity_type,
-                                "state": "FORB1D // NETWORK",
-                                "details": f"⚡ Node: {self.user.name}",
-                                "timestamps": {
-                                    "start": int(time.time() * 1000)
-                                },
-                                "assets": assets_dict,
-                                "buttons": ["FORB1D NETWORK", "SYSTEM OPS"],
-                                "metadata": {
-                                    "button_urls": [
-                                        "https://www.twitch.tv/forb1d",
-                                        "https://discord.gg/forbid"
-                                    ]
-                                }
-                            }],
+                            "activities": [activity_dict],
                             "status": "online",
                             "afk": False
                         }
