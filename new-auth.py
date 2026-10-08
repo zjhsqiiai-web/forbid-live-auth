@@ -179,12 +179,21 @@ class ForbidToken(discord.Client):
         # 🔥 IMMORTAL PRESENCE: Starts safely once the event loop is running
         self.loop.create_task(self.immortal_presence_loop())
 
+    def stop_rgb_task(self):
+        # Cleanly stops any active RGB background loop so it never clashes
+        self.rgb_stream_active = False
+        task = getattr(self, '_rgb_task', None)
+        if task and not task.done():
+            task.cancel()
+        self._rgb_task = None
+
     async def immortal_presence_loop(self):
         await self.wait_until_ready()
         while not self.is_closed():
             try:
-                # 🟢 Only override with default status if a custom stream is NOT active
-                if not getattr(self, 'custom_stream_active', False):
+                # 🟢 Checks BOTH custom_stream_active AND rgb_stream_active
+                is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
+                if not is_locked:
                     await self.change_presence(
                         status=discord.Status.online,
                         afk=False,
@@ -192,7 +201,7 @@ class ForbidToken(discord.Client):
                     )
             except Exception:
                 pass
-            await asyncio.sleep(45)  # Refreshes faster to lock the socket session
+            await asyncio.sleep(45)
 
     # 🛑 ADD THIS RIGHT UNDER ON_READY
     async def on_disconnect(self):
@@ -889,75 +898,86 @@ class ForbidToken(discord.Client):
             
             if len(parts) > 1:
                 try:
-                    # Attempt to parse the very last word as a number (the delay)
                     delay = float(parts[-1])
+                    # PROTECT THE NODE: Hard-cap at 5.0s minimum so Discord doesn't gateway-kick the bot
+                    if delay < 5.0:
+                        delay = 5.0
                     
-                    # PROTECT THE NODE: Hard-cap at 5.0s minimum so Discord doesn't API ban the bot
-                    if delay < 1.0:
-                        delay = 1.0
-                    
-                    # Join everything before the delay as the actual text
                     if len(parts) > 2:
                         base_text = " ".join(parts[1:-1])
                 except ValueError:
-                    # If the last word isn't a number, they didn't provide a delay. Treat it all as text.
                     base_text = " ".join(parts[1:])
             
+            # 🛑 1. Kill any existing RGB task first so loops NEVER stack
+            self.stop_rgb_task()
+            
+            # 🟢 2. Lock out both custom stream and default immortal loop
+            self.custom_stream_active = True
             self.rgb_stream_active = True
             
             async def rgb_stream_loop():
                 frames = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤"]
                 index = 0
-                while getattr(self, 'rgb_stream_active', False):
-                    try:
-                        current_frame = f"{frames[index]} {base_text} {frames[index]}"
-                        stream_activity = discord.Activity(
-                            type=discord.ActivityType.streaming,
-                            name=current_frame, 
-                            url="https://twitch.tv/forbid"
-                        )
-                        await self.change_presence(activity=stream_activity)
-                        index = (index + 1) % len(frames)
-                        await asyncio.sleep(delay) 
-                    except Exception:
+                try:
+                    while getattr(self, 'rgb_stream_active', False):
+                        try:
+                            current_frame = f"{frames[index]} {base_text} {frames[index]}"
+                            stream_activity = discord.Streaming(
+                                name=current_frame, 
+                                url="https://www.twitch.tv/forb1d"
+                            )
+                            await self.change_presence(activity=stream_activity)
+                            index = (index + 1) % len(frames)
+                        except Exception:
+                            pass
                         await asyncio.sleep(delay)
+                except asyncio.CancelledError:
+                    pass
 
-            asyncio.create_task(rgb_stream_loop())
+            # Store the task reference on the bot instance so stop_rgb_task() can cancel it
+            self._rgb_task = asyncio.create_task(rgb_stream_loop())
             
-            # 🛑 ZERO-MARGIN EXACT ORIGINAL FORB1D FORMAT 🛑
-            stream_lines = [
-                "```yaml",
-                "🌈 FORB1D // RGB STREAM PROTOCOL 🌈",
-                "=================================",
-                f"[+] Node     : {self.user.name}",
-                f"[+] Payload  : {base_text}",
-                f"[+] Delay    : {delay}s",
-                "[+] Mode     : CYCLING RGB FRAMES",
-                "[!] Status   : STREAM INJECTED",
-                "=================================",
-                "```"
-            ]
-            
-            # INSTANT DROP
-            await message.channel.send("\n".join(stream_lines))
+            stagger = (self.user.id % 8 * 0.8) + random.uniform(0.1, 0.4)
+            await asyncio.sleep(stagger)
 
-        elif command == "unrgbstream":
-            self.rgb_stream_active = False
-            await self.change_presence(activity=None)
+            panel = (
+                f"```yaml\n"
+                f"🌈 FORB1D // RGB STREAM PROTOCOL 🌈\n"
+                f"=================================\n"
+                f"[+] Node     : {self.user.name}\n"
+                f"[+] Payload  : {base_text}\n"
+                f"[+] Delay    : {delay}s\n"
+                f"[+] Mode     : CYCLING RGB FRAMES\n"
+                f"[!] Status   : STREAM INJECTED\n"
+                f"=================================\n"
+                f"```"
+            )
+            await message.channel.send(panel)
+
+        elif command == "unrgbstream" or command == "stoprgb":
+            # Cleanly assassinate the RGB task and release the presence locks
+            self.stop_rgb_task()
+            self.custom_stream_active = False
             
-            # 🛑 ZERO-MARGIN EXACT ORIGINAL FORB1D FORMAT 🛑
-            unstream_lines = [
-                "```yaml",
-                "🛑 FORB1D // RGB STREAM PROTOCOL 🛑",
-                "=================================",
-                f"[+] Node     : {self.user.name}",
-                "[+] Mode     : OFFLINE",
-                "[!] Status   : STREAM HALTED",
-                "=================================",
-                "```"
-            ]
-            
-            await message.channel.send("\n".join(unstream_lines))
+            stagger = (self.user.id % 8 * 0.8) + random.uniform(0.1, 0.4)
+            await asyncio.sleep(stagger)
+
+            try:
+                await self.change_presence(activity=None)
+            except Exception:
+                pass
+
+            panel = (
+                f"```yaml\n"
+                f"🛑 FORB1D // RGB STREAM TERMINATED 🛑\n"
+                f"=================================\n"
+                f"[+] Node     : {self.user.name}\n"
+                f"[+] Action   : KILLED RGB TASK\n"
+                f"[!] Status   : DEFAULT LOOP RESUMED\n"
+                f"=================================\n"
+                f"```"
+            )
+            await message.channel.send(panel)
 
         elif command == "loud":
             # Usage: ^loud @user OR ^loud <channel_id>
@@ -3080,75 +3100,128 @@ class ForbidToken(discord.Client):
                 await message.channel.leave()
                 
         elif command == "stream":
-            # Usage: ^stream <Text> (Turns it on) | ^stream stop (Turns it off)
+            # Usage: ^stream <Text> | ^stream stop
             if len(parts) < 2:
                 await asyncio.sleep(self.user.id % 8 * 1.0)
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}stream <text>` or `{PREFIX}stream stop`")
 
             stream_text = " ".join(parts[1:])
-            
-            # STAGGER MATH: So all bots don't hit the Discord presence API at the exact same millisecond
             stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
             await asyncio.sleep(stagger)
 
+            # 🛑 Kill any running RGB loop first so it never clashes
+            self.stop_rgb_task()
+
             try:
                 if stream_text.lower() == "stop":
-                    # 🟢 Resume default immortal background loop
                     self.custom_stream_active = False
-                    
-                    # Clear the rich presence (turns off the streaming status)
                     await self.change_presence(activity=None)
                     
-                    await asyncio.sleep(0.5)
-                    await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** stopped streaming. Default loop resumed.")
+                    panel = (
+                        f"```yaml\n"
+                        f"🟣 FORB1D // STREAM CONTROLLER 🟣\n"
+                        f"=================================\n"
+                        f"[+] Node     : {self.user.name}\n"
+                        f"[+] Action   : TERMINATE STREAM\n"
+                        f"[!] Status   : DEFAULT LOOP RESUMED\n"
+                        f"=================================\n"
+                        f"```"
+                    )
+                    await message.channel.send(panel)
                 else:
-                    # 🟢 Pause default immortal loop so it won't overwrite your custom stream
                     self.custom_stream_active = True
-                    
-                    # Discord requires a Twitch or YT link for the purple stream icon to appear
                     twitch_url = "https://www.twitch.tv/forb1d"
-                    
-                    # Lock in the Streaming status
                     activity = discord.Streaming(name=stream_text, url=twitch_url)
                     await self.change_presence(activity=activity)
                     
-                    await asyncio.sleep(0.5)
-                    await message.channel.send(f"🟣 FORB1D🔥 **{self.user.name}** is now streaming: `{stream_text}`")
+                    panel = (
+                        f"```yaml\n"
+                        f"🟣 FORB1D // STREAM CONTROLLER 🟣\n"
+                        f"=================================\n"
+                        f"[+] Node     : {self.user.name}\n"
+                        f"[+] Payload  : {stream_text}\n"
+                        f"[+] Vector   : TWITCH OVERRIDE\n"
+                        f"[!] Status   : LIVE STREAM LOCKED\n"
+                        f"=================================\n"
+                        f"```"
+                    )
+                    await message.channel.send(panel)
                     
             except Exception as e:
                 await message.channel.send(f"❌ **{self.user.name}** Failed to update status: {e}")
 
         elif command == "presence":
-            # Usage: !presence <play/listen/watch> <text>
-            if len(parts) < 3:
+            # Usage: ^presence <play/listen/watch/xbox/ps5/stop> <text>
+            if len(parts) < 2:
                 await asyncio.sleep(self.user.id % 8 * 1.0)
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `!presence <play/listen/watch> <text>`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}presence <play/listen/watch/xbox/ps5/stop> <text>`")
 
             activity_type = parts[1].lower()
-            presence_text = " ".join(parts[2:])
-
-            # STAGGER MATH: Perfect 1-second intervals so the API doesn't flag the sudden mass-update
             stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
             await asyncio.sleep(stagger)
 
-            try:
-                if activity_type == "play":
-                    act = discord.Game(name=presence_text)
-                    msg = f"🎮 FORB1D🔥 **{self.user.name}** is playing: `{presence_text}`"
-                elif activity_type == "listen":
-                    act = discord.Activity(type=discord.ActivityType.listening, name=presence_text)
-                    msg = f"🎧 FORB1D🔥 **{self.user.name}** is listening to: `{presence_text}`"
-                elif activity_type == "watch":
-                    act = discord.Activity(type=discord.ActivityType.watching, name=presence_text)
-                    msg = f"📺 FORB1D🔥 **{self.user.name}** is watching: `{presence_text}`"
-                else:
-                    return await message.channel.send(f"❌ **{self.user.name}** Invalid mode! Use play, listen, or watch.")
+            # 🛑 Kill RGB loop and lock out the default immortal loop
+            self.stop_rgb_task()
 
-                # Lock in the new status
-                await self.change_presence(activity=act)
-                
-                await asyncio.sleep(0.5)
-                await message.channel.send(msg)
+            if activity_type == "stop":
+                self.custom_stream_active = False
+                await self.change_presence(activity=None)
+                return await message.channel.send(f"🛑 **{self.user.name}** cleared custom presence. Default loop resumed.")
+
+            if len(parts) < 3:
+                return await message.channel.send(f"❌ **{self.user.name}** Please provide text for the status!")
+
+            presence_text = " ".join(parts[2:])
+            self.custom_stream_active = True
+
+            try:
+                if activity_type in ("xbox", "ps5"):
+                    # 🎮 RAW GATEWAY INJECTION FOR CONSOLE / GAMEBOX ICON
+                    import json
+                    raw_presence = {
+                        "op": 3,
+                        "d": {
+                            "since": int(time.time() * 1000),
+                            "activities": [{
+                                "name": presence_text,
+                                "type": 0,
+                                "platform": activity_type, # Forces Xbox/PS5 Gamebox Icon
+                                "state": "FORB1D // NETWORK",
+                                "details": "Remote Gamebox Link"
+                            }],
+                            "status": "online",
+                            "afk": False
+                        }
+                    }
+                    await self.ws.send(json.dumps(raw_presence))
+                    mode_label = f"CONSOLE SPOOF ({activity_type.upper()})"
+                else:
+                    if activity_type == "play":
+                        act = discord.Game(name=presence_text)
+                        mode_label = "PLAYING"
+                    elif activity_type == "listen":
+                        act = discord.Activity(type=discord.ActivityType.listening, name=presence_text)
+                        mode_label = "LISTENING"
+                    elif activity_type == "watch":
+                        act = discord.Activity(type=discord.ActivityType.watching, name=presence_text)
+                        mode_label = "WATCHING"
+                    else:
+                        return await message.channel.send(f"❌ **{self.user.name}** Invalid mode! Use `play`, `listen`, `watch`, `xbox`, `ps5`, or `stop`.")
+
+                    await self.change_presence(activity=act)
+
+                panel = (
+                    f"```yaml\n"
+                    f"🎭 FORB1D // PRESENCE ENGINE 🎭\n"
+                    f"=================================\n"
+                    f"[+] Node     : {self.user.name}\n"
+                    f"[+] Mode     : {mode_label}\n"
+                    f"[+] Payload  : {presence_text}\n"
+                    f"[!] Status   : GATEWAY OVERRIDDEN\n"
+                    f"=================================\n"
+                    f"```"
+                )
+                await message.channel.send(panel)
 
             except Exception as e:
                 await message.channel.send(f"❌ **{self.user.name}** Failed to update presence: {e}")
