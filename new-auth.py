@@ -3170,16 +3170,23 @@ class ForbidToken(discord.Client):
                 await message.channel.send(f"❌ **{self.user.name}** Failed to update status: {e}")
 
         elif command == "presence":
-            # Usage: ^presence <play/listen/watch/xbox/ps5/stop> <text>
+            # Usage: 
+            # ^presence gamebox <text> <tenor/klipy/gif_url>
+            # ^presence <xbox/ps5/play/listen/watch> <text>
+            # ^presence stop
             if len(parts) < 2:
                 await asyncio.sleep(self.user.id % 8 * 1.0)
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}presence <play/listen/watch/xbox/ps5/stop> <text>`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}presence <gamebox/xbox/ps5/play/listen/watch/stop> <text> [gif_link]`")
+
+            import json
+            import time
+            import re
 
             activity_type = parts[1].lower()
             stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
             await asyncio.sleep(stagger)
 
-            # 🛑 Kill RGB loop and lock out the default immortal loop
+            # 🛑 Kill any running RGB loop first
             self.stop_rgb_task()
 
             if activity_type == "stop":
@@ -3188,17 +3195,78 @@ class ForbidToken(discord.Client):
                 return await message.channel.send(f"🛑 **{self.user.name}** cleared custom presence. Default loop resumed.")
 
             if len(parts) < 3:
-                return await message.channel.send(f"❌ **{self.user.name}** Please provide text for the status!")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}presence {activity_type} <text> [optional_gif_url]`")
 
-            presence_text = " ".join(parts[2:])
             self.custom_stream_active = True
 
             try:
-                if activity_type in ("xbox", "ps5"):
-                    # 🎮 RAW GATEWAY INJECTION FOR CONSOLE / GAMEBOX ICON
-                    import json
-                    import time  # <--- Fixes the local variable scoping error!
-                    
+                if activity_type in ("gamebox", "xbox", "ps5"):
+                    # Check if the user put a Tenor / Klipy / GIF link at the end
+                    last_arg = parts[-1]
+                    if last_arg.startswith("http://") or last_arg.startswith("https://"):
+                        raw_url = last_arg.strip("<>")
+                        presence_text = " ".join(parts[2:-1]) if len(parts) > 3 else "FORB1D // OPS"
+                    else:
+                        raw_url = None
+                        presence_text = " ".join(parts[2:])
+
+                    rpc_app_id = "363445589247131668"
+                    final_asset = None
+                    asset_status = "AVATAR FALLBACK"
+
+                    # 🔥 1. AUTO-EXTRACTOR FOR TENOR, KLIPY & DIRECT GIFS 🔥
+                    if raw_url:
+                        try:
+                            # If it's a webpage link (like tenor.com/view/... or klipy.com/...), scrape the true .gif URL
+                            if not any(raw_url.lower().split("?")[0].endswith(ext) for ext in (".gif", ".png", ".jpg", ".jpeg", ".webp")):
+                                async with self.raw_session.get(raw_url, headers={"User-Agent": "Mozilla/5.0"}) as page_resp:
+                                    if page_resp.status == 200:
+                                        html_text = await page_resp.text()
+                                        # Find the og:image or direct media .gif link inside the page
+                                        match = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](https://[^"\']+\.gif[^"\']*)["\']', html_text, re.I)
+                                        if not match:
+                                            match = re.search(r'(https://media[^"\'\s>]+\.gif)', html_text, re.I)
+                                        if match:
+                                            raw_url = match.group(1)
+
+                            # Convert the extracted .gif URL into a Discord mp:external asset
+                            if "discordapp.com/" in raw_url:
+                                final_asset = "mp:" + raw_url.split("discordapp.com/")[1].split("?")[0]
+                                asset_status = "DISCORD CDN GIF"
+                            elif "discordapp.net/" in raw_url:
+                                final_asset = "mp:" + raw_url.split("discordapp.net/")[1].split("?")[0]
+                                asset_status = "DISCORD MEDIA GIF"
+                            else:
+                                ext_url = f"https://discord.com/api/v10/applications/{rpc_app_id}/external-assets"
+                                ext_headers = {
+                                    "Authorization": str(self.http.token),
+                                    "Content-Type": "application/json",
+                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                                }
+                                async with self.raw_session.post(ext_url, json={"urls": [raw_url]}, headers=ext_headers) as ext_resp:
+                                    if ext_resp.status == 200:
+                                        ext_data = await ext_resp.json()
+                                        if ext_data and isinstance(ext_data, list) and "external_asset_path" in ext_data[0]:
+                                            final_asset = f"mp:{ext_data[0]['external_asset_path']}"
+                                            asset_status = "ANIMATED GIF LOCKED"
+                        except Exception:
+                            pass
+
+                    # 🔥 2. IF NO GIF LINK (OR IF LINK FAILED), USE BOT'S OWN AVATAR 🔥
+                    av_url = str(self.user.display_avatar.url).split("?")[0]
+                    mp_avatar = "mp:" + av_url.split("discordapp.com/")[1] if "discordapp.com/" in av_url else None
+                    if not final_asset:
+                        final_asset = mp_avatar
+
+                    assets_dict = {
+                        "large_text": f"NODE // {self.user.name}",
+                        "small_text": "FORB1D // VERIFIED"
+                    }
+                    if final_asset:
+                        assets_dict["large_image"] = final_asset
+                    if mp_avatar:
+                        assets_dict["small_image"] = mp_avatar # Bot's avatar in the little corner circle!
+
                     raw_presence = {
                         "op": 3,
                         "d": {
@@ -3206,22 +3274,36 @@ class ForbidToken(discord.Client):
                             "activities": [{
                                 "name": presence_text,
                                 "type": 0,
-                                "platform": activity_type, # Forces Xbox/PS5 Gamebox Icon
+                                "application_id": rpc_app_id,
+                                "platform": "xbox" if activity_type == "gamebox" else activity_type,
                                 "state": "FORB1D // NETWORK",
-                                "details": "Remote Gamebox Link"
+                                "details": f"⚡ Node: {self.user.name}",
+                                "timestamps": {
+                                    "start": int(time.time() * 1000)
+                                },
+                                "assets": assets_dict,
+                                "buttons": ["FORB1D NETWORK", "SYSTEM OPS"],
+                                "metadata": {
+                                    "button_urls": [
+                                        "https://www.twitch.tv/forb1d",
+                                        "https://discord.gg/forbid"
+                                    ]
+                                }
                             }],
                             "status": "online",
                             "afk": False
                         }
                     }
-                    # Safely send over discord.py-self's websocket
+
                     if hasattr(self.ws, "send_as_json"):
                         await self.ws.send_as_json(raw_presence)
                     else:
                         await self.ws.send(json.dumps(raw_presence))
-                        
-                    mode_label = f"CONSOLE SPOOF ({activity_type.upper()})"
+
+                    mode_label = f"GAMEBOX ({asset_status})"
+
                 else:
+                    presence_text = " ".join(parts[2:])
                     if activity_type == "play":
                         act = discord.Game(name=presence_text)
                         mode_label = "PLAYING"
@@ -3232,7 +3314,7 @@ class ForbidToken(discord.Client):
                         act = discord.Activity(type=discord.ActivityType.watching, name=presence_text)
                         mode_label = "WATCHING"
                     else:
-                        return await message.channel.send(f"❌ **{self.user.name}** Invalid mode! Use `play`, `listen`, `watch`, `xbox`, `ps5`, or `stop`.")
+                        return await message.channel.send(f"❌ **{self.user.name}** Invalid mode! Use `gamebox`, `xbox`, `ps5`, `play`, `listen`, `watch`, or `stop`.")
 
                     await self.change_presence(activity=act)
 
@@ -3251,101 +3333,6 @@ class ForbidToken(discord.Client):
 
             except Exception as e:
                 await message.channel.send(f"❌ **{self.user.name}** Failed to update presence: {e}")
-
-        elif command == "gamebox" or command == "rpc":
-            # Usage: ^gamebox <Title> | ^gamebox stop
-            # Optional custom GIF: ^gamebox <Title> <https://link-to-gif.gif>
-            if len(parts) < 2:
-                await asyncio.sleep(self.user.id % 8 * 1.0)
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}gamebox <text> [optional_gif_url]` or `{PREFIX}gamebox stop`")
-
-            import json
-            import time
-
-            stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
-            await asyncio.sleep(stagger)
-
-            # 🛑 Kill any running RGB loop first
-            self.stop_rgb_task()
-
-            if parts[1].lower() == "stop":
-                self.custom_stream_active = False
-                await self.change_presence(activity=None)
-                return await message.channel.send(f"🛑 **{self.user.name}** terminated Gamebox RPC. Default loop resumed.")
-
-            # Lock out the background presence loop
-            self.custom_stream_active = True
-
-            # Check if the last word is an image/GIF URL, otherwise use the bot's own Avatar!
-            if parts[-1].startswith("http://") or parts[-1].startswith("https://"):
-                img_url = parts[-1]
-                box_title = " ".join(parts[1:-1]) if len(parts) > 2 else "FORB1D // OPS"
-            else:
-                img_url = str(self.user.display_avatar.replace(format="png", size=512).url)
-                box_title = " ".join(parts[1:])
-
-            # Verified Application ID for external asset signing
-            rpc_app_id = "363445589247131668"
-            
-            # Convert the avatar/GIF into a signed mp:external asset
-            signed_asset = await self.get_rpc_image(rpc_app_id, img_url)
-
-            assets_payload = {
-                "large_text": f"NODE // {self.user.name}",
-                "small_text": "VERIFIED // SYSTEM"
-            }
-            if signed_asset:
-                assets_payload["large_image"] = signed_asset
-                assets_payload["small_image"] = signed_asset
-
-            raw_rpc = {
-                "op": 3,
-                "d": {
-                    "since": int(time.time() * 1000),
-                    "activities": [{
-                        "name": box_title,
-                        "type": 0, # Playing (Supports full Rich Presence box + timestamps + buttons)
-                        "application_id": rpc_app_id,
-                        "state": "FORB1D PROTOCOL [F]",
-                        "details": f"⚡ Node: {self.user.name}",
-                        "timestamps": {
-                            "start": int(time.time() * 1000) # Live ticking "00:01 elapsed" timer
-                        },
-                        "assets": assets_payload,
-                        "buttons": ["FORB1D NETWORK", "SYSTEM STATUS"],
-                        "metadata": {
-                            "button_urls": [
-                                "https://www.guns.lol/forbiddenway",
-                                "https://forb1dd.netlify.app/"
-                            ]
-                        }
-                    }],
-                    "status": "online",
-                    "afk": False
-                }
-            }
-
-            try:
-                if hasattr(self.ws, "send_as_json"):
-                    await self.ws.send_as_json(raw_rpc)
-                else:
-                    await self.ws.send(json.dumps(raw_rpc))
-
-                panel = (
-                    f"```yaml\n"
-                    f"🕹️ FORB1D // GAMEBOX AVATAR RPC 🕹️\n"
-                    f"=================================\n"
-                    f"[+] Node     : {self.user.name}\n"
-                    f"[+] Title    : {box_title}\n"
-                    f"[+] Avatar   : {'LOCKED (mp:external)' if signed_asset else 'FALLBACK'}\n"
-                    f"[+] Buttons  : 2 ACTIVE LINKS\n"
-                    f"[!] Status   : CUSTOM RPC INJECTED\n"
-                    f"=================================\n"
-                    f"```"
-                )
-                await message.channel.send(panel)
-            except Exception as e:
-                await message.channel.send(f"❌ **{self.user.name}** Gamebox RPC failed: {e}")
 
         elif command == "help":
             # STAGGER MATH: All 8 bots respond, staggered by 1 second so Discord doesn't block them!
