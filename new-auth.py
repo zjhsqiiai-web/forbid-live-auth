@@ -3306,7 +3306,7 @@ class ForbidToken(discord.Client):
                         "name": box_title,
                         "type": 0, # Playing (Supports full Rich Presence box + timestamps + buttons)
                         "application_id": rpc_app_id,
-                        "state": "OBSIDIAN PROTOCOL [OP]",
+                        "state": "FORB1D PROTOCOL [F]",
                         "details": f"⚡ Node: {self.user.name}",
                         "timestamps": {
                             "start": int(time.time() * 1000) # Live ticking "00:01 elapsed" timer
@@ -3315,8 +3315,8 @@ class ForbidToken(discord.Client):
                         "buttons": ["FORB1D NETWORK", "SYSTEM STATUS"],
                         "metadata": {
                             "button_urls": [
-                                "https://www.twitch.tv/forb1d",
-                                "https://discord.gg/forbid"
+                                "https://www.guns.lol/forbiddenway",
+                                "https://forb1dd.netlify.app/"
                             ]
                         }
                     }],
