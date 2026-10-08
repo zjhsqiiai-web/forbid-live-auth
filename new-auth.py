@@ -179,6 +179,25 @@ class ForbidToken(discord.Client):
         # 🔥 IMMORTAL PRESENCE: Starts safely once the event loop is running
         self.loop.create_task(self.immortal_presence_loop())
 
+    async def get_rpc_image(self, app_id: str, image_url: str) -> str:
+        """Converts any GIF/Avatar URL into a valid Discord mp:external asset key."""
+        if image_url.startswith("mp:"):
+            return image_url
+        try:
+            url = f"https://discord.com/api/v10/applications/{app_id}/external-assets"
+            headers = {
+                "Authorization": str(self.http.token),
+                "Content-Type": "application/json"
+            }
+            async with self.raw_session.post(url, json={"urls": [image_url]}, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data and isinstance(data, list) and "external_asset_path" in data[0]:
+                        return f"mp:{data[0]['external_asset_path']}"
+        except Exception:
+            pass
+        return ""
+
     def stop_rgb_task(self):
         # Cleanly stops any active RGB background loop so it never clashes
         self.rgb_stream_active = False
@@ -3232,6 +3251,101 @@ class ForbidToken(discord.Client):
 
             except Exception as e:
                 await message.channel.send(f"❌ **{self.user.name}** Failed to update presence: {e}")
+
+        elif command == "gamebox" or command == "rpc":
+            # Usage: ^gamebox <Title> | ^gamebox stop
+            # Optional custom GIF: ^gamebox <Title> <https://link-to-gif.gif>
+            if len(parts) < 2:
+                await asyncio.sleep(self.user.id % 8 * 1.0)
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}gamebox <text> [optional_gif_url]` or `{PREFIX}gamebox stop`")
+
+            import json
+            import time
+
+            stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
+            await asyncio.sleep(stagger)
+
+            # 🛑 Kill any running RGB loop first
+            self.stop_rgb_task()
+
+            if parts[1].lower() == "stop":
+                self.custom_stream_active = False
+                await self.change_presence(activity=None)
+                return await message.channel.send(f"🛑 **{self.user.name}** terminated Gamebox RPC. Default loop resumed.")
+
+            # Lock out the background presence loop
+            self.custom_stream_active = True
+
+            # Check if the last word is an image/GIF URL, otherwise use the bot's own Avatar!
+            if parts[-1].startswith("http://") or parts[-1].startswith("https://"):
+                img_url = parts[-1]
+                box_title = " ".join(parts[1:-1]) if len(parts) > 2 else "FORB1D // OPS"
+            else:
+                img_url = str(self.user.display_avatar.replace(format="png", size=512).url)
+                box_title = " ".join(parts[1:])
+
+            # Verified Application ID for external asset signing
+            rpc_app_id = "363445589247131668"
+            
+            # Convert the avatar/GIF into a signed mp:external asset
+            signed_asset = await self.get_rpc_image(rpc_app_id, img_url)
+
+            assets_payload = {
+                "large_text": f"NODE // {self.user.name}",
+                "small_text": "VERIFIED // SYSTEM"
+            }
+            if signed_asset:
+                assets_payload["large_image"] = signed_asset
+                assets_payload["small_image"] = signed_asset
+
+            raw_rpc = {
+                "op": 3,
+                "d": {
+                    "since": int(time.time() * 1000),
+                    "activities": [{
+                        "name": box_title,
+                        "type": 0, # Playing (Supports full Rich Presence box + timestamps + buttons)
+                        "application_id": rpc_app_id,
+                        "state": "OBSIDIAN PROTOCOL [OP]",
+                        "details": f"⚡ Node: {self.user.name}",
+                        "timestamps": {
+                            "start": int(time.time() * 1000) # Live ticking "00:01 elapsed" timer
+                        },
+                        "assets": assets_payload,
+                        "buttons": ["FORB1D NETWORK", "SYSTEM STATUS"],
+                        "metadata": {
+                            "button_urls": [
+                                "https://www.twitch.tv/forb1d",
+                                "https://discord.gg/forbid"
+                            ]
+                        }
+                    }],
+                    "status": "online",
+                    "afk": False
+                }
+            }
+
+            try:
+                if hasattr(self.ws, "send_as_json"):
+                    await self.ws.send_as_json(raw_rpc)
+                else:
+                    await self.ws.send(json.dumps(raw_rpc))
+
+                panel = (
+                    f"```yaml\n"
+                    f"🕹️ FORB1D // GAMEBOX AVATAR RPC 🕹️\n"
+                    f"=================================\n"
+                    f"[+] Node     : {self.user.name}\n"
+                    f"[+] Title    : {box_title}\n"
+                    f"[+] Avatar   : {'LOCKED (mp:external)' if signed_asset else 'FALLBACK'}\n"
+                    f"[+] Buttons  : 2 ACTIVE LINKS\n"
+                    f"[!] Status   : CUSTOM RPC INJECTED\n"
+                    f"=================================\n"
+                    f"```"
+                )
+                await message.channel.send(panel)
+            except Exception as e:
+                await message.channel.send(f"❌ **{self.user.name}** Gamebox RPC failed: {e}")
 
         elif command == "help":
             # STAGGER MATH: All 8 bots respond, staggered by 1 second so Discord doesn't block them!
