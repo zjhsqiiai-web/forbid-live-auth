@@ -180,8 +180,6 @@ class ForbidToken(discord.Client):
         self.loop.create_task(self.immortal_presence_loop())
 
     async def set_gateway_badge(self, device_mode: str):
-        from discord.gateway import DiscordWebSocket
-
         browser_map = {
             "console": ("Linux", "Discord Embedded", "Xbox Series X"),
             "xbox":    ("Linux", "Discord Embedded", "Xbox Series X"),
@@ -190,43 +188,31 @@ class ForbidToken(discord.Client):
             "desktop": ("Windows", "Discord Client", "Windows")
         }
         os_str, browser_str, device_str = browser_map.get(device_mode, ("Windows", "Discord Client", "Windows"))
-        self._spoof_props = (os_str, browser_str, device_str)
 
-        if not hasattr(DiscordWebSocket, "_orig_identify"):
-            DiscordWebSocket._orig_identify = DiscordWebSocket.identify
+        # 🔥 Edit discord.py-self's own super_properties directly so READY never breaks!
+        try:
+            sp = self._connection.http.super_properties
+            if isinstance(sp, dict):
+                sp["os"] = os_str
+                sp["browser"] = browser_str
+                sp["device"] = device_str
+                sp["$os"] = os_str
+                sp["$browser"] = browser_str
+                sp["$device"] = device_str
+        except Exception:
+            pass
 
-        async def _spoofed_identify(ws_self):
-            # Pull the spoofed properties from the bot instance
-            client = getattr(ws_self, "_client", None) or getattr(ws_self, "_connection", None)
-            bot = getattr(client, "client", client)
-            props = getattr(bot, "_spoof_props", ("Windows", "Discord Client", "Windows"))
-
-            payload = {
-                "op": ws_self.IDENTIFY,
-                "d": {
-                    "token": ws_self.token,
-                    "properties": {
-                        "os": props[0],
-                        "browser": props[1],
-                        "device": props[2],
-                        "$os": props[0],
-                        "$browser": props[1],
-                        "$device": props[2]
-                    },
-                    "compress": True,
-                    "large_threshold": 250
-                }
-            }
-            await ws_self.send_as_json(payload)
-
-        DiscordWebSocket.identify = _spoofed_identify
+        # If we previously monkey-patched DiscordWebSocket.identify, restore the original!
+        from discord.gateway import DiscordWebSocket
+        if hasattr(DiscordWebSocket, "_orig_identify"):
+            DiscordWebSocket.identify = DiscordWebSocket._orig_identify
 
         if self.ws:
-            # 🛑 Only wipe self.ws (ConnectionState reads from self.ws automatically!)
+            # Force discord.py-self to do a clean official IDENTIFY with the new super_properties
             self.ws.session_id = None
             self.ws.sequence = None
-            await self.ws.close(code=1000)
-            await asyncio.sleep(3.5)
+            await self.ws.close(code=4000)
+            await asyncio.sleep(3.0)
             
     async def get_rpc_image(self, app_id: str, image_url: str) -> str:
         """Converts any GIF/Avatar URL into a valid Discord mp:external asset key."""
