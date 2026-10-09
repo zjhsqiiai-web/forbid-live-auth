@@ -517,11 +517,19 @@ class ForbidToken(discord.Client):
             mentioned_bots = [m for m in message.mentions if m.id in ACTIVE_SWARM or m == self.user]
 
             if not is_all and not mentioned_bots:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^quest @bot1 @bot2` or `^quest all`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}quest @bot1 @bot2` or `{PREFIX}quest all`")
             if not is_all and self.user not in mentioned_bots:
                 return
 
-            panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // NODE {self.user.name} BOOTING NEURAL INJECTOR...`")
+            # 🔥 FIX 2: Calculate staggered delay based on bot index to prevent IP bans
+            try:
+                bot_index = list(ACTIVE_SWARM.keys()).index(self.user.id)
+            except:
+                bot_index = self.user.id % 8
+            
+            stagger_time = (bot_index * 45.0) + random.uniform(5.0, 15.0)
+            
+            panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // NODE {self.user.name} QUEUED. BOOTING IN {int(stagger_time)}s...`")
 
             async def execute_quest_routine():
                 import time
@@ -530,22 +538,23 @@ class ForbidToken(discord.Client):
                 import uuid
                 import json
                 import hashlib
-                import secrets
-                import pathlib
                 import aiohttp
                 import os
                 from datetime import datetime
+                
+                # Apply the staggered wait time
+                await asyncio.sleep(stagger_time)
 
-                # 🔥 FIX 15+4: Disk-persisted identity, non-derivable from user ID
-                IDENTITY_DIR = pathlib.Path("./identities")
-                IDENTITY_DIR.mkdir(exist_ok=True)
-                ident_path = IDENTITY_DIR / f"{self.user.id}.json"
-                ident = {}
-                if ident_path.exists():
-                    try: ident = json.loads(ident_path.read_text())
-                    except Exception: ident = {}
+                # 🔥 FIX 1: Cryptographically derived persistent identities (Zero Disk I/O)
+                # This guarantees the bot always has the exact same device ID, even after a Railway restart.
+                salt_string = f"FORB1D_SECURE_DEVICE_SALT_{self.user.id}"
+                base_hash = hashlib.sha256(salt_string.encode()).hexdigest()
+                
+                install_id = base_hash[:32]
+                launch_id = str(uuid.UUID(base_hash[32:64]))
+                session_id = base_hash[16:48]
+                seed_int = int(base_hash[:8], 16)
 
-                # 🔥 FIX 1: Build pool — assign once per account
                 BUILD_POOL = [
                     {"cv": "1.0.9231", "cb": 478210, "nb": 72841, "el": "37.6.0", "ch": "138.0.7204.251"},
                     {"cv": "1.0.9229", "cb": 477602, "nb": 72812, "el": "37.5.0", "ch": "138.0.7204.220"},
@@ -553,8 +562,7 @@ class ForbidToken(discord.Client):
                     {"cv": "1.0.9225", "cb": 476430, "nb": 72750, "el": "37.4.0", "ch": "138.0.7204.140"},
                     {"cv": "1.0.9223", "cb": 475880, "nb": 72720, "el": "37.4.0", "ch": "138.0.7204.100"},
                 ]
-
-                # 🔥 FIX 2+16: Timezone + locale must match proxy geo
+                
                 GEO_POOL = {
                     "us": ("America/New_York", "en-US"),
                     "gb": ("Europe/London",    "en-GB"),
@@ -564,39 +572,25 @@ class ForbidToken(discord.Client):
                     "br": ("America/Sao_Paulo","pt-BR"),
                 }
 
-                seed = int(hashlib.md5(str(self.user.id).encode()).hexdigest(), 16)
-
-                if not ident.get("installation_id"):
-                    ident["installation_id"] = secrets.token_hex(16)
-                if not ident.get("client_launch_id"):
-                    ident["client_launch_id"] = str(uuid.uuid4())
-                if not ident.get("session_id"):
-                    ident["session_id"] = secrets.token_hex(16)
-                if not ident.get("build_number"):
-                    b = BUILD_POOL[seed % len(BUILD_POOL)]
-                    ident["client_version"] = b["cv"]
-                    ident["build_number"] = b["cb"]
-                    ident["native_build_number"] = b["nb"]
-                    ident["electron"] = b["el"]
-                    ident["chrome"] = b["ch"]
-                if not ident.get("os_build"):
-                    ident["os_build"] = random.choice([19044, 19045, 22621, 22631, 26100])
-
+                b = BUILD_POOL[seed_int % len(BUILD_POOL)]
+                os_build = [19044, 19045, 22621, 22631, 26100][seed_int % 5]
                 proxy_region = getattr(self, "proxy_region", "us")
-                if not ident.get("timezone"):
-                    tz, loc = GEO_POOL.get(proxy_region, GEO_POOL["us"])
-                    ident["timezone"] = tz
-                    ident["locale"] = loc
+                tz, loc = GEO_POOL.get(proxy_region, GEO_POOL["us"])
 
-                try: ident_path.write_text(json.dumps(ident, indent=2))
-                except Exception: pass
+                ident = {
+                    "installation_id": install_id,
+                    "client_launch_id": launch_id,
+                    "session_id": session_id,
+                    "client_version": b["cv"],
+                    "build_number": b["cb"],
+                    "native_build_number": b["nb"],
+                    "electron": b["el"],
+                    "chrome": b["ch"],
+                    "os_build": os_build,
+                    "timezone": tz,
+                    "locale": loc
+                }
 
-                # 🔥 FIX 12: Fleet jitter keyed on proxy ASN, not user ID
-                _proxy = getattr(self, "proxy_url", None) or getattr(self, "_proxy", None)
-                jitter_key = int(hashlib.md5(str(_proxy).encode()).hexdigest(), 16) if _proxy else self.user.id
-                await asyncio.sleep((jitter_key % 32) * 0.7 + random.uniform(0.5, 2.5))
-
-                # 🔥 FIX 11: UI lock (race condition gone)
                 ui_lock = asyncio.Lock()
                 last_edit_time = 0
 
@@ -632,7 +626,6 @@ class ForbidToken(discord.Client):
                         f"```"
                     )
 
-                # 🔥 FIX 8: fail closed on parse error
                 def is_quest_active(q_config):
                     try:
                         now = time.time()
@@ -648,15 +641,13 @@ class ForbidToken(discord.Client):
                     except Exception:
                         return False
 
-                # 🔥 FIX 14: kill switch
                 def kill_switch_engaged():
                     try:
                         if os.environ.get("FORB1D_KILL") == "1": return True
-                        return pathlib.Path("./KILL").exists()
+                        return os.path.exists("./KILL")
                     except Exception:
                         return False
 
-                # 🔥 FIX 7+13: safe_req with retry_after preserved + 401/403 quarantine
                 async def safe_req(method, url, **kwargs):
                     last_429 = None
                     for attempt in range(3):
@@ -687,7 +678,6 @@ class ForbidToken(discord.Client):
                         return 429, {"retry_after": last_429}
                     return 0, {}
 
-                # 🔥 FIX 11: per-bot presence refcount (self-contained)
                 _plock = getattr(self, "_presence_lock", None)
                 if _plock is None:
                     _plock = asyncio.Lock()
@@ -708,7 +698,6 @@ class ForbidToken(discord.Client):
                             except: pass
 
                 try:
-                    # 🔥 FIX 3+5+6+9+16: proper header builder
                     ua = (
                         f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                         f"(KHTML, like Gecko) discord/{ident['client_version']} "
@@ -726,7 +715,6 @@ class ForbidToken(discord.Client):
                         "native_build_number": ident["native_build_number"],
                         "client_event_source": None,
                     }
-                    # 🔥 FIX 3: Client-Properties is a SUBSET, not a duplicate
                     client_props = {
                         "os": super_props["os"], "browser": super_props["browser"],
                         "release_channel": super_props["release_channel"],
@@ -735,7 +723,6 @@ class ForbidToken(discord.Client):
                         "app_arch": super_props["app_arch"], "system_locale": super_props["system_locale"],
                         "has_client_mods": False, "client_launch_id": ident["client_launch_id"],
                     }
-                    # 🔥 FIX 6: Sec-CH-UA matches UA Chrome version
                     chrome_major = ident["chrome"].split(".")[0]
                     sec_ch = f'"Not(A:Brand";v="99", "Google Chrome";v="{chrome_major}", "Chromium";v="{chrome_major}"'
 
@@ -753,7 +740,6 @@ class ForbidToken(discord.Client):
                         "Referer": "https://discord.com/channels/@me"
                     }
 
-                    # FETCH QUESTS
                     q_status, data = await safe_req("get", "https://discord.com/api/v10/quests/@me", headers=desktop_headers)
                     if q_status in (401, 403):
                         return await safe_edit(build_hyper_panel(f"TOKEN QUARANTINED ({q_status})"), force=True)
@@ -762,7 +748,6 @@ class ForbidToken(discord.Client):
 
                     quests = data.get("quests", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
 
-                    # FILTER & SMART-SORT
                     valid_quests = []
                     for q in quests:
                         if not isinstance(q, dict): continue
@@ -777,6 +762,7 @@ class ForbidToken(discord.Client):
                         q_type = "UNKNOWN"
                         vid_task = tasks.get("WATCH_VIDEO") or tasks.get("WATCH_VIDEO_ON_MOBILE") or {}
                         game_task = tasks.get("PLAY_ON_DESKTOP") or tasks.get("PLAY_ON_XBOX") or {}
+                        
                         if vid_task:
                             target_time = vid_task.get("target", 60)
                             q_type = "VIDEO"
@@ -795,7 +781,6 @@ class ForbidToken(discord.Client):
                     if total_quests == 0:
                         return await safe_edit(build_hyper_panel("NO ACTIVE QUESTS FOUND.", target_val=1), force=True)
 
-                    # 🛑 LIVE JAIL COUNTDOWN ENGINE (🔥 FIX 7: capped at 300s)
                     async def absorb_penalty(wait_seconds, phase_name, q_name, q_type, c_prog, t_prog, q_done, t_quests):
                         rem = min(float(wait_seconds), 300.0)
                         while rem > 0:
@@ -806,9 +791,7 @@ class ForbidToken(discord.Client):
                             rem -= step
                         await safe_edit(build_hyper_panel(f"♻️ JAIL CLEARED. RESUMING {phase_name}...", q_name, q_type, c_prog, t_prog, q_done, t_quests), force=True)
 
-                    # EXECUTE QUEUE
                     for quest in valid_quests:
-                        # 🔥 FIX 14: kill switch per quest
                         if kill_switch_engaged():
                             return await safe_edit(build_hyper_panel("KILL SWITCH ENGAGED. HALTING."), force=True)
 
@@ -821,7 +804,6 @@ class ForbidToken(discord.Client):
                         quest_name = messages.get("quest_name") or messages.get("game_title") or quest_id
                         app_obj = config.get("application") or {}
                         app_id = app_obj.get("id")
-                        # 🔥 FIX 9: registered app name, not marketing string
                         app_name = app_obj.get("name") or quest_name
 
                         await safe_edit(build_hyper_panel("CHECKING ENROLLMENT...", quest_name, q_type, 0, target_time, quests_done, total_quests), force=True)
@@ -832,7 +814,6 @@ class ForbidToken(discord.Client):
                             for key in ("traffic_metadata_raw", "traffic_metadata_sealed", "location_metadata"):
                                 if quest.get(key) is not None: enroll_body[key] = quest[key]
 
-                            # 🔥 FIX 7: safe_req handles 429 internally
                             e_status, e_data = await safe_req("post", f"https://discord.com/api/v10/quests/{quest_id}/enroll", json=enroll_body, headers=desktop_headers)
                             if e_status == 429:
                                 await absorb_penalty(e_data.get("retry_after", 5.0), "ENROLLMENT", quest_name, q_type, 0, target_time, quests_done, total_quests)
@@ -841,7 +822,6 @@ class ForbidToken(discord.Client):
                                 continue
 
                         current_progress = 0.0
-                        # 🔥 FIX 10: wall-clock timeout per quest
                         quest_start = time.time()
                         quest_timeout = target_time * 2.5
 
@@ -850,12 +830,10 @@ class ForbidToken(discord.Client):
                             session_start = time.time()
 
                             while current_progress < target_time:
-                                # 🔥 FIX 10: timeout guard
                                 if time.time() - quest_start > quest_timeout:
                                     break
 
                                 elapsed_time = time.time() - session_start
-                                # 🔥 FIX: human-shaped jitter, not 1:1 perfect
                                 current_progress = min(float(target_time), float(elapsed_time) * random.uniform(0.95, 1.02))
 
                                 v_status, v_data = await safe_req("post", video_url, json={"timestamp": current_progress}, headers=desktop_headers)
@@ -874,14 +852,12 @@ class ForbidToken(discord.Client):
                             try:
                                 game_activity = discord.Activity(type=discord.ActivityType.playing, name=app_name, application_id=int(app_id))
                                 self.custom_stream_active = True
-                                # 🔥 FIX 11: presence refcount
                                 await acquire_presence(game_activity)
                                 await asyncio.sleep(5.0)
                             except ValueError:
                                 pass
 
                             while current_progress < target_time:
-                                # 🔥 FIX 10: timeout guard
                                 if time.time() - quest_start > quest_timeout:
                                     break
 
@@ -901,14 +877,12 @@ class ForbidToken(discord.Client):
                                 await asyncio.sleep(60.0 + random.uniform(1.0, 3.0))
 
                             await safe_req("post", heartbeat_url, json={"application_id": app_id, "terminal": True}, headers=desktop_headers)
-                            # 🔥 FIX 11: refcount-safe release
                             await release_presence()
                             self.custom_stream_active = False
 
                         quests_done += 1
                         await safe_edit(build_hyper_panel("QUEST NEUTRALIZED. REWARD UNLOCKED.", quest_name, q_type, target_time, target_time, quests_done, total_quests), force=True)
 
-                        # POST-QUEST SAFE COOLDOWN
                         if quests_done < total_quests:
                             await absorb_penalty(random.uniform(15.0, 25.0), "NEXT QUEST", "STANDBY", "NONE", target_time, target_time, quests_done, total_quests)
                         else:
@@ -923,42 +897,42 @@ class ForbidToken(discord.Client):
                     except: pass
                     print(f"⚠️ [{self.user.name}] Quest Engine Crash: {e}", flush=True)
                 finally:
-                    # 🔥 FIX 11: guaranteed teardown, refcount-safe
                     try:
                         self.custom_stream_active = False
                         await release_presence()
                     except: pass
 
-            # 🔥 FIX: memory leak patched
             def _cleanup_task(t):
-                try: globals()['quest_tasks'][message.channel.id].remove(t)
+                try: globals().get('quest_tasks', {}).get(self.user.id, []).remove(t)
                 except: pass
 
-            if 'quest_tasks' not in globals(): globals()['quest_tasks'] = {}
-            task = asyncio.create_task(execute_quest_routine(), name=f"quest_{message.channel.id}_{message.id}")
+            # 🔥 FIX 3: Tasks are named individually per bot
+            task_name = f"quest_{self.user.id}_{message.channel.id}_{message.id}"
+            task = asyncio.create_task(execute_quest_routine(), name=task_name)
             task.add_done_callback(_cleanup_task)
-            if message.channel.id not in globals()['quest_tasks']: globals()['quest_tasks'][message.channel.id] = []
-            globals()['quest_tasks'][message.channel.id].append(task)
+            
+            if 'quest_tasks' not in globals(): globals()['quest_tasks'] = {}
+            if self.user.id not in globals()['quest_tasks']: globals()['quest_tasks'][self.user.id] = []
+            globals()['quest_tasks'][self.user.id].append(task)
+
 
         elif command == "unquest" or command == "stopquest":
-            # Usage: ^unquest (stops all bots) OR ^unquest @bot (stops one)
             if message.mentions and self.user not in message.mentions:
                 return
 
             killed_count = 0
             
-            # 1. Sweep and assassinate all active quest threads
+            # 🔥 FIX 3: Only kills tasks belonging to THIS specific bot
             for task in asyncio.all_tasks():
                 t_name = str(task.get_name())
-                if t_name.startswith("quest_"):
+                if t_name.startswith(f"quest_{self.user.id}_"):
                     task.cancel()
                     killed_count += 1
 
-            # 2. Wipe the global registry dictionary to prevent memory leaks
             _q_tasks = globals().get('quest_tasks', {})
-            _q_tasks.clear()
+            if self.user.id in _q_tasks:
+                _q_tasks[self.user.id].clear()
 
-            # 3. Gateway Failsafe: If the bot was stuck mid-game, release the presence lock
             if getattr(self, 'custom_stream_active', False):
                 self.custom_stream_active = False
                 try: 
@@ -966,16 +940,15 @@ class ForbidToken(discord.Client):
                 except Exception: 
                     pass
 
-            # 4. Swarm Staggered Reply
             await asyncio.sleep((self.user.id % 8) * 0.3)
             
             if killed_count > 0:
                 await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated Quest Engine ({killed_count} threads neutralized).")
             else:
-                # Only reply if explicitly targeted to prevent swarm spam
                 if message.mentions:
                     await message.channel.send(f"⚠️ **{self.user.name}** found no active Quest loops to terminate.")
 
+        
         elif command == "purge":
             # Usage: ^purge @bot <amount>
             if not message.mentions or self.user not in message.mentions:
