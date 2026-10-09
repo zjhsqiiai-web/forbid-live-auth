@@ -587,7 +587,7 @@ class ForbidToken(discord.Client):
                 return await message.channel.send(f"⚠️ **{self.user.name}** already running a Quest Engine. Use `^unquest` first.")
 
             # 🔥 FIX 19: deterministic slot across boot window (no collisions)
-            swarm_ids = sorted(ACTIVE_SWARM.keys())
+            swarm_ids = sorted(ACTIVE_SWARM.keys()) if hasattr(ACTIVE_SWARM, "keys") else sorted(ACTIVE_SWARM)
             swarm_n = max(1, len(swarm_ids))
             try:
                 slot = swarm_ids.index(self.user.id)
