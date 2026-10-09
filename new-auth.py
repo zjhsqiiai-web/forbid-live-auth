@@ -510,18 +510,8 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
-        elif command == "quest" or command == "runquest":
-            import time
-            import random
-            import base64
-            import uuid
-            import json
-            import hashlib
-            import aiohttp
-            import os
-            import signal
-            from datetime import datetime
 
+        elif command == "quest" or command == "runquest":
             args_lower = [p.lower() for p in parts]
             is_all = "all" in args_lower
             mentioned_bots = [m for m in message.mentions if m.id in ACTIVE_SWARM or m == self.user]
@@ -531,133 +521,16 @@ class ForbidToken(discord.Client):
             if not is_all and self.user not in mentioned_bots:
                 return
 
-            # 🔥 FIX 17: fleet coordinator (one per process, auto-scales to swarm size)
-            fleet = globals().get('_FORB1D_FLEET')
-            if fleet is None:
-                swarm_size = max(1, len(ACTIVE_SWARM))
-
-                env_conc = os.environ.get("FORB1D_IP_CONCURRENCY")
-                try:
-                    ip_budget = max(2, int(env_conc)) if env_conc else max(3, min(24, int(round(swarm_size ** 0.6 * 1.6))))
-                except (TypeError, ValueError):
-                    ip_budget = max(3, min(24, int(round(swarm_size ** 0.6 * 1.6))))
-
-                env_win = os.environ.get("FORB1D_BOOT_WINDOW")
-                try:
-                    boot_window = max(30.0, float(env_win)) if env_win else max(60.0, swarm_size * 6.0)
-                except (TypeError, ValueError):
-                    boot_window = max(60.0, swarm_size * 6.0)
-
-                fleet = {
-                    "ip_sem": asyncio.Semaphore(ip_budget),
-                    "circuit": {},
-                    "circuit_lock": asyncio.Lock(),
-                    "cooldown_until": 0.0,
-                    "cooldown_lock": asyncio.Lock(),
-                    "engines": {},
-                    "metrics": {"reqs": 0, "r429": 0, "r5xx": 0, "r401": 0},
-                    "sigterm_hooked": False,
-                    "ip_budget": ip_budget,
-                    "boot_window": boot_window,
-                    "swarm_size": swarm_size,
-                }
-                globals()['_FORB1D_FLEET'] = fleet
-
-                # 🔥 FIX 20: SIGTERM drain — no ghost bots online after redeploy
-                try:
-                    def _on_sigterm():
-                        try:
-                            for t in list(fleet["engines"].values()):
-                                if t and not t.done():
-                                    t.cancel()
-                        except Exception:
-                            pass
-                    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, _on_sigterm)
-                    fleet["sigterm_hooked"] = True
-                except (NotImplementedError, RuntimeError, ValueError, AttributeError):
-                    pass
-
-                print(json.dumps({"evt": "fleet.bootstrap", "swarm": swarm_size,
-                                  "ip_budget": ip_budget,
-                                  "boot_window": boot_window}), flush=True)
-
-            # 🔥 FIX 17: dedupe — one engine per bot
-            _existing = fleet["engines"].get(self.user.id)
-            if _existing and not _existing.done():
-                return await message.channel.send(f"⚠️ **{self.user.name}** already running a Quest Engine. Use `^unquest` first.")
-
-            # 🔥 FIX 19: deterministic slot across boot window (no collisions)
-            swarm_ids = sorted(ACTIVE_SWARM.keys()) if hasattr(ACTIVE_SWARM, "keys") else sorted(ACTIVE_SWARM)
-            swarm_n = max(1, len(swarm_ids))
-            try:
-                slot = swarm_ids.index(self.user.id)
-            except ValueError:
-                slot = self.user.id % swarm_n
-            slot_w = fleet["boot_window"] / swarm_n
-
             panel_msg = await message.channel.send(f"`[!] FORB1D🔥 // NODE {self.user.name} BOOTING NEURAL INJECTOR...`")
 
             async def execute_quest_routine():
-                # 🔥 FIX 15+4+27: zero-disk cryptographic identity
-                # Stable across restarts, unique per bot, not derivable from user id alone.
-                _id_salt = hashlib.sha256(f"FORB1D_V2|{self.user.id}|{self.http.token}".encode()).hexdigest()
-                seed = int(_id_salt[:8], 16)
-
-                BUILD_POOL = [
-                    {"cv": "1.0.9231", "cb": 478210, "nb": 72841, "el": "37.6.0", "ch": "138.0.7204.251"},
-                    {"cv": "1.0.9229", "cb": 477602, "nb": 72812, "el": "37.5.0", "ch": "138.0.7204.220"},
-                    {"cv": "1.0.9227", "cb": 477014, "nb": 72785, "el": "37.5.0", "ch": "138.0.7204.180"},
-                    {"cv": "1.0.9225", "cb": 476430, "nb": 72750, "el": "37.4.0", "ch": "138.0.7204.140"},
-                    {"cv": "1.0.9223", "cb": 475880, "nb": 72720, "el": "37.4.0", "ch": "138.0.7204.100"},
-                ]
-
-                GEO_POOL = {
-                    "us": ("America/New_York", "en-US"),
-                    "gb": ("Europe/London",    "en-GB"),
-                    "de": ("Europe/Berlin",    "de-DE"),
-                    "jp": ("Asia/Tokyo",       "ja-JP"),
-                    "in": ("Asia/Calcutta",    "en-IN"),
-                    "br": ("America/Sao_Paulo","pt-BR"),
-                }
-
-                b = BUILD_POOL[seed % len(BUILD_POOL)]
-                ident = {
-                    "installation_id": _id_salt[:32],
-                    "client_launch_id": str(uuid.UUID(_id_salt[32:64])),
-                    "session_id": _id_salt[16:48],
-                    "client_version": b["cv"],
-                    "build_number": b["cb"],
-                    "native_build_number": b["nb"],
-                    "electron": b["el"],
-                    "chrome": b["ch"],
-                    "os_build": [19044, 19045, 22621, 22631, 26100][seed % 5],
-                }
-
-                proxy_region = getattr(self, "proxy_region", "us")
-                tz, loc = GEO_POOL.get(proxy_region, GEO_POOL["us"])
-                ident["timezone"] = tz
-                ident["locale"] = loc
-
-                # 🔥 FIX 12: fleet jitter keyed on proxy ASN + deterministic slot
-                _proxy = getattr(self, "proxy_url", None) or getattr(self, "_proxy", None)
-                jitter_key = int(hashlib.md5(str(_proxy).encode()).hexdigest(), 16) if _proxy else self.user.id
-                slot_jitter = slot * slot_w + random.uniform(0.0, slot_w * 0.35)
-                await asyncio.sleep(slot_jitter + (jitter_key % 8) * 0.7 + random.uniform(0.5, 2.5))
-
-                # 🔥 FIX 11: UI lock (race condition gone)
-                ui_lock = asyncio.Lock()
-                last_edit_time = [0.0]
-
-                async def safe_edit(content, force=False):
-                    async with ui_lock:
-                        now = time.time()
-                        if force or (now - last_edit_time[0] > 15.0):
-                            try:
-                                await panel_msg.edit(content=content)
-                                last_edit_time[0] = time.time()
-                            except asyncio.CancelledError: raise
-                            except Exception: pass
-
+                import time
+                import random
+                import base64
+                import uuid
+                import json
+                from datetime import datetime
+                
                 def build_hyper_panel(sys_status, q_name="AWAITING...", q_type="SCAN", curr_val=0, target_val=1, done=0, total=0):
                     pct = min(100, int((curr_val / max(1, target_val)) * 100))
                     filled = int(pct / 10)
@@ -679,7 +552,6 @@ class ForbidToken(discord.Client):
                         f"```"
                     )
 
-                # 🔥 FIX 8: fail closed on parse error
                 def is_quest_active(q_config):
                     try:
                         now = time.time()
@@ -691,206 +563,63 @@ class ForbidToken(discord.Client):
                         if starts:
                             start_dt = datetime.fromisoformat(starts.replace("Z", "+00:00")).timestamp()
                             if now < start_dt: return False
-                        return True
                     except Exception:
-                        return False
-
-                # 🔥 FIX 14+27: env-only kill switch — zero disk
-                def kill_switch_engaged():
-                    try:
-                        return os.environ.get("FORB1D_KILL") == "1"
-                    except Exception:
-                        return False
-
-                # 🔥 FIX 21: circuit breaker — fleet-wide per-endpoint cooldown
-                import re as _re
-                _EP_ID_RE = _re.compile(r"quests/[^/]+/")
-                def _ep_key(url):
-                    tail = url.split("/api/v10/", 1)[-1].split("?", 1)[0]
-                    return _EP_ID_RE.sub("quests/*/", tail)
-
-                async def _wait_circuit(ep):
-                    async with fleet["circuit_lock"]:
-                        c = fleet["circuit"].get(ep)
-                        if not c: return
-                        wait = c["until"] - time.monotonic()
-                    if wait > 0: await asyncio.sleep(wait)
-
-                async def _trip_circuit(ep, cooldown):
-                    async with fleet["circuit_lock"]:
-                        c = fleet["circuit"].setdefault(ep, {"until": 0.0, "fails": 0, "last_trip": 0.0})
-                        now = time.monotonic()
-                        if now - c.get("last_trip", 0) > 90.0:
-                            c["fails"] = 0
-                        c["fails"] += 1
-                        c["last_trip"] = now
-                        trip = min(90.0, 5.0 * (3 ** min(c["fails"] - 1, 3)))
-                        c["until"] = now + max(trip, float(cooldown))
-
-                async def _await_fleet_cooldown():
-                    async with fleet["cooldown_lock"]:
-                        cd = fleet["cooldown_until"] - time.monotonic()
-                    if cd > 0: await asyncio.sleep(cd)
-
-                # 🔥 FIX 7+13+22: safe_req — fleet semaphore + circuit + Retry-After header
-                async def safe_req(method, url, **kwargs):
-                    last_429 = None
-                    ep = _ep_key(url)
-                    timeout = aiohttp.ClientTimeout(total=20.0, connect=8.0)
-
-                    for attempt in range(3):
-                        await _wait_circuit(ep)
-                        await _await_fleet_cooldown()
-
-                        try:
-                            async with fleet["ip_sem"]:
-                                fleet["metrics"]["reqs"] += 1
-                                async with getattr(self.raw_session, method)(url, timeout=timeout, **kwargs) as resp:
-                                    status = resp.status
-                                    hdr = dict(resp.headers)
-                                    try: data = await resp.json()
-                                    except Exception: data = {}
-
-                            if status in (200, 201, 202, 204):
-                                return status, data
-                            if status in (401, 403):
-                                fleet["metrics"]["r401"] += 1
-                                return status, data
-
-                            if status == 429:
-                                fleet["metrics"]["r429"] += 1
-                                ra = 5.0
-                                try: ra = float((data or {}).get("retry_after", 5.0) or 5.0)
-                                except (TypeError, ValueError): pass
-                                try:
-                                    hra = float(hdr.get("Retry-After", "0") or "0")
-                                    if hra > 0: ra = max(ra, hra)
-                                except (TypeError, ValueError): pass
-                                last_429 = ra
-                                await _trip_circuit(ep, ra)
-                                # 🔥 FIX 23: every 3rd 429 = fleet-wide pause
-                                if fleet["metrics"]["r429"] % 3 == 0:
-                                    async with fleet["cooldown_lock"]:
-                                        fleet["cooldown_until"] = max(fleet["cooldown_until"],
-                                                                      time.monotonic() + ra * 0.5)
-                                await asyncio.sleep(ra + random.uniform(0.3, 1.1))
-                                continue
-
-                            if status >= 500:
-                                fleet["metrics"]["r5xx"] += 1
-                                backoff = (1.8 ** (attempt + 1)) * random.uniform(0.8, 1.2)
-                                await _trip_circuit(ep, min(backoff, 30.0))
-                                await asyncio.sleep(backoff)
-                                continue
-
-                            return status, data
-
-                        except asyncio.CancelledError:
-                            raise
-                        except Exception as e:
-                            if attempt == 2:
-                                return 0, {"error": str(e)}
-                            await asyncio.sleep((2.0 * (attempt + 1)) * random.uniform(0.8, 1.2))
-
-                    if last_429 is not None:
-                        return 429, {"retry_after": last_429}
-                    return 0, {}
-
-                # 🔥 FIX 11: per-bot presence refcount (self-contained)
-                _plock = getattr(self, "_presence_lock", None)
-                if _plock is None:
-                    _plock = asyncio.Lock()
-                    self._presence_lock = _plock
-                    self._presence_refcount = 0
-
-                async def acquire_presence(activity):
-                    async with self._presence_lock:
-                        self._presence_refcount = getattr(self, "_presence_refcount", 0) + 1
-                        if self._presence_refcount == 1:
-                            try:
-                                await self.change_presence(activity=activity, status=discord.Status.online)
-                            except Exception: pass
-
-                async def release_presence():
-                    async with self._presence_lock:
-                        self._presence_refcount = max(0, getattr(self, "_presence_refcount", 1) - 1)
-                        if self._presence_refcount == 0:
-                            try: await self.change_presence(activity=None)
-                            except Exception: pass
+                        pass
+                    return True
 
                 try:
-                    # 🔥 FIX 3+5+6+9+16: proper header builder
-                    ua = (
-                        f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                        f"(KHTML, like Gecko) discord/{ident['client_version']} "
-                        f"Chrome/{ident['chrome']} Electron/{ident['electron']} Safari/537.36"
-                    )
+                    # FORGE DESKTOP CLIENT HEADERS
+                    client_uuid = str(uuid.uuid4())
                     super_props = {
                         "os": "Windows", "browser": "Discord Client", "release_channel": "stable",
-                        "client_version": ident["client_version"],
-                        "os_version": f"10.0.{ident['os_build']}", "os_arch": "x64",
-                        "app_arch": "x64", "system_locale": ident["locale"], "has_client_mods": False,
-                        "client_launch_id": ident["client_launch_id"],
-                        "browser_user_agent": ua,
-                        "browser_version": ident["electron"], "os_sdk_version": str(ident["os_build"]),
-                        "client_build_number": ident["build_number"],
-                        "native_build_number": ident["native_build_number"],
-                        "client_event_source": None,
+                        "client_version": "1.0.9215", "os_version": "10.0.19045", "os_arch": "x64",
+                        "app_arch": "x64", "system_locale": "en-US", "has_client_mods": False,
+                        "client_launch_id": client_uuid,
+                        "browser_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9215 Chrome/138.0.7204.251 Electron/37.6.0 Safari/537.36",
+                        "browser_version": "37.6.0", "os_sdk_version": "19045",
+                        "client_build_number": 471091, "native_build_number": 72186, "client_event_source": None,
                     }
-                    client_props = {
-                        "os": super_props["os"], "browser": super_props["browser"],
-                        "release_channel": super_props["release_channel"],
-                        "client_version": super_props["client_version"],
-                        "os_version": super_props["os_version"], "os_arch": super_props["os_arch"],
-                        "app_arch": super_props["app_arch"], "system_locale": super_props["system_locale"],
-                        "has_client_mods": False, "client_launch_id": ident["client_launch_id"],
-                    }
-                    chrome_major = ident["chrome"].split(".")[0]
-                    sec_ch = f'"Not(A:Brand";v="99", "Google Chrome";v="{chrome_major}", "Chromium";v="{chrome_major}"'
-
                     desktop_headers = {
                         "Authorization": str(self.http.token), "Content-Type": "application/json",
-                        "User-Agent": ua,
+                        "User-Agent": super_props["browser_user_agent"],
                         "X-Super-Properties": base64.b64encode(json.dumps(super_props).encode()).decode(),
-                        "X-Discord-Client-Properties": base64.b64encode(json.dumps(client_props).encode()).decode(),
-                        "X-Discord-Locale": ident["locale"],
-                        "X-Discord-Timezone": ident["timezone"],
-                        "X-Discord-Client-Launch-Id": ident["client_launch_id"],
-                        "X-Discord-Installation-Id": ident["installation_id"],
-                        "Sec-CH-UA": sec_ch,
-                        "Origin": "https://discord.com",
+                        "X-Discord-Locale": "en-US", "Origin": "https://discord.com",
                         "Referer": "https://discord.com/channels/@me"
                     }
 
-                    q_status, data = await safe_req("get", "https://discord.com/api/v10/quests/@me", headers=desktop_headers)
-                    if q_status in (401, 403):
-                        return await safe_edit(build_hyper_panel(f"TOKEN QUARANTINED ({q_status})"), force=True)
-                    if q_status != 200:
-                        return await safe_edit(build_hyper_panel(f"API REJECTED STATUS {q_status}"), force=True)
+                    # FETCH QUESTS
+                    url = "https://discord.com/api/v10/quests/@me"
+                    async with self.raw_session.get(url, headers=desktop_headers) as resp:
+                        if resp.status != 200:
+                            return await panel_msg.edit(content=build_hyper_panel(f"API REJECTED STATUS {resp.status}"))
+                        
+                        data = await resp.json()
+                        quests = data.get("quests", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
 
-                    quests = data.get("quests", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
-
+                    # FILTER & SMART-SORT
                     valid_quests = []
                     for q in quests:
                         if not isinstance(q, dict): continue
                         if (q.get("user_status") or {}).get("completed_at"): continue
+                        
                         cfg = q.get("config", {})
-                        if not is_quest_active(cfg): continue
-
+                        if not is_quest_active(cfg): continue 
+                        
                         tcfg = cfg.get("task_config_v2") or cfg.get("task_config") or {}
                         tasks = tcfg.get("tasks", {})
-
+                        
                         target_time = 9999
                         q_type = "UNKNOWN"
-                        vid_task = tasks.get("WATCH_VIDEO") or tasks.get("WATCH_VIDEO_ON_MOBILE") or {}
-                        game_task = tasks.get("PLAY_ON_DESKTOP") or tasks.get("PLAY_ON_XBOX") or {}
-                        if vid_task:
-                            target_time = vid_task.get("target", 60)
+                        if "WATCH_VIDEO" in tasks:
+                            target_time = tasks["WATCH_VIDEO"].get("target", 60)
                             q_type = "VIDEO"
-                        elif game_task:
-                            target_time = game_task.get("target", 900)
+                        elif "WATCH_VIDEO_ON_MOBILE" in tasks:
+                            target_time = tasks["WATCH_VIDEO_ON_MOBILE"].get("target", 60)
+                            q_type = "VIDEO"
+                        elif "PLAY_ON_DESKTOP" in tasks:
+                            target_time = tasks["PLAY_ON_DESKTOP"].get("target", 900)
                             q_type = "GAME"
-
+                            
                         q["_parsed_target"] = target_time
                         q["_parsed_type"] = q_type
                         valid_quests.append(q)
@@ -900,172 +629,148 @@ class ForbidToken(discord.Client):
                     quests_done = 0
 
                     if total_quests == 0:
-                        return await safe_edit(build_hyper_panel("NO ACTIVE QUESTS FOUND.", target_val=1), force=True)
+                        return await panel_msg.edit(content=build_hyper_panel("NO ACTIVE QUESTS FOUND.", target_val=1))
 
-                    # 🛑 LIVE JAIL COUNTDOWN ENGINE (🔥 FIX 7: capped at 300s)
+                    # 🛑 LIVE JAIL COUNTDOWN ENGINE 🛑
                     async def absorb_penalty(wait_seconds, phase_name, q_name, q_type, c_prog, t_prog, q_done, t_quests):
-                        rem = min(float(wait_seconds), 300.0)
+                        rem = float(wait_seconds)
                         while rem > 0:
                             sys_msg = f"🛑 ANTI-CHEAT JAIL. AUTO-RESUMING IN {int(rem)}s..."
-                            await safe_edit(build_hyper_panel(sys_msg, q_name, q_type, c_prog, t_prog, q_done, t_quests))
+                            try: await panel_msg.edit(content=build_hyper_panel(sys_msg, q_name, q_type, c_prog, t_prog, q_done, t_quests))
+                            except: pass
+                            
                             step = min(10.0, rem)
                             await asyncio.sleep(step)
                             rem -= step
-                        await safe_edit(build_hyper_panel(f"♻️ JAIL CLEARED. RESUMING {phase_name}...", q_name, q_type, c_prog, t_prog, q_done, t_quests), force=True)
+                        
+                        try: await panel_msg.edit(content=build_hyper_panel(f"♻️ JAIL CLEARED. RESUMING {phase_name}...", q_name, q_type, c_prog, t_prog, q_done, t_quests))
+                        except: pass
 
+                    # EXECUTE QUEUE
                     for quest in valid_quests:
-                        # 🔥 FIX 14: kill switch per quest
-                        if kill_switch_engaged():
-                            return await safe_edit(build_hyper_panel("KILL SWITCH ENGAGED. HALTING."), force=True)
-
                         quest_id = quest.get("id")
                         q_type = quest["_parsed_type"]
                         target_time = quest["_parsed_target"]
-
+                        
                         config = quest.get("config") or {}
                         messages = config.get("messages") or {}
                         quest_name = messages.get("quest_name") or messages.get("game_title") or quest_id
-                        app_obj = config.get("application") or {}
-                        app_id = app_obj.get("id")
-                        app_name = app_obj.get("name") or quest_name
+                        app_id = (config.get("application") or {}).get("id")
 
-                        await safe_edit(build_hyper_panel("CHECKING ENROLLMENT...", quest_name, q_type, 0, target_time, quests_done, total_quests), force=True)
-
+                        await panel_msg.edit(content=build_hyper_panel("CHECKING ENROLLMENT...", quest_name, q_type, 0, target_time, quests_done, total_quests))
+                        
                         user_status = quest.get("user_status") or {}
                         if not user_status.get("enrolled_at"):
+                            enroll_url = f"https://discord.com/api/v10/quests/{quest_id}/enroll"
                             enroll_body = {"location": 11, "is_targeted": False, "metadata_raw": quest.get("metadata_raw")}
                             for key in ("traffic_metadata_raw", "traffic_metadata_sealed", "location_metadata"):
                                 if quest.get(key) is not None: enroll_body[key] = quest[key]
-
-                            e_status, e_data = await safe_req("post", f"https://discord.com/api/v10/quests/{quest_id}/enroll", json=enroll_body, headers=desktop_headers)
-                            if e_status == 429:
-                                await absorb_penalty(e_data.get("retry_after", 5.0), "ENROLLMENT", quest_name, q_type, 0, target_time, quests_done, total_quests)
-                            elif e_status not in (200, 204):
-                                await safe_edit(build_hyper_panel("ENROLLMENT FAILED. SKIPPING.", quest_name, q_type, 0, target_time, quests_done, total_quests), force=True)
+                            
+                            enrolled = False
+                            for attempt in range(5):
+                                async with self.raw_session.post(enroll_url, json=enroll_body, headers=desktop_headers) as e_resp:
+                                    if e_resp.status in (200, 204):
+                                        enrolled = True
+                                        break
+                                    elif e_resp.status == 429:
+                                        r_data = await e_resp.json()
+                                        await absorb_penalty(r_data.get("retry_after", 5.0), "ENROLLMENT", quest_name, q_type, 0, target_time, quests_done, total_quests)
+                                    else:
+                                        break 
+                                        
+                            if not enrolled:
+                                await panel_msg.edit(content=build_hyper_panel("ENROLLMENT FAILED. SKIPPING.", quest_name, q_type, 0, target_time, quests_done, total_quests))
+                                await asyncio.sleep(2)
                                 continue
 
                         current_progress = 0.0
-                        # 🔥 FIX 10: wall-clock timeout per quest
-                        quest_start = time.time()
-                        quest_timeout = target_time * 2.5 + 120.0
-
+                        
                         if q_type == "VIDEO":
                             video_url = f"https://discord.com/api/v10/quests/{quest_id}/video-progress"
+                            
+                            # 🛑 1:1 REAL TIME LOCK: Physically impossible to time-travel
                             session_start = time.time()
-                            sim_rate = 1.0
-
+                            
                             while current_progress < target_time:
-                                # 🔥 FIX 10: timeout guard
-                                if time.time() - quest_start > quest_timeout:
-                                    break
-
-                                # 🔥 FIX 24: monotonic timestamps — never regress
+                                # Calculate exactly how much real time has passed since we started watching
                                 elapsed_time = time.time() - session_start
-                                candidate = float(elapsed_time) * sim_rate * random.uniform(0.97, 1.02)
-                                if candidate <= current_progress:
-                                    candidate = current_progress + 0.25
-                                current_progress = min(float(target_time), candidate)
-
-                                v_status, v_data = await safe_req("post", video_url, json={"timestamp": current_progress}, headers=desktop_headers)
-                                if v_status == 200 and (v_data or {}).get("completed_at"): break
-                                elif v_status == 0: break
-                                elif v_status == 429:
-                                    await absorb_penalty(v_data.get("retry_after", 5.0), "VIDEO SPOOFING", quest_name, q_type, current_progress, target_time, quests_done, total_quests)
-
-                                # 🔥 FIX 25: reconcile against server-reported progress
-                                srv = (v_data or {}).get("progress") or {}
-                                srv_v = None
-                                for k in ("WATCH_VIDEO", "WATCH_VIDEO_ON_MOBILE"):
-                                    if isinstance(srv.get(k), dict) and srv[k].get("value") is not None:
-                                        srv_v = srv[k]["value"]; break
-                                if isinstance(srv_v, (int, float)):
-                                    delta = float(srv_v) - current_progress
-                                    if delta < -5:   sim_rate = max(0.55, sim_rate * 0.92)
-                                    elif delta > 5:  sim_rate = min(1.15, sim_rate * 1.04)
-                                    current_progress = max(current_progress, float(srv_v))
-
-                                await safe_edit(build_hyper_panel("STREAMING VIDEO...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
-
-                                if current_progress >= target_time: break
-                                await asyncio.sleep(10.0 + random.uniform(0.1, 1.5))
-
+                                current_progress = float(elapsed_time)
+                                
+                                if current_progress > target_time: 
+                                    current_progress = float(target_time)
+                                
+                                async with self.raw_session.post(video_url, json={"timestamp": current_progress}, headers=desktop_headers) as v_resp:
+                                    if v_resp.status == 200:
+                                        v_data = await v_resp.json()
+                                        if (v_data or {}).get("completed_at"): break
+                                    elif v_resp.status == 429:
+                                        r_data = await v_resp.json()
+                                        await absorb_penalty(r_data.get("retry_after", 5.0), "VIDEO SPOOFING", quest_name, q_type, current_progress, target_time, quests_done, total_quests)
+                                        
+                                try: await panel_msg.edit(content=build_hyper_panel("STREAMING VIDEO (1:1 TIME SYNC)...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
+                                except: pass
+                                
+                                if current_progress >= target_time:
+                                    break
+                                    
+                                # Ping the server every 10 seconds with our precise stopwatch time
+                                await asyncio.sleep(10.0)
+                                
                         elif q_type == "GAME" and app_id:
                             heartbeat_url = f"https://discord.com/api/v10/quests/{quest_id}/heartbeat"
-                            try:
-                                try:
-                                    game_activity = discord.Activity(type=discord.ActivityType.playing, name=app_name, application_id=int(app_id))
-                                    self.custom_stream_active = True
-                                    # 🔥 FIX 11: presence refcount
-                                    await acquire_presence(game_activity)
-                                    await asyncio.sleep(5.0)
-                                except ValueError:
-                                    pass
+                            game_activity = discord.Activity(type=discord.ActivityType.playing, name=quest_name, application_id=int(app_id))
+                            self.custom_stream_active = True
+                            await self.change_presence(activity=game_activity, status=discord.Status.online)
+                            
+                            # Give Discord's gateway 5 full seconds to register the presence globally
+                            await asyncio.sleep(5.0)
 
-                                while current_progress < target_time:
-                                    # 🔥 FIX 10: timeout guard
-                                    if time.time() - quest_start > quest_timeout:
-                                        break
-
-                                    h_status, h_data = await safe_req("post", heartbeat_url, json={"application_id": app_id, "terminal": False}, headers=desktop_headers)
-                                    if h_status == 200:
+                            while current_progress < target_time:
+                                hb_payload = {"application_id": app_id, "terminal": False}
+                                async with self.raw_session.post(heartbeat_url, json=hb_payload, headers=desktop_headers) as h_resp:
+                                    if h_resp.status == 200:
+                                        h_data = await h_resp.json()
                                         if (h_data or {}).get("completed_at"): break
                                         reported_prog = (h_data.get("progress") or {}).get("PLAY_ON_DESKTOP", {}).get("value", current_progress)
-                                        current_progress = max(current_progress, float(reported_prog))
-                                    elif h_status == 0:
-                                        break
-                                    elif h_status == 429:
-                                        await absorb_penalty(h_data.get("retry_after", 5.0), "GAME HEARTBEAT", quest_name, q_type, current_progress, target_time, quests_done, total_quests)
-
-                                    await safe_edit(build_hyper_panel("SYNCING GATEWAY HEARTBEATS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
-
-                                    if current_progress >= target_time: break
-                                    await asyncio.sleep(60.0 + random.uniform(1.0, 3.0))
-
-                                await safe_req("post", heartbeat_url, json={"application_id": app_id, "terminal": True}, headers=desktop_headers)
-                            finally:
-                                # 🔥 FIX 11: refcount-safe release
-                                await release_presence()
-                                self.custom_stream_active = False
+                                        current_progress = float(reported_prog)
+                                    elif h_resp.status == 429:
+                                        r_data = await h_resp.json()
+                                        await absorb_penalty(r_data.get("retry_after", 5.0), "GAME HEARTBEAT", quest_name, q_type, current_progress, target_time, quests_done, total_quests)
+                                        
+                                try: await panel_msg.edit(content=build_hyper_panel("SYNCING GATEWAY HEARTBEATS...", quest_name, q_type, current_progress, target_time, quests_done, total_quests))
+                                except: pass
+                                
+                                if current_progress >= target_time:
+                                    break
+                                
+                                # 🛑 NATIVE CLIENT PACING: Real Desktop clients heartbeat roughly every 60 seconds
+                                # 20s was too aggressive and flagged the system. 60s is completely native.
+                                await asyncio.sleep(60.0) 
+                                
+                            await self.raw_session.post(heartbeat_url, json={"application_id": app_id, "terminal": True}, headers=desktop_headers)
+                            await self.change_presence(activity=None)
+                            self.custom_stream_active = False
 
                         quests_done += 1
-                        await safe_edit(build_hyper_panel("QUEST NEUTRALIZED. REWARD UNLOCKED.", quest_name, q_type, target_time, target_time, quests_done, total_quests), force=True)
-
+                        await panel_msg.edit(content=build_hyper_panel("QUEST NEUTRALIZED. REWARD UNLOCKED.", quest_name, q_type, target_time, target_time, quests_done, total_quests))
+                        
                         # POST-QUEST SAFE COOLDOWN
                         if quests_done < total_quests:
                             await absorb_penalty(random.uniform(15.0, 25.0), "NEXT QUEST", "STANDBY", "NONE", target_time, target_time, quests_done, total_quests)
                         else:
                             await asyncio.sleep(2.5)
 
-                    await safe_edit(build_hyper_panel("ALL AVAILABLE QUESTS COMPLETED.", "STANDBY", "NONE", 1, 1, quests_done, total_quests), force=True)
+                    await panel_msg.edit(content=build_hyper_panel("ALL AVAILABLE QUESTS COMPLETED.", "STANDBY", "NONE", 1, 1, quests_done, total_quests))
 
-                except asyncio.CancelledError:
-                    raise
                 except Exception as e:
-                    try: await safe_edit(build_hyper_panel(f"CRITICAL ERROR: {str(e)[:40]}", target_val=1), force=True)
+                    try: await panel_msg.edit(content=build_hyper_panel(f"CRITICAL ERROR: {str(e)[:40]}", target_val=1))
                     except: pass
                     print(f"⚠️ [{self.user.name}] Quest Engine Crash: {e}", flush=True)
-                finally:
-                    # 🔥 FIX 11: guaranteed teardown, refcount-safe
-                    try:
-                        self.custom_stream_active = False
-                        await release_presence()
-                    except: pass
-
-            # 🔥 FIX 26: per-bot task name so unquest only kills THIS bot's tasks
-            def _cleanup_task(t):
-                try:
-                    fleet["engines"].pop(self.user.id, None)
-                    globals().get('quest_tasks', {}).get(self.user.id, set()).discard(t)
-                except Exception:
-                    pass
 
             if 'quest_tasks' not in globals(): globals()['quest_tasks'] = {}
-            if self.user.id not in globals()['quest_tasks']: globals()['quest_tasks'][self.user.id] = set()
-
-            task = asyncio.create_task(execute_quest_routine(), name=f"quest_{self.user.id}_{message.channel.id}_{message.id}")
-            task.add_done_callback(_cleanup_task)
-            fleet["engines"][self.user.id] = task
-            globals()['quest_tasks'][self.user.id].add(task)
+            task = asyncio.create_task(execute_quest_routine(), name=f"quest_{message.channel.id}_{message.id}")
+            if message.channel.id not in globals()['quest_tasks']: globals()['quest_tasks'][message.channel.id] = []
+            globals()['quest_tasks'][message.channel.id].append(task)
 
         elif command == "unquest" or command == "stopquest":
             # Usage: ^unquest (stops all bots) OR ^unquest @bot (stops one)
@@ -1073,47 +778,35 @@ class ForbidToken(discord.Client):
                 return
 
             killed_count = 0
-
-            # 🔥 FIX 26: only kill THIS bot's tasks (was killing everyone's)
-            _prefix = f"quest_{self.user.id}_"
-
+            
+            # 1. Sweep and assassinate all active quest threads
             for task in asyncio.all_tasks():
-                try:
-                    t_name = str(task.get_name())
-                    if t_name.startswith(_prefix) and not task.done():
-                        task.cancel()
-                        killed_count += 1
-                except Exception:
-                    continue
+                t_name = str(task.get_name())
+                if t_name.startswith("quest_"):
+                    task.cancel()
+                    killed_count += 1
 
-            fleet = globals().get('_FORB1D_FLEET')
-            if fleet is not None:
-                fleet["engines"].pop(self.user.id, None)
-
+            # 2. Wipe the global registry dictionary to prevent memory leaks
             _q_tasks = globals().get('quest_tasks', {})
-            if self.user.id in _q_tasks:
-                _q_tasks[self.user.id].clear()
+            _q_tasks.clear()
 
+            # 3. Gateway Failsafe: If the bot was stuck mid-game, release the presence lock
             if getattr(self, 'custom_stream_active', False):
                 self.custom_stream_active = False
-                try:
+                try: 
                     await self.change_presence(activity=None)
-                except Exception:
+                except Exception: 
                     pass
 
-            # 🔥 FIX 19: swarm-staggered reply (auto-scales to swarm size)
-            _swarm_n = max(1, len(ACTIVE_SWARM))
-            _slot = self.user.id % _swarm_n
-            await asyncio.sleep(_slot * 0.3)
-
+            # 4. Swarm Staggered Reply
+            await asyncio.sleep((self.user.id % 8) * 0.3)
+            
             if killed_count > 0:
                 await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated Quest Engine ({killed_count} threads neutralized).")
             else:
                 # Only reply if explicitly targeted to prevent swarm spam
                 if message.mentions:
                     await message.channel.send(f"⚠️ **{self.user.name}** found no active Quest loops to terminate.")
-        
-
 
         elif command == "purge":
             # Usage: ^purge @bot <amount>
