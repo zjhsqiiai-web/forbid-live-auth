@@ -1256,6 +1256,7 @@ class ForbidToken(discord.Client):
             globals()["quest_tasks"].setdefault(self.user.id, set()).add(task)
 
 
+
         elif command in ("unquest", "stopquest"):
             if message.mentions and self.user not in message.mentions:
                 return
