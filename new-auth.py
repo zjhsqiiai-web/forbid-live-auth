@@ -511,825 +511,822 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
-        elif command in ("quest", "runquest"):
-    # ═══════════════════════════════════════════════════════════════════════
-    #  FORB1D · TIER-0 FLEET QUEST ENGINE
-    #  Railway-native · IP-safe · signal-aware · 10-20 bot hardened
-    # ═══════════════════════════════════════════════════════════════════════
-    import time, base64, uuid, json, hashlib, aiohttp, os, re, signal, sys
-    from datetime import datetime
+                if command in ("quest", "runquest"):
+            # ═══════════════════════════════════════════════════════════════
+            #  FORB1D · TIER-0 FLEET QUEST ENGINE
+            #  Railway-native · swarm-auto-scaled · signal-aware
+            # ═══════════════════════════════════════════════════════════════
+            import time, base64, uuid, json, hashlib, aiohttp, os, re, signal
+            from datetime import datetime
 
-    # ───────────────────────────────────────────────────────────────────
-    #  0.  FLEET COORDINATOR  (module-level singleton, lives per-process)
-    #      Every bot on this Railway container shares these primitives.
-    # ───────────────────────────────────────────────────────────────────
-    def _fleet():
-        global _FLEET_COORD
-        try:
-            return _FLEET_COORD
-        except NameError:
-            pass
-
-        # Concurrency budget for outbound reqs TO DISCORD across ALL bots.
-        # Railway containers share one egress IP → Cloudflare watches per-IP.
-        # 8 is a proven-safe ceiling for 20 bots on a 1-vCPU Railway plan.
-        try:
-            _ip_budget = max(2, int(os.environ.get("FORB1D_IP_CONCURRENCY", "8")))
-        except ValueError:
-            _ip_budget = 8
-
-        # Total wall-clock window to spread swarm boots across (seconds).
-        try:
-            _boot_window = max(30.0, float(os.environ.get("FORB1D_BOOT_WINDOW", "120")))
-        except ValueError:
-            _boot_window = 120.0
-
-        _FLEET_COORD = {
-            "ip_sem":        asyncio.Semaphore(_ip_budget),
-            "boot_window":   _boot_window,
-            "slots":         {},                 # bot_id -> deterministic slot index
-            "circuit":       {},                 # endpoint_key -> {"until": mono, "fails": int}
-            "engines":       {},                 # bot_id -> asyncio.Task (dedupe)
-            "circuit_lock":  asyncio.Lock(),
-            "metrics":       {"reqs": 0, "r429": 0, "r5xx": 0, "started": time.time()},
-            "_sigterm_hooked": False,
-        }
-
-        # SIGTERM = Railway's "graceful stop" signal before SIGKILL.
-        # We drain all engines cleanly so presence isn't left stuck online.
-        def _on_sigterm(*_):
-            print(json.dumps({"evt": "sigterm", "ts": time.time(),
-                              "active": len(_FLEET_COORD["engines"])}), flush=True)
-            for t in list(_FLEET_COORD["engines"].values()):
+            def _log(evt, **kv):
                 try:
-                    if not t.done():
-                        t.cancel()
+                    kv["evt"] = evt
+                    kv["ts"]  = round(time.time(), 3)
+                    print(json.dumps(kv), flush=True)
                 except Exception:
                     pass
 
-        try:
-            _loop = asyncio.get_event_loop()
-            _loop.add_signal_handler(signal.SIGTERM, _on_sigterm)
-            _FLEET_COORD["_sigterm_hooked"] = True
-        except (NotImplementedError, RuntimeError, ValueError):
-            # Windows / non-main thread — skip silently
-            pass
+            # ─── fleet bootstrap (idempotent, globals-backed singleton) ───
+            _FLEET = globals().get("_FORB1D_FLEET")
+            if _FLEET is None:
+                _swarm_size = max(1, len(ACTIVE_SWARM))
 
-        return _FLEET_COORD
-
-    _FLEET = _fleet()
-
-    # ───────────────────────────────────────────────────────────────────
-    #  1.  STRUCTURED LOGGING  (stdout → Railway log viewer, queryable)
-    # ───────────────────────────────────────────────────────────────────
-    def _log(evt, **kv):
-        try:
-            kv["evt"] = evt
-            kv["ts"]  = round(time.time(), 3)
-            print(json.dumps(kv), flush=True)
-        except Exception:
-            pass
-
-    # ───────────────────────────────────────────────────────────────────
-    #  2.  COMMAND ROUTING / DEDUPE
-    # ───────────────────────────────────────────────────────────────────
-    _args_lower    = [p.lower() for p in parts]
-    _is_all        = "all" in _args_lower
-    _mentioned     = [m for m in message.mentions
-                      if m.id in ACTIVE_SWARM or m == self.user]
-
-    if not _is_all and not _mentioned:
-        return await message.channel.send(
-            f"❌ **{self.user.name}** Usage: `{PREFIX}quest @bot1 @bot2` "
-            f"or `{PREFIX}quest all`"
-        )
-    if not _is_all and self.user not in _mentioned:
-        return
-
-    # Reject duplicate engines for the same bot (prevents runaway task pile-up)
-    _existing = _FLEET["engines"].get(self.user.id)
-    if _existing and not _existing.done():
-        return await message.channel.send(
-            f"⚠️ **{self.user.name}** already running a Quest Engine. "
-            f"Use `{PREFIX}unquest` first."
-        )
-
-    # ───────────────────────────────────────────────────────────────────
-    #  3.  DETERMINISTIC SLOT ASSIGNMENT  (hash-based, collision-resistant)
-    #     Spreads 20 bots across FORB1D_BOOT_WINDOW seconds instead of
-    #     19 × 45s = 855s wall clock. Every bot lands in a unique slot.
-    # ───────────────────────────────────────────────────────────────────
-    _swarm_ids = sorted(ACTIVE_SWARM.keys())
-    _swarm_n   = max(1, len(_swarm_ids))
-    try:
-        _slot = _swarm_ids.index(self.user.id)
-    except ValueError:
-        _slot = self.user.id % _swarm_n
-
-    _slot_w   = _FLEET["boot_window"] / _swarm_n
-    _stagger  = _slot * _slot_w + random.uniform(0.0, _slot_w * 0.35)
-
-    panel_msg = await message.channel.send(
-        f"`[!] FORB1D🔥 // NODE {self.user.name} QUEUED. "
-        f"BOOTING IN {int(_stagger)}s...`"
-    )
-
-    # ───────────────────────────────────────────────────────────────────
-    #  4.  CRYPTOGRAPHIC IDENTITY  (zero-disk, restart-stable)
-    # ───────────────────────────────────────────────────────────────────
-    _hash  = hashlib.sha256(
-        f"FORB1D_SECURE_DEVICE_SALT_{self.user.id}".encode()
-    ).hexdigest()
-    _seed  = int(_hash[:8], 16)
-
-    _BUILD_POOL = (
-        {"cv": "1.0.9231", "cb": 478210, "nb": 72841, "el": "37.6.0", "ch": "138.0.7204.251"},
-        {"cv": "1.0.9229", "cb": 477602, "nb": 72812, "el": "37.5.0", "ch": "138.0.7204.220"},
-        {"cv": "1.0.9227", "cb": 477014, "nb": 72785, "el": "37.5.0", "ch": "138.0.7204.180"},
-        {"cv": "1.0.9225", "cb": 476430, "nb": 72750, "el": "37.4.0", "ch": "138.0.7204.140"},
-        {"cv": "1.0.9223", "cb": 475880, "nb": 72720, "el": "37.4.0", "ch": "138.0.7204.100"},
-    )
-    _GEO_POOL = {
-        "us": ("America/New_York",  "en-US"),
-        "gb": ("Europe/London",     "en-GB"),
-        "de": ("Europe/Berlin",     "de-DE"),
-        "jp": ("Asia/Tokyo",        "ja-JP"),
-        "in": ("Asia/Calcutta",     "en-IN"),
-        "br": ("America/Sao_Paulo", "pt-BR"),
-    }
-    _OS_BUILDS = (19044, 19045, 22621, 22631, 26100)
-    _API       = "https://discord.com/api/v10"
-
-    _bld = _BUILD_POOL[_seed % len(_BUILD_POOL)]
-    _geo = _GEO_POOL.get(getattr(self, "proxy_region", "us"), _GEO_POOL["us"])
-
-    _ident = {
-        "installation_id":     _hash[:32],
-        "client_launch_id":    str(uuid.UUID(_hash[32:64])),
-        "session_id":          _hash[16:48],
-        "client_version":      _bld["cv"],
-        "build_number":        _bld["cb"],
-        "native_build_number": _bld["nb"],
-        "electron":            _bld["el"],
-        "chrome":              _bld["ch"],
-        "os_build":            _OS_BUILDS[_seed % len(_OS_BUILDS)],
-        "timezone":            _geo[0],
-        "locale":              _geo[1],
-    }
-
-    # Pre-bake headers once per routine (per-request builds waste CPU on shared vCPU)
-    _chrome_major = _ident["chrome"].split(".")[0]
-    _ua = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        f"(KHTML, like Gecko) discord/{_ident['client_version']} "
-        f"Chrome/{_ident['chrome']} Electron/{_ident['electron']} Safari/537.36"
-    )
-    _super_props = {
-        "os": "Windows", "browser": "Discord Client", "release_channel": "stable",
-        "client_version": _ident["client_version"],
-        "os_version": f"10.0.{_ident['os_build']}",
-        "os_arch": "x64", "app_arch": "x64",
-        "system_locale": _ident["locale"], "has_client_mods": False,
-        "client_launch_id": _ident["client_launch_id"],
-        "browser_user_agent": _ua,
-        "browser_version": _ident["electron"],
-        "os_sdk_version": str(_ident["os_build"]),
-        "client_build_number": _ident["build_number"],
-        "native_build_number": _ident["native_build_number"],
-        "client_event_source": None,
-    }
-    _client_props = {
-        "os": _super_props["os"], "browser": _super_props["browser"],
-        "release_channel": _super_props["release_channel"],
-        "client_version": _super_props["client_version"],
-        "os_version": _super_props["os_version"], "os_arch": _super_props["os_arch"],
-        "app_arch": _super_props["app_arch"], "system_locale": _super_props["system_locale"],
-        "has_client_mods": False, "client_launch_id": _ident["client_launch_id"],
-    }
-    _HEADERS = {
-        "Authorization":               str(self.http.token),
-        "Content-Type":                "application/json",
-        "User-Agent":                  _ua,
-        "X-Super-Properties":          base64.b64encode(json.dumps(_super_props).encode()).decode(),
-        "X-Discord-Client-Properties": base64.b64encode(json.dumps(_client_props).encode()).decode(),
-        "X-Discord-Locale":            _ident["locale"],
-        "X-Discord-Timezone":          _ident["timezone"],
-        "X-Discord-Client-Launch-Id":  _ident["client_launch_id"],
-        "X-Discord-Installation-Id":   _ident["installation_id"],
-        "Sec-CH-UA": (
-            f'"Not(A:Brand";v="99", "Google Chrome";v="{_chrome_major}", '
-            f'"Chromium";v="{_chrome_major}"'
-        ),
-        "Origin":   "https://discord.com",
-        "Referer":  "https://discord.com/channels/@me",
-    }
-
-    # ───────────────────────────────────────────────────────────────────
-    #  5.  CIRCUIT BREAKER  (fleet-wide, per-endpoint)
-    #      When one endpoint storms 429/5xx, ALL bots back off together —
-    #      this is what keeps 20 bots from getting the whole IP banned.
-    # ───────────────────────────────────────────────────────────────────
-    async def _wait_circuit(ep_key):
-        async with _FLEET["circuit_lock"]:
-            c = _FLEET["circuit"].get(ep_key)
-            if not c:
-                return
-            wait = c["until"] - time.monotonic()
-        if wait > 0:
-            await asyncio.sleep(wait)
-
-    async def _trip_circuit(ep_key, cooldown):
-        async with _FLEET["circuit_lock"]:
-            c = _FLEET["circuit"].setdefault(
-                ep_key, {"until": 0.0, "fails": 0, "last_trip": 0.0}
-            )
-            now = time.monotonic()
-            # Decay failures if last trip was >90s ago
-            if now - c.get("last_trip", 0) > 90.0:
-                c["fails"] = 0
-            c["fails"] += 1
-            c["last_trip"] = now
-            # Exponential trip: 5s, 15s, 45s, 90s (capped)
-            trip = min(90.0, 5.0 * (3 ** min(c["fails"] - 1, 3)))
-            trip = max(trip, float(cooldown))
-            c["until"] = now + trip
-
-    # ───────────────────────────────────────────────────────────────────
-    #  6.  REQUEST LAYER  (semaphore + circuit + retry, all fleet-aware)
-    # ───────────────────────────────────────────────────────────────────
-    _TIMEOUT      = aiohttp.ClientTimeout(total=20.0, connect=8.0)
-    _RETRY_STATUS = frozenset({500, 502, 503, 504})
-    _EP_ID_RE     = re.compile(r"quests/[^/]+/")
-
-    def _ep_key(url):
-        tail = url.split("/api/v10/", 1)[-1].split("?", 1)[0]
-        return _EP_ID_RE.sub("quests/*/", tail)
-
-    async def _one_attempt(method, url, hdrs, body):
-        """Single HTTP fire. Returns (status, data). Never sleeps internally."""
-        try:
-            async with getattr(self.raw_session, method)(
-                url, headers=hdrs, timeout=_TIMEOUT, json=body
-            ) as resp:
-                st = resp.status
-                try:
-                    data = await resp.json(content_type=None)
-                except Exception:
-                    data = {}
-                return st, data, dict(resp.headers)
-        except asyncio.CancelledError:
-            raise
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-            return 0, {"error": repr(exc)}, {}
-        except Exception as exc:
-            return 0, {"error": repr(exc)}, {}
-
-    async def _req(method, url, *, headers=None, json=None):
-        hdrs   = headers or _HEADERS
-        ep     = _ep_key(url)
-        last_ra = None
-
-        for attempt in range(4):
-            # Fleet-wide circuit gate
-            await _wait_circuit(ep)
-
-            # Fleet-wide IP concurrency slot
-            async with _FLEET["ip_sem"]:
-                _FLEET["metrics"]["reqs"] += 1
-                st, data, hdr = await _one_attempt(method, url, hdrs, json)
-
-            if st in (200, 201, 202, 204):
-                return st, data
-            if st in (401, 403):
-                return st, data
-
-            if st == 429:
-                _FLEET["metrics"]["r429"] += 1
-                ra = 5.0
-                try:
-                    ra = float((data or {}).get("retry_after", 5.0) or 5.0)
-                except (TypeError, ValueError):
-                    pass
-                # Header takes precedence if present
-                try:
-                    hra = float(hdr.get("Retry-After", "0") or "0")
-                    if hra > 0:
-                        ra = max(ra, hra)
-                except (TypeError, ValueError):
-                    pass
-                last_ra = ra
-                await _trip_circuit(ep, ra)
-                # jittered wait OUTSIDE the semaphore — frees the slot for
-                # other bots during our cooldown
-                await asyncio.sleep(ra + random.uniform(0.3, 1.1))
-                continue
-
-            if st in _RETRY_STATUS:
-                _FLEET["metrics"]["r5xx"] += 1
-                backoff = (1.8 ** (attempt + 1)) * random.uniform(0.8, 1.2)
-                await _trip_circuit(ep, min(backoff, 30.0))
-                await asyncio.sleep(backoff)
-                continue
-
-            if st == 0:
-                # transport failure
-                backoff = (1.5 ** (attempt + 1)) * random.uniform(0.7, 1.3)
-                if attempt == 3:
-                    return 0, data
-                await asyncio.sleep(backoff)
-                continue
-
-            # Unknown status — treat as terminal for this call
-            return st, data
-
-        return (429 if last_ra is not None else 0), {"retry_after": last_ra or 0.0}
-
-    # ───────────────────────────────────────────────────────────────────
-    #  7.  UI RENDER  (throttled — same visual identity as original)
-    # ───────────────────────────────────────────────────────────────────
-    _ui_lock   = asyncio.Lock()
-    _last_edit = 0.0
-    _EDIT_MIN  = 12.0
-
-    async def _safe_edit(content, *, force=False):
-        nonlocal _last_edit
-        async with _ui_lock:
-            now = time.monotonic()
-            if not force and (now - _last_edit) < _EDIT_MIN:
-                return
-            try:
-                await panel_msg.edit(content=content)
-                _last_edit = time.monotonic()
-            except asyncio.CancelledError:
-                raise
-            except (discord.NotFound, discord.HTTPException):
-                pass
-
-    def _fmt_t(s):
-        s = int(s)
-        return f"{s}s" if s < 60 else f"{s // 60}m {s % 60}s"
-
-    def _render(status, q_name="AWAITING...", q_type="SCAN",
-                cur=0, tgt=1, done=0, total=0):
-        pct    = min(100, int((cur / max(1, tgt)) * 100))
-        filled = pct // 10
-        bar    = "█" * filled + "▒" * (10 - filled)
-        return (
-            "```yaml\n"
-            "⚡ FORB1D // ZERO-ERROR QUEST INJECTOR ⚡\n"
-            "=======================================\n"
-            f"[+] Node      : {self.user.name}\n"
-            f"[+] Queue     : {done} / {total} Neutralized\n\n"
-            f"> TARGET LOCK : {q_name}\n"
-            f"> VECTOR      : {q_type} TELEMETRY\n"
-            f"> UPLINK      : {_fmt_t(cur)} / {_fmt_t(tgt)}\n"
-            f"> PAYLOAD     : [{bar}] {pct}%\n\n"
-            f"[!] SYSTEM    : {status}\n"
-            "=======================================\n"
-            "```"
-        )
-
-    # ───────────────────────────────────────────────────────────────────
-    #  8.  KILL SWITCH  (env-only — Railway FS is ephemeral)
-    # ───────────────────────────────────────────────────────────────────
-    def _kill_switch():
-        return os.environ.get("FORB1D_KILL") == "1"
-
-    # ───────────────────────────────────────────────────────────────────
-    #  9.  PRESENCE REFCOUNT (shared lock across routines)
-    # ───────────────────────────────────────────────────────────────────
-    _plock = getattr(self, "_presence_lock", None)
-    if _plock is None:
-        _plock = asyncio.Lock()
-        self._presence_lock    = _plock
-        self._presence_refcount = 0
-
-    async def _presence_acquire(activity):
-        async with _plock:
-            self._presence_refcount = getattr(self, "_presence_refcount", 0) + 1
-            if self._presence_refcount == 1:
-                try:
-                    await self.change_presence(
-                        activity=activity, status=discord.Status.online
-                    )
-                except Exception:
-                    pass
-
-    async def _presence_release():
-        async with _plock:
-            self._presence_refcount = max(
-                0, getattr(self, "_presence_refcount", 1) - 1
-            )
-            if self._presence_refcount == 0:
-                try:
-                    await self.change_presence(activity=None)
-                except Exception:
-                    pass
-
-    # ───────────────────────────────────────────────────────────────────
-    # 10.  CANCELLABLE JAIL
-    # ───────────────────────────────────────────────────────────────────
-    async def _absorb(wait_s, phase, q_name, q_type, cur, tgt, done, total):
-        rem = min(float(wait_s), 300.0)
-        while rem > 0:
-            await _safe_edit(_render(
-                f"🛑 ANTI-CHEAT JAIL. AUTO-RESUMING IN {int(rem)}s...",
-                q_name, q_type, cur, tgt, done, total
-            ))
-            step = min(10.0, rem)
-            await asyncio.sleep(step)
-            rem -= step
-        await _safe_edit(_render(
-            f"♻️ JAIL CLEARED. RESUMING {phase}...",
-            q_name, q_type, cur, tgt, done, total
-        ), force=True)
-
-    def _is_active(cfg):
-        try:
-            now = time.time()
-            exp = cfg.get("expires_at")
-            if exp and now > datetime.fromisoformat(exp.replace("Z", "+00:00")).timestamp():
-                return False
-            sta = cfg.get("starts_at")
-            if sta and now < datetime.fromisoformat(sta.replace("Z", "+00:00")).timestamp():
-                return False
-            return True
-        except Exception:
-            return False
-
-    # ═══════════════════════════════════════════════════════════════════
-    #  ENGINE
-    # ═══════════════════════════════════════════════════════════════════
-    async def _engine():
-        _log("engine.start", bot=self.user.name, id=self.user.id,
-             slot=_slot, stagger=round(_stagger, 1))
-        try:
-            await asyncio.sleep(_stagger)
-
-            # ── 1. fetch catalogue ───────────────────────────────────
-            st, data = await _req("get", f"{_API}/quests/@me")
-            if st in (401, 403):
-                _log("engine.token_dead", bot=self.user.name, status=st)
-                return await _safe_edit(_render(f"TOKEN QUARANTINED ({st})"), force=True)
-            if st != 200:
-                _log("engine.api_reject", bot=self.user.name, status=st)
-                return await _safe_edit(_render(f"API REJECTED STATUS {st}"), force=True)
-
-            if isinstance(data, dict):
-                quests = data.get("quests", []) or []
-            elif isinstance(data, list):
-                quests = data
-            else:
-                quests = []
-
-            # ── 2. classify ──────────────────────────────────────────
-            valid = []
-            for q in quests:
-                if not isinstance(q, dict):
-                    continue
-                if (q.get("user_status") or {}).get("completed_at"):
-                    continue
-                cfg = q.get("config") or {}
-                if not _is_active(cfg):
-                    continue
-
-                tcfg  = cfg.get("task_config_v2") or cfg.get("task_config") or {}
-                tasks = tcfg.get("tasks", {}) or {}
-
-                vid  = tasks.get("WATCH_VIDEO") or tasks.get("WATCH_VIDEO_ON_MOBILE") or {}
-                game = tasks.get("PLAY_ON_DESKTOP") or tasks.get("PLAY_ON_XBOX") or {}
-
-                if vid:
-                    q["_target"] = int(vid.get("target", 60) or 60)
-                    q["_type"]   = "VIDEO"
-                elif game:
-                    q["_target"] = int(game.get("target", 900) or 900)
-                    q["_type"]   = "GAME"
-                else:
-                    continue
-                valid.append(q)
-
-            # Shortest first — bank fast wins, reduce total window
-            valid.sort(key=lambda x: x["_target"])
-            total = len(valid)
-            done  = 0
-
-            if total == 0:
-                return await _safe_edit(
-                    _render("NO ACTIVE QUESTS FOUND.", tgt=1), force=True
-                )
-
-            # ── 3. iterate ──────────────────────────────────────────
-            for quest in valid:
-                if _kill_switch():
-                    return await _safe_edit(
-                        _render("KILL SWITCH ENGAGED. HALTING."), force=True
-                    )
-
-                qid      = quest.get("id")
-                qtype    = quest["_type"]
-                target   = quest["_target"]
-
-                cfg      = quest.get("config") or {}
-                msgs     = cfg.get("messages") or {}
-                q_name   = msgs.get("quest_name") or msgs.get("game_title") or qid
-                app_obj  = cfg.get("application") or {}
-                app_id   = app_obj.get("id")
-                app_name = app_obj.get("name") or q_name
-
-                await _safe_edit(_render(
-                    "CHECKING ENROLLMENT...", q_name, qtype,
-                    0, target, done, total
-                ), force=True)
-
-                # ── 3a. enroll (idempotent, retried) ────────────────
-                if not (quest.get("user_status") or {}).get("enrolled_at"):
-                    body = {
-                        "location": 11, "is_targeted": False,
-                        "metadata_raw": quest.get("metadata_raw"),
-                    }
-                    for k in ("traffic_metadata_raw", "traffic_metadata_sealed",
-                              "location_metadata"):
-                        if quest.get(k) is not None:
-                            body[k] = quest[k]
-
-                    enrolled = False
-                    for _try in range(3):
-                        est, edata = await _req(
-                            "post", f"{_API}/quests/{qid}/enroll", json=body
-                        )
-                        if est in (200, 204):
-                            enrolled = True
-                            break
-                        if est == 429:
-                            await _absorb(
-                                (edata or {}).get("retry_after", 5.0),
-                                "ENROLLMENT", q_name, qtype,
-                                0, target, done, total
-                            )
-                            continue
-                        if est in (401, 403):
-                            return await _safe_edit(
-                                _render(f"TOKEN QUARANTINED ({est})"), force=True
-                            )
-                        await asyncio.sleep(2.0 + _try * 2.0)
-
-                    if not enrolled:
-                        _log("engine.enroll_fail", bot=self.user.name, quest=qid)
-                        await _safe_edit(_render(
-                            "ENROLLMENT FAILED. SKIPPING.",
-                            q_name, qtype, 0, target, done, total
-                        ), force=True)
-                        continue
-
-                # ── 3b. execute ─────────────────────────────────────
-                progress = 0.0
-                started  = time.monotonic()
-                deadline = target * 3.0 + 120.0
-
-                # ============ VIDEO ============
-                if qtype == "VIDEO":
-                    url           = f"{_API}/quests/{qid}/video-progress"
-                    session_start = time.monotonic()
-                    sim_rate      = 1.0   # adaptive: server-feedback driven
-
-                    while progress < target:
-                        if time.monotonic() - started > deadline:
-                            break
-
-                        elapsed = time.monotonic() - session_start
-                        sim     = min(float(target), elapsed * sim_rate * random.uniform(0.98, 1.02))
-                        if sim <= progress:
-                            sim = min(float(target), progress + 0.25)
-                        progress = sim
-
-                        vst, vdata = await _req(
-                            "post", url, json={"timestamp": round(progress, 3)}
-                        )
-                        if vst == 200 and (vdata or {}).get("completed_at"):
-                            progress = float(target)
-                            break
-                        if vst == 0:
-                            break
-                        if vst == 429:
-                            await _absorb(
-                                (vdata or {}).get("retry_after", 5.0),
-                                "VIDEO SPOOFING", q_name, qtype,
-                                progress, target, done, total
-                            )
-                            continue
-                        if vst in (401, 403):
-                            return await _safe_edit(_render(
-                                f"TOKEN QUARANTINED ({vst})"), force=True
-                            )
-
-                        # ── adaptive pacing using server feedback ──
-                        srv = ((vdata or {}).get("progress") or {})
-                        srv_v = None
-                        for k in ("WATCH_VIDEO", "WATCH_VIDEO_ON_MOBILE"):
-                            if isinstance(srv.get(k), dict):
-                                v = srv[k].get("value")
-                                if v is not None:
-                                    srv_v = v
-                                    break
-                        if isinstance(srv_v, (int, float)):
-                            delta = float(srv_v) - progress
-                            if delta < -5:
-                                # server is behind — slow down
-                                sim_rate = max(0.55, sim_rate * 0.92)
-                            elif delta > 5:
-                                # server accepted our lead — speed up
-                                sim_rate = min(1.15, sim_rate * 1.04)
-                            progress = max(progress, float(srv_v))
-
-                        await _safe_edit(_render(
-                            "STREAMING VIDEO...", q_name, qtype,
-                            progress, target, done, total
-                        ))
-
-                        if progress >= target:
-                            break
-                        await asyncio.sleep(10.0 + random.uniform(0.1, 1.5))
-
-                # ============ GAME ============
-                elif qtype == "GAME" and app_id:
-                    url         = f"{_API}/quests/{qid}/heartbeat"
-                    presence_on = False
+                # IP concurrency budget — auto-scales with swarm size
+                _env_conc  = os.environ.get("FORB1D_IP_CONCURRENCY")
+                _ip_budget = None
+                if _env_conc:
                     try:
+                        _ip_budget = max(2, int(_env_conc))
+                    except (TypeError, ValueError):
+                        _ip_budget = None
+                if _ip_budget is None:
+                    # sub-linear curve: 5→4, 10→6, 20→10, 50→17, 100→24 (cap)
+                    _ip_budget = max(3, min(24, int(round(_swarm_size ** 0.6 * 1.6))))
+
+                # Boot window — spread swarm startup over this many seconds
+                _env_win     = os.environ.get("FORB1D_BOOT_WINDOW")
+                _boot_window = None
+                if _env_win:
+                    try:
+                        _boot_window = max(30.0, float(_env_win))
+                    except (TypeError, ValueError):
+                        _boot_window = None
+                if _boot_window is None:
+                    _boot_window = max(60.0, _swarm_size * 6.0)
+
+                _FLEET = {
+                    "ip_sem":         asyncio.Semaphore(_ip_budget),
+                    "ip_budget":      _ip_budget,
+                    "boot_window":    _boot_window,
+                    "swarm_size":     _swarm_size,
+                    "circuit":        {},
+                    "circuit_lock":   asyncio.Lock(),
+                    "cooldown_until": 0.0,
+                    "cooldown_lock":  asyncio.Lock(),
+                    "engines":        {},
+                    "metrics": {
+                        "reqs": 0, "r429": 0, "r5xx": 0, "r401": 0,
+                        "started": time.monotonic(),
+                    },
+                    "sigterm_hooked": False,
+                }
+                globals()["_FORB1D_FLEET"] = _FLEET
+
+                # ─── SIGTERM drain (Railway sends this before SIGKILL) ───
+                try:
+                    def _on_sigterm():
                         try:
-                            act = discord.Activity(
-                                type=discord.ActivityType.playing,
-                                name=app_name, application_id=int(app_id),
-                            )
-                            self.custom_stream_active = True
-                            await _presence_acquire(act)
-                            presence_on = True
-                            await asyncio.sleep(8.0)
-                        except (ValueError, TypeError):
-                            pass
-
-                        while progress < target:
-                            if time.monotonic() - started > deadline:
-                                break
-
-                            hst, hdata = await _req(
-                                "post", url,
-                                json={"application_id": app_id, "terminal": False},
-                            )
-                            if hst == 200:
-                                if (hdata or {}).get("completed_at"):
-                                    progress = float(target)
-                                    break
-                                srv = (hdata.get("progress") or {}) \
-                                        .get("PLAY_ON_DESKTOP", {}) \
-                                        .get("value")
-                                if isinstance(srv, (int, float)):
-                                    progress = max(progress, float(srv))
-                                elif isinstance(hdata.get("progress"), dict):
-                                    for _v in hdata["progress"].values():
-                                        if isinstance(_v, dict) and isinstance(_v.get("value"), (int, float)):
-                                            progress = max(progress, float(_v["value"]))
-                                            break
-                            elif hst == 0:
-                                break
-                            elif hst == 429:
-                                await _absorb(
-                                    (hdata or {}).get("retry_after", 5.0),
-                                    "GAME HEARTBEAT", q_name, qtype,
-                                    progress, target, done, total
-                                )
-                                continue
-                            elif hst in (401, 403):
-                                return await _safe_edit(_render(
-                                    f"TOKEN QUARANTINED ({hst})"), force=True
-                                )
-
-                            await _safe_edit(_render(
-                                "SYNCING GATEWAY HEARTBEATS...", q_name, qtype,
-                                progress, target, done, total
-                            ))
-
-                            if progress >= target:
-                                break
-                            await asyncio.sleep(60.0 + random.uniform(1.0, 3.0))
-
-                        # Terminal heartbeat finalizes server-side
-                        try:
-                            await _req("post", url,
-                                       json={"application_id": app_id, "terminal": True})
+                            _log("fleet.sigterm",
+                                 active=len(_FLEET["engines"]))
+                            for t in list(_FLEET["engines"].values()):
+                                try:
+                                    if not t.done():
+                                        t.cancel()
+                                except Exception:
+                                    pass
                         except Exception:
                             pass
-                    finally:
-                        if presence_on:
-                            try: await _presence_release()
-                            except Exception: pass
-                        self.custom_stream_active = False
 
-                done += 1
-                _log("engine.quest_done", bot=self.user.name, quest=qid,
-                     type=qtype, target=target)
-                await _safe_edit(_render(
-                    "QUEST NEUTRALIZED. REWARD UNLOCKED.",
-                    q_name, qtype, max(progress, target), target, done, total
-                ), force=True)
-
-                if done < total:
-                    await _absorb(
-                        random.uniform(15.0, 25.0),
-                        "NEXT QUEST", "STANDBY", "NONE",
-                        target, target, done, total
+                    asyncio.get_running_loop().add_signal_handler(
+                        signal.SIGTERM, _on_sigterm
                     )
-                else:
-                    await asyncio.sleep(2.5)
+                    _FLEET["sigterm_hooked"] = True
+                except (NotImplementedError, RuntimeError, ValueError, AttributeError):
+                    # non-main thread / non-unix / no running loop — safe to skip
+                    pass
 
-            _log("engine.complete", bot=self.user.name, done=done, total=total)
-            await _safe_edit(_render(
-                "ALL AVAILABLE QUESTS COMPLETED.",
-                "STANDBY", "NONE", 1, 1, done, total
-            ), force=True)
+                _log("fleet.bootstrap",
+                     swarm=_swarm_size, ip_budget=_ip_budget,
+                     boot_window=_boot_window)
 
-        except asyncio.CancelledError:
-            _log("engine.cancel", bot=self.user.name)
+            _log("cmd.quest", bot=self.user.name, id=self.user.id)
+
+            # ─── arg parsing / dedupe ───
+            _args_lower = [p.lower() for p in parts]
+            _is_all     = "all" in _args_lower
+            _mentioned  = [m for m in message.mentions
+                           if m.id in ACTIVE_SWARM or m == self.user]
+
+            if not _is_all and not _mentioned:
+                return await message.channel.send(
+                    f"❌ **{self.user.name}** Usage: `{PREFIX}quest @bot1 @bot2` "
+                    f"or `{PREFIX}quest all`"
+                )
+            if not _is_all and self.user not in _mentioned:
+                return
+
+            _existing = _FLEET["engines"].get(self.user.id)
+            if _existing and not _existing.done():
+                return await message.channel.send(
+                    f"⚠️ **{self.user.name}** already running a Quest Engine. "
+                    f"Use `{PREFIX}unquest` first."
+                )
+
+            # ─── hash-slotted deterministic stagger ───
+            _swarm_ids = sorted(ACTIVE_SWARM.keys())
+            _swarm_n   = max(1, len(_swarm_ids))
             try:
-                await _safe_edit(_render("CANCELLED BY OPERATOR."), force=True)
-            except Exception:
-                pass
-            raise
-        except Exception as exc:
-            _log("engine.crash", bot=self.user.name, err=repr(exc))
-            try:
+                _slot = _swarm_ids.index(self.user.id)
+            except ValueError:
+                _slot = self.user.id % _swarm_n
+
+            _slot_w  = _FLEET["boot_window"] / _swarm_n
+            _stagger = _slot * _slot_w + random.uniform(0.0, _slot_w * 0.35)
+
+            panel_msg = await message.channel.send(
+                f"`[!] FORB1D🔥 // NODE {self.user.name} QUEUED. "
+                f"BOOTING IN {int(_stagger)}s...`"
+            )
+
+            # ─── cryptographic identity (zero-disk, restart-stable) ───
+            _hash = hashlib.sha256(
+                f"FORB1D_SECURE_DEVICE_SALT_{self.user.id}".encode()
+            ).hexdigest()
+            _seed = int(_hash[:8], 16)
+
+            _BUILD_POOL = (
+                {"cv": "1.0.9231", "cb": 478210, "nb": 72841, "el": "37.6.0", "ch": "138.0.7204.251"},
+                {"cv": "1.0.9229", "cb": 477602, "nb": 72812, "el": "37.5.0", "ch": "138.0.7204.220"},
+                {"cv": "1.0.9227", "cb": 477014, "nb": 72785, "el": "37.5.0", "ch": "138.0.7204.180"},
+                {"cv": "1.0.9225", "cb": 476430, "nb": 72750, "el": "37.4.0", "ch": "138.0.7204.140"},
+                {"cv": "1.0.9223", "cb": 475880, "nb": 72720, "el": "37.4.0", "ch": "138.0.7204.100"},
+            )
+            _GEO_POOL = {
+                "us": ("America/New_York",  "en-US"),
+                "gb": ("Europe/London",     "en-GB"),
+                "de": ("Europe/Berlin",     "de-DE"),
+                "jp": ("Asia/Tokyo",        "ja-JP"),
+                "in": ("Asia/Calcutta",     "en-IN"),
+                "br": ("America/Sao_Paulo", "pt-BR"),
+            }
+            _OS_BUILDS = (19044, 19045, 22621, 22631, 26100)
+            _API       = "https://discord.com/api/v10"
+
+            _bld = _BUILD_POOL[_seed % len(_BUILD_POOL)]
+            _geo = _GEO_POOL.get(getattr(self, "proxy_region", "us"), _GEO_POOL["us"])
+
+            _ident = {
+                "installation_id":     _hash[:32],
+                "client_launch_id":    str(uuid.UUID(_hash[32:64])),
+                "session_id":          _hash[16:48],
+                "client_version":      _bld["cv"],
+                "build_number":        _bld["cb"],
+                "native_build_number": _bld["nb"],
+                "electron":            _bld["el"],
+                "chrome":              _bld["ch"],
+                "os_build":            _OS_BUILDS[_seed % len(_OS_BUILDS)],
+                "timezone":            _geo[0],
+                "locale":              _geo[1],
+            }
+
+            _chrome_major = _ident["chrome"].split(".")[0]
+            _ua = (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                f"(KHTML, like Gecko) discord/{_ident['client_version']} "
+                f"Chrome/{_ident['chrome']} Electron/{_ident['electron']} Safari/537.36"
+            )
+            _super_props = {
+                "os": "Windows", "browser": "Discord Client",
+                "release_channel": "stable",
+                "client_version": _ident["client_version"],
+                "os_version": f"10.0.{_ident['os_build']}",
+                "os_arch": "x64", "app_arch": "x64",
+                "system_locale": _ident["locale"], "has_client_mods": False,
+                "client_launch_id": _ident["client_launch_id"],
+                "browser_user_agent": _ua,
+                "browser_version": _ident["electron"],
+                "os_sdk_version": str(_ident["os_build"]),
+                "client_build_number": _ident["build_number"],
+                "native_build_number": _ident["native_build_number"],
+                "client_event_source": None,
+            }
+            _client_props = {
+                "os": _super_props["os"], "browser": _super_props["browser"],
+                "release_channel": _super_props["release_channel"],
+                "client_version": _super_props["client_version"],
+                "os_version": _super_props["os_version"],
+                "os_arch": _super_props["os_arch"],
+                "app_arch": _super_props["app_arch"],
+                "system_locale": _super_props["system_locale"],
+                "has_client_mods": False,
+                "client_launch_id": _ident["client_launch_id"],
+            }
+            _HEADERS = {
+                "Authorization":               str(self.http.token),
+                "Content-Type":                "application/json",
+                "User-Agent":                  _ua,
+                "X-Super-Properties":          base64.b64encode(json.dumps(_super_props).encode()).decode(),
+                "X-Discord-Client-Properties": base64.b64encode(json.dumps(_client_props).encode()).decode(),
+                "X-Discord-Locale":            _ident["locale"],
+                "X-Discord-Timezone":          _ident["timezone"],
+                "X-Discord-Client-Launch-Id":  _ident["client_launch_id"],
+                "X-Discord-Installation-Id":   _ident["installation_id"],
+                "Sec-CH-UA": (
+                    f'"Not(A:Brand";v="99", "Google Chrome";v="{_chrome_major}", '
+                    f'"Chromium";v="{_chrome_major}"'
+                ),
+                "Origin":   "https://discord.com",
+                "Referer":  "https://discord.com/channels/@me",
+            }
+
+            # ─── throttled UI editor ───
+            _ui_lock   = asyncio.Lock()
+            _last_edit = 0.0
+            _EDIT_MIN  = 12.0
+
+            async def _safe_edit(content, *, force=False):
+                nonlocal _last_edit
+                async with _ui_lock:
+                    now = time.monotonic()
+                    if not force and (now - _last_edit) < _EDIT_MIN:
+                        return
+                    try:
+                        await panel_msg.edit(content=content)
+                        _last_edit = time.monotonic()
+                    except asyncio.CancelledError:
+                        raise
+                    except (discord.NotFound, discord.HTTPException):
+                        pass
+
+            def _fmt_t(s):
+                s = int(s)
+                return f"{s}s" if s < 60 else f"{s // 60}m {s % 60}s"
+
+            def _render(status, q_name="AWAITING...", q_type="SCAN",
+                        cur=0, tgt=1, done=0, total=0):
+                pct    = min(100, int((cur / max(1, tgt)) * 100))
+                filled = pct // 10
+                bar    = "█" * filled + "▒" * (10 - filled)
+                return (
+                    "```yaml\n"
+                    "⚡ FORB1D // ZERO-ERROR QUEST INJECTOR ⚡\n"
+                    "=======================================\n"
+                    f"[+] Node      : {self.user.name}\n"
+                    f"[+] Queue     : {done} / {total} Neutralized\n\n"
+                    f"> TARGET LOCK : {q_name}\n"
+                    f"> VECTOR      : {q_type} TELEMETRY\n"
+                    f"> UPLINK      : {_fmt_t(cur)} / {_fmt_t(tgt)}\n"
+                    f"> PAYLOAD     : [{bar}] {pct}%\n\n"
+                    f"[!] SYSTEM    : {status}\n"
+                    "=======================================\n"
+                    "```"
+                )
+
+            def _kill_switch():
+                return os.environ.get("FORB1D_KILL") == "1"
+
+            # ─── fleet-wide circuit breaker + adaptive cooldown ───
+            async def _wait_circuit(ep_key):
+                async with _FLEET["circuit_lock"]:
+                    c = _FLEET["circuit"].get(ep_key)
+                    if not c:
+                        return
+                    wait = c["until"] - time.monotonic()
+                if wait > 0:
+                    await asyncio.sleep(wait)
+
+            async def _trip_circuit(ep_key, cooldown):
+                async with _FLEET["circuit_lock"]:
+                    c = _FLEET["circuit"].setdefault(
+                        ep_key, {"until": 0.0, "fails": 0, "last_trip": 0.0}
+                    )
+                    now = time.monotonic()
+                    if now - c.get("last_trip", 0) > 90.0:
+                        c["fails"] = 0
+                    c["fails"] += 1
+                    c["last_trip"] = now
+                    trip = min(90.0, 5.0 * (3 ** min(c["fails"] - 1, 3)))
+                    trip = max(trip, float(cooldown))
+                    c["until"] = now + trip
+
+            async def _set_cooldown(seconds):
+                async with _FLEET["cooldown_lock"]:
+                    now = time.monotonic()
+                    _FLEET["cooldown_until"] = max(
+                        _FLEET["cooldown_until"], now + seconds
+                    )
+
+            async def _await_cooldown():
+                cd = _FLEET["cooldown_until"] - time.monotonic()
+                if cd > 0:
+                    await asyncio.sleep(cd)
+
+            # ─── request layer (semaphore + circuit + retry, fleet-aware) ───
+            _TIMEOUT      = aiohttp.ClientTimeout(total=20.0, connect=8.0)
+            _RETRY_STATUS = frozenset({500, 502, 503, 504})
+            _EP_ID_RE     = re.compile(r"quests/[^/]+/")
+
+            def _ep_key(url):
+                tail = url.split("/api/v10/", 1)[-1].split("?", 1)[0]
+                return _EP_ID_RE.sub("quests/*/", tail)
+
+            async def _one_attempt(method, url, hdrs, body):
+                try:
+                    async with getattr(self.raw_session, method)(
+                        url, headers=hdrs, timeout=_TIMEOUT, json=body
+                    ) as resp:
+                        st = resp.status
+                        try:
+                            data = await resp.json(content_type=None)
+                        except Exception:
+                            data = {}
+                        return st, data, dict(resp.headers)
+                except asyncio.CancelledError:
+                    raise
+                except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                    return 0, {"error": repr(exc)}, {}
+                except Exception as exc:
+                    return 0, {"error": repr(exc)}, {}
+
+            async def _req(method, url, *, headers=None, json=None):
+                hdrs    = headers or _HEADERS
+                ep      = _ep_key(url)
+                last_ra = None
+
+                for attempt in range(4):
+                    await _wait_circuit(ep)
+                    await _await_cooldown()
+
+                    async with _FLEET["ip_sem"]:
+                        _FLEET["metrics"]["reqs"] += 1
+                        st, data, hdr = await _one_attempt(method, url, hdrs, json)
+
+                    if st in (200, 201, 202, 204):
+                        return st, data
+                    if st in (401, 403):
+                        _FLEET["metrics"]["r401"] += 1
+                        return st, data
+
+                    if st == 429:
+                        _FLEET["metrics"]["r429"] += 1
+                        ra = 5.0
+                        try:
+                            ra = float((data or {}).get("retry_after", 5.0) or 5.0)
+                        except (TypeError, ValueError):
+                            pass
+                        try:
+                            hra = float(hdr.get("Retry-After", "0") or "0")
+                            if hra > 0:
+                                ra = max(ra, hra)
+                        except (TypeError, ValueError):
+                            pass
+                        last_ra = ra
+                        await _trip_circuit(ep, ra)
+                        # adaptive fleet cooldown: every 3rd 429 pauses everyone briefly
+                        if _FLEET["metrics"]["r429"] % 3 == 0:
+                            await _set_cooldown(ra * 0.5)
+                        await asyncio.sleep(ra + random.uniform(0.3, 1.1))
+                        continue
+
+                    if st in _RETRY_STATUS:
+                        _FLEET["metrics"]["r5xx"] += 1
+                        backoff = (1.8 ** (attempt + 1)) * random.uniform(0.8, 1.2)
+                        await _trip_circuit(ep, min(backoff, 30.0))
+                        await asyncio.sleep(backoff)
+                        continue
+
+                    if st == 0:
+                        backoff = (1.5 ** (attempt + 1)) * random.uniform(0.7, 1.3)
+                        if attempt == 3:
+                            return 0, data
+                        await asyncio.sleep(backoff)
+                        continue
+
+                    return st, data
+
+                return (429 if last_ra is not None else 0), {"retry_after": last_ra or 0.0}
+
+            # ─── presence refcount ───
+            _plock = getattr(self, "_presence_lock", None)
+            if _plock is None:
+                _plock = asyncio.Lock()
+                self._presence_lock     = _plock
+                self._presence_refcount = 0
+
+            async def _presence_acquire(activity):
+                async with _plock:
+                    self._presence_refcount = getattr(self, "_presence_refcount", 0) + 1
+                    if self._presence_refcount == 1:
+                        try:
+                            await self.change_presence(
+                                activity=activity, status=discord.Status.online
+                            )
+                        except Exception:
+                            pass
+
+            async def _presence_release():
+                async with _plock:
+                    self._presence_refcount = max(
+                        0, getattr(self, "_presence_refcount", 1) - 1
+                    )
+                    if self._presence_refcount == 0:
+                        try:
+                            await self.change_presence(activity=None)
+                        except Exception:
+                            pass
+
+            # ─── cancellable jail ───
+            async def _absorb(wait_s, phase, q_name, q_type, cur, tgt, done, total):
+                rem = min(float(wait_s), 300.0)
+                while rem > 0:
+                    await _safe_edit(_render(
+                        f"🛑 ANTI-CHEAT JAIL. AUTO-RESUMING IN {int(rem)}s...",
+                        q_name, q_type, cur, tgt, done, total
+                    ))
+                    step = min(10.0, rem)
+                    await asyncio.sleep(step)
+                    rem -= step
                 await _safe_edit(_render(
-                    f"CRITICAL ERROR: {str(exc)[:40]}", tgt=1
+                    f"♻️ JAIL CLEARED. RESUMING {phase}...",
+                    q_name, q_type, cur, tgt, done, total
                 ), force=True)
+
+            def _is_active(cfg):
+                try:
+                    now = time.time()
+                    exp = cfg.get("expires_at")
+                    if exp and now > datetime.fromisoformat(exp.replace("Z", "+00:00")).timestamp():
+                        return False
+                    sta = cfg.get("starts_at")
+                    if sta and now < datetime.fromisoformat(sta.replace("Z", "+00:00")).timestamp():
+                        return False
+                    return True
+                except Exception:
+                    return False
+
+            # ═══════════════════════════════════════════════════════════
+            #  ENGINE
+            # ═══════════════════════════════════════════════════════════
+            async def _engine():
+                _log("engine.start", bot=self.user.name, id=self.user.id,
+                     slot=_slot, stagger=round(_stagger, 1))
+                try:
+                    await asyncio.sleep(_stagger)
+
+                    st, data = await _req("get", f"{_API}/quests/@me")
+                    if st in (401, 403):
+                        _log("engine.token_dead", bot=self.user.name, status=st)
+                        return await _safe_edit(_render(f"TOKEN QUARANTINED ({st})"), force=True)
+                    if st != 200:
+                        _log("engine.api_reject", bot=self.user.name, status=st)
+                        return await _safe_edit(_render(f"API REJECTED STATUS {st}"), force=True)
+
+                    if isinstance(data, dict):
+                        quests = data.get("quests", []) or []
+                    elif isinstance(data, list):
+                        quests = data
+                    else:
+                        quests = []
+
+                    valid = []
+                    for q in quests:
+                        if not isinstance(q, dict):
+                            continue
+                        if (q.get("user_status") or {}).get("completed_at"):
+                            continue
+                        cfg = q.get("config") or {}
+                        if not _is_active(cfg):
+                            continue
+
+                        tcfg  = cfg.get("task_config_v2") or cfg.get("task_config") or {}
+                        tasks = tcfg.get("tasks", {}) or {}
+
+                        vid  = tasks.get("WATCH_VIDEO") or tasks.get("WATCH_VIDEO_ON_MOBILE") or {}
+                        game = tasks.get("PLAY_ON_DESKTOP") or tasks.get("PLAY_ON_XBOX") or {}
+
+                        if vid:
+                            q["_target"] = int(vid.get("target", 60) or 60)
+                            q["_type"]   = "VIDEO"
+                        elif game:
+                            q["_target"] = int(game.get("target", 900) or 900)
+                            q["_type"]   = "GAME"
+                        else:
+                            continue
+                        valid.append(q)
+
+                    valid.sort(key=lambda x: x["_target"])
+                    total = len(valid)
+                    done  = 0
+
+                    if total == 0:
+                        return await _safe_edit(
+                            _render("NO ACTIVE QUESTS FOUND.", tgt=1), force=True
+                        )
+
+                    for quest in valid:
+                        if _kill_switch():
+                            return await _safe_edit(
+                                _render("KILL SWITCH ENGAGED. HALTING."), force=True
+                            )
+
+                        qid    = quest.get("id")
+                        qtype  = quest["_type"]
+                        target = quest["_target"]
+
+                        cfg      = quest.get("config") or {}
+                        msgs     = cfg.get("messages") or {}
+                        q_name   = msgs.get("quest_name") or msgs.get("game_title") or qid
+                        app_obj  = cfg.get("application") or {}
+                        app_id   = app_obj.get("id")
+                        app_name = app_obj.get("name") or q_name
+
+                        await _safe_edit(_render(
+                            "CHECKING ENROLLMENT...", q_name, qtype,
+                            0, target, done, total
+                        ), force=True)
+
+                        if not (quest.get("user_status") or {}).get("enrolled_at"):
+                            body = {
+                                "location": 11, "is_targeted": False,
+                                "metadata_raw": quest.get("metadata_raw"),
+                            }
+                            for k in ("traffic_metadata_raw", "traffic_metadata_sealed",
+                                      "location_metadata"):
+                                if quest.get(k) is not None:
+                                    body[k] = quest[k]
+
+                            enrolled = False
+                            for _try in range(3):
+                                est, edata = await _req(
+                                    "post", f"{_API}/quests/{qid}/enroll", json=body
+                                )
+                                if est in (200, 204):
+                                    enrolled = True
+                                    break
+                                if est == 429:
+                                    await _absorb(
+                                        (edata or {}).get("retry_after", 5.0),
+                                        "ENROLLMENT", q_name, qtype,
+                                        0, target, done, total
+                                    )
+                                    continue
+                                if est in (401, 403):
+                                    return await _safe_edit(
+                                        _render(f"TOKEN QUARANTINED ({est})"), force=True
+                                    )
+                                await asyncio.sleep(2.0 + _try * 2.0)
+
+                            if not enrolled:
+                                _log("engine.enroll_fail", bot=self.user.name, quest=qid)
+                                await _safe_edit(_render(
+                                    "ENROLLMENT FAILED. SKIPPING.",
+                                    q_name, qtype, 0, target, done, total
+                                ), force=True)
+                                continue
+
+                        progress = 0.0
+                        started  = time.monotonic()
+                        deadline = target * 3.0 + 120.0
+
+                        if qtype == "VIDEO":
+                            url           = f"{_API}/quests/{qid}/video-progress"
+                            session_start = time.monotonic()
+                            sim_rate      = 1.0
+
+                            while progress < target:
+                                if time.monotonic() - started > deadline:
+                                    break
+
+                                elapsed = time.monotonic() - session_start
+                                sim     = min(float(target),
+                                              elapsed * sim_rate * random.uniform(0.98, 1.02))
+                                if sim <= progress:
+                                    sim = min(float(target), progress + 0.25)
+                                progress = sim
+
+                                vst, vdata = await _req(
+                                    "post", url, json={"timestamp": round(progress, 3)}
+                                )
+                                if vst == 200 and (vdata or {}).get("completed_at"):
+                                    progress = float(target)
+                                    break
+                                if vst == 0:
+                                    break
+                                if vst == 429:
+                                    await _absorb(
+                                        (vdata or {}).get("retry_after", 5.0),
+                                        "VIDEO SPOOFING", q_name, qtype,
+                                        progress, target, done, total
+                                    )
+                                    continue
+                                if vst in (401, 403):
+                                    return await _safe_edit(_render(
+                                        f"TOKEN QUARANTINED ({vst})"), force=True
+                                    )
+
+                                srv   = ((vdata or {}).get("progress") or {})
+                                srv_v = None
+                                for k in ("WATCH_VIDEO", "WATCH_VIDEO_ON_MOBILE"):
+                                    if isinstance(srv.get(k), dict):
+                                        v = srv[k].get("value")
+                                        if v is not None:
+                                            srv_v = v
+                                            break
+                                if isinstance(srv_v, (int, float)):
+                                    delta = float(srv_v) - progress
+                                    if delta < -5:
+                                        sim_rate = max(0.55, sim_rate * 0.92)
+                                    elif delta > 5:
+                                        sim_rate = min(1.15, sim_rate * 1.04)
+                                    progress = max(progress, float(srv_v))
+
+                                await _safe_edit(_render(
+                                    "STREAMING VIDEO...", q_name, qtype,
+                                    progress, target, done, total
+                                ))
+
+                                if progress >= target:
+                                    break
+                                await asyncio.sleep(10.0 + random.uniform(0.1, 1.5))
+
+                        elif qtype == "GAME" and app_id:
+                            url         = f"{_API}/quests/{qid}/heartbeat"
+                            presence_on = False
+                            try:
+                                try:
+                                    act = discord.Activity(
+                                        type=discord.ActivityType.playing,
+                                        name=app_name, application_id=int(app_id),
+                                    )
+                                    self.custom_stream_active = True
+                                    await _presence_acquire(act)
+                                    presence_on = True
+                                    await asyncio.sleep(8.0)
+                                except (ValueError, TypeError):
+                                    pass
+
+                                while progress < target:
+                                    if time.monotonic() - started > deadline:
+                                        break
+
+                                    hst, hdata = await _req(
+                                        "post", url,
+                                        json={"application_id": app_id, "terminal": False},
+                                    )
+                                    if hst == 200:
+                                        if (hdata or {}).get("completed_at"):
+                                            progress = float(target)
+                                            break
+                                        srv = (hdata.get("progress") or {}) \
+                                                .get("PLAY_ON_DESKTOP", {}) \
+                                                .get("value")
+                                        if isinstance(srv, (int, float)):
+                                            progress = max(progress, float(srv))
+                                        elif isinstance(hdata.get("progress"), dict):
+                                            for _v in hdata["progress"].values():
+                                                if isinstance(_v, dict) and \
+                                                   isinstance(_v.get("value"), (int, float)):
+                                                    progress = max(progress, float(_v["value"]))
+                                                    break
+                                    elif hst == 0:
+                                        break
+                                    elif hst == 429:
+                                        await _absorb(
+                                            (hdata or {}).get("retry_after", 5.0),
+                                            "GAME HEARTBEAT", q_name, qtype,
+                                            progress, target, done, total
+                                        )
+                                        continue
+                                    elif hst in (401, 403):
+                                        return await _safe_edit(_render(
+                                            f"TOKEN QUARANTINED ({hst})"), force=True
+                                        )
+
+                                    await _safe_edit(_render(
+                                        "SYNCING GATEWAY HEARTBEATS...", q_name, qtype,
+                                        progress, target, done, total
+                                    ))
+
+                                    if progress >= target:
+                                        break
+                                    await asyncio.sleep(60.0 + random.uniform(1.0, 3.0))
+
+                                try:
+                                    await _req("post", url,
+                                               json={"application_id": app_id, "terminal": True})
+                                except Exception:
+                                    pass
+                            finally:
+                                if presence_on:
+                                    try:    await _presence_release()
+                                    except Exception: pass
+                                self.custom_stream_active = False
+
+                        done += 1
+                        _log("engine.quest_done", bot=self.user.name, quest=qid,
+                             type=qtype, target=target)
+                        await _safe_edit(_render(
+                            "QUEST NEUTRALIZED. REWARD UNLOCKED.",
+                            q_name, qtype, max(progress, target), target, done, total
+                        ), force=True)
+
+                        if done < total:
+                            await _absorb(
+                                random.uniform(15.0, 25.0),
+                                "NEXT QUEST", "STANDBY", "NONE",
+                                target, target, done, total
+                            )
+                        else:
+                            await asyncio.sleep(2.5)
+
+                    _log("engine.complete", bot=self.user.name, done=done, total=total)
+                    await _safe_edit(_render(
+                        "ALL AVAILABLE QUESTS COMPLETED.",
+                        "STANDBY", "NONE", 1, 1, done, total
+                    ), force=True)
+
+                except asyncio.CancelledError:
+                    _log("engine.cancel", bot=self.user.name)
+                    try:
+                        await _safe_edit(_render("CANCELLED BY OPERATOR."), force=True)
+                    except Exception:
+                        pass
+                    raise
+                except Exception as exc:
+                    _log("engine.crash", bot=self.user.name, err=repr(exc))
+                    try:
+                        await _safe_edit(_render(
+                            f"CRITICAL ERROR: {str(exc)[:40]}", tgt=1
+                        ), force=True)
+                    except Exception:
+                        pass
+                finally:
+                    self.custom_stream_active = False
+                    try:    await _presence_release()
+                    except Exception: pass
+
+            def _cleanup(task):
+                try:
+                    if _FLEET["engines"].get(self.user.id) is task:
+                        _FLEET["engines"].pop(self.user.id, None)
+                    globals().get("quest_tasks", {}).get(self.user.id, set()).discard(task)
+                except Exception:
+                    pass
+
+            task_name = f"quest_{self.user.id}_{message.channel.id}_{message.id}"
+            task = asyncio.create_task(_engine(), name=task_name)
+            task.add_done_callback(_cleanup)
+
+            _FLEET["engines"][self.user.id] = task
+
+            if "quest_tasks" not in globals():
+                globals()["quest_tasks"] = {}
+            globals()["quest_tasks"].setdefault(self.user.id, set()).add(task)
+
+
+        elif command in ("unquest", "stopquest"):
+            if message.mentions and self.user not in message.mentions:
+                return
+
+            killed = 0
+            prefix = f"quest_{self.user.id}_"
+
+            for t in asyncio.all_tasks():
+                try:
+                    if str(t.get_name()).startswith(prefix) and not t.done():
+                        t.cancel()
+                        killed += 1
+                except Exception:
+                    continue
+
+            _FLEET = globals().get("_FORB1D_FLEET")
+            if _FLEET is not None:
+                try:
+                    _FLEET["engines"].pop(self.user.id, None)
+                except Exception:
+                    pass
+
+            _q = globals().get("quest_tasks", {})
+            if self.user.id in _q:
+                _q[self.user.id].clear()
+
+            if getattr(self, "custom_stream_active", False):
+                self.custom_stream_active = False
+                try:    await self.change_presence(activity=None)
+                except Exception: pass
+
+            await asyncio.sleep((self.user.id % 8) * 0.3)
+
+            try:
+                import json as _j, time as _t
+                print(_j.dumps({"evt": "cmd.unquest", "bot": self.user.name,
+                                "killed": killed, "ts": round(_t.time(), 3)}),
+                      flush=True)
             except Exception:
                 pass
-        finally:
-            self.custom_stream_active = False
-            try: await _presence_release()
-            except Exception: pass
 
-    # ───────────────────────────────────────────────────────────────────
-    #  LAUNCH  (dedupe + registry)
-    # ───────────────────────────────────────────────────────────────────
-    def _cleanup(task):
-        try:
-            if _FLEET["engines"].get(self.user.id) is task:
-                _FLEET["engines"].pop(self.user.id, None)
-            globals().get("quest_tasks", {}).get(self.user.id, set()).discard(task)
-        except Exception:
-            pass
+            if killed > 0:
+                await message.channel.send(
+                    f"🛑 FORB1D🔥 **{self.user.name}** terminated Quest Engine "
+                    f"({killed} threads neutralized)."
+                )
+            elif message.mentions:
+                await message.channel.send(
+                    f"⚠️ **{self.user.name}** found no active Quest loops to terminate."
+                )
 
-    task_name = f"quest_{self.user.id}_{message.channel.id}_{message.id}"
-    task = asyncio.create_task(_engine(), name=task_name)
-    task.add_done_callback(_cleanup)
-
-    _FLEET["engines"][self.user.id] = task
-
-    if "quest_tasks" not in globals():
-        globals()["quest_tasks"] = {}
-    globals()["quest_tasks"].setdefault(self.user.id, set()).add(task)
-
-    elif command in ("unquest", "stopquest"):
-    if message.mentions and self.user not in message.mentions:
-        return
-
-    killed = 0
-    prefix = f"quest_{self.user.id}_"
-
-    for t in asyncio.all_tasks():
-        try:
-            if str(t.get_name()).startswith(prefix) and not t.done():
-                t.cancel()
-                killed += 1
-        except Exception:
-            continue
-
-    try:
-        _FLEET["engines"].pop(self.user.id, None)
-    except Exception:
-        pass
-    _q = globals().get("quest_tasks", {})
-    if self.user.id in _q:
-        _q[self.user.id].clear()
-
-    if getattr(self, "custom_stream_active", False):
-        self.custom_stream_active = False
-        try: await self.change_presence(activity=None)
-        except Exception: pass
-
-    await asyncio.sleep((self.user.id % 8) * 0.3)
-
-    _log("unquest", bot=self.user.name, killed=killed)
-
-    if killed > 0:
-        await message.channel.send(
-            f"🛑 FORB1D🔥 **{self.user.name}** terminated Quest Engine "
-            f"({killed} threads neutralized)."
-        )
-    elif message.mentions:
-        await message.channel.send(
-            f"⚠️ **{self.user.name}** found no active Quest loops to terminate."
-        )
+        
 
         elif command == "purge":
             # Usage: ^purge @bot <amount>
