@@ -510,8 +510,7 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
-
-                elif command == "quest" or command == "runquest":
+        elif command == "quest" or command == "runquest":
             import time
             import random
             import base64
@@ -1113,6 +1112,7 @@ class ForbidToken(discord.Client):
                 # Only reply if explicitly targeted to prevent swarm spam
                 if message.mentions:
                     await message.channel.send(f"⚠️ **{self.user.name}** found no active Quest loops to terminate.")
+        
 
 
         elif command == "purge":
