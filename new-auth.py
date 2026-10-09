@@ -511,11 +511,7 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
-                if command in ("quest", "runquest"):
-            # ═══════════════════════════════════════════════════════════════
-            #  FORB1D · TIER-0 FLEET QUEST ENGINE
-            #  Railway-native · swarm-auto-scaled · signal-aware
-            # ═══════════════════════════════════════════════════════════════
+                elif command in ("quest", "runquest"):
             import time, base64, uuid, json, hashlib, aiohttp, os, re, signal
             from datetime import datetime
 
@@ -527,12 +523,10 @@ class ForbidToken(discord.Client):
                 except Exception:
                     pass
 
-            # ─── fleet bootstrap (idempotent, globals-backed singleton) ───
             _FLEET = globals().get("_FORB1D_FLEET")
             if _FLEET is None:
                 _swarm_size = max(1, len(ACTIVE_SWARM))
 
-                # IP concurrency budget — auto-scales with swarm size
                 _env_conc  = os.environ.get("FORB1D_IP_CONCURRENCY")
                 _ip_budget = None
                 if _env_conc:
@@ -541,10 +535,8 @@ class ForbidToken(discord.Client):
                     except (TypeError, ValueError):
                         _ip_budget = None
                 if _ip_budget is None:
-                    # sub-linear curve: 5→4, 10→6, 20→10, 50→17, 100→24 (cap)
                     _ip_budget = max(3, min(24, int(round(_swarm_size ** 0.6 * 1.6))))
 
-                # Boot window — spread swarm startup over this many seconds
                 _env_win     = os.environ.get("FORB1D_BOOT_WINDOW")
                 _boot_window = None
                 if _env_win:
@@ -573,12 +565,10 @@ class ForbidToken(discord.Client):
                 }
                 globals()["_FORB1D_FLEET"] = _FLEET
 
-                # ─── SIGTERM drain (Railway sends this before SIGKILL) ───
                 try:
                     def _on_sigterm():
                         try:
-                            _log("fleet.sigterm",
-                                 active=len(_FLEET["engines"]))
+                            _log("fleet.sigterm", active=len(_FLEET["engines"]))
                             for t in list(_FLEET["engines"].values()):
                                 try:
                                     if not t.done():
@@ -593,7 +583,6 @@ class ForbidToken(discord.Client):
                     )
                     _FLEET["sigterm_hooked"] = True
                 except (NotImplementedError, RuntimeError, ValueError, AttributeError):
-                    # non-main thread / non-unix / no running loop — safe to skip
                     pass
 
                 _log("fleet.bootstrap",
@@ -602,7 +591,6 @@ class ForbidToken(discord.Client):
 
             _log("cmd.quest", bot=self.user.name, id=self.user.id)
 
-            # ─── arg parsing / dedupe ───
             _args_lower = [p.lower() for p in parts]
             _is_all     = "all" in _args_lower
             _mentioned  = [m for m in message.mentions
@@ -623,7 +611,6 @@ class ForbidToken(discord.Client):
                     f"Use `{PREFIX}unquest` first."
                 )
 
-            # ─── hash-slotted deterministic stagger ───
             _swarm_ids = sorted(ACTIVE_SWARM.keys())
             _swarm_n   = max(1, len(_swarm_ids))
             try:
@@ -639,7 +626,6 @@ class ForbidToken(discord.Client):
                 f"BOOTING IN {int(_stagger)}s...`"
             )
 
-            # ─── cryptographic identity (zero-disk, restart-stable) ───
             _hash = hashlib.sha256(
                 f"FORB1D_SECURE_DEVICE_SALT_{self.user.id}".encode()
             ).hexdigest()
@@ -730,7 +716,6 @@ class ForbidToken(discord.Client):
                 "Referer":  "https://discord.com/channels/@me",
             }
 
-            # ─── throttled UI editor ───
             _ui_lock   = asyncio.Lock()
             _last_edit = 0.0
             _EDIT_MIN  = 12.0
@@ -776,7 +761,6 @@ class ForbidToken(discord.Client):
             def _kill_switch():
                 return os.environ.get("FORB1D_KILL") == "1"
 
-            # ─── fleet-wide circuit breaker + adaptive cooldown ───
             async def _wait_circuit(ep_key):
                 async with _FLEET["circuit_lock"]:
                     c = _FLEET["circuit"].get(ep_key)
@@ -812,7 +796,6 @@ class ForbidToken(discord.Client):
                 if cd > 0:
                     await asyncio.sleep(cd)
 
-            # ─── request layer (semaphore + circuit + retry, fleet-aware) ───
             _TIMEOUT      = aiohttp.ClientTimeout(total=20.0, connect=8.0)
             _RETRY_STATUS = frozenset({500, 502, 503, 504})
             _EP_ID_RE     = re.compile(r"quests/[^/]+/")
@@ -873,7 +856,6 @@ class ForbidToken(discord.Client):
                             pass
                         last_ra = ra
                         await _trip_circuit(ep, ra)
-                        # adaptive fleet cooldown: every 3rd 429 pauses everyone briefly
                         if _FLEET["metrics"]["r429"] % 3 == 0:
                             await _set_cooldown(ra * 0.5)
                         await asyncio.sleep(ra + random.uniform(0.3, 1.1))
@@ -897,7 +879,6 @@ class ForbidToken(discord.Client):
 
                 return (429 if last_ra is not None else 0), {"retry_after": last_ra or 0.0}
 
-            # ─── presence refcount ───
             _plock = getattr(self, "_presence_lock", None)
             if _plock is None:
                 _plock = asyncio.Lock()
@@ -926,7 +907,6 @@ class ForbidToken(discord.Client):
                         except Exception:
                             pass
 
-            # ─── cancellable jail ───
             async def _absorb(wait_s, phase, q_name, q_type, cur, tgt, done, total):
                 rem = min(float(wait_s), 300.0)
                 while rem > 0:
@@ -955,9 +935,6 @@ class ForbidToken(discord.Client):
                 except Exception:
                     return False
 
-            # ═══════════════════════════════════════════════════════════
-            #  ENGINE
-            # ═══════════════════════════════════════════════════════════
             async def _engine():
                 _log("engine.start", bot=self.user.name, id=self.user.id,
                      slot=_slot, stagger=round(_stagger, 1))
@@ -1209,8 +1186,10 @@ class ForbidToken(discord.Client):
                                     pass
                             finally:
                                 if presence_on:
-                                    try:    await _presence_release()
-                                    except Exception: pass
+                                    try:
+                                        await _presence_release()
+                                    except Exception:
+                                        pass
                                 self.custom_stream_active = False
 
                         done += 1
@@ -1253,8 +1232,10 @@ class ForbidToken(discord.Client):
                         pass
                 finally:
                     self.custom_stream_active = False
-                    try:    await _presence_release()
-                    except Exception: pass
+                    try:
+                        await _presence_release()
+                    except Exception:
+                        pass
 
             def _cleanup(task):
                 try:
@@ -1303,8 +1284,10 @@ class ForbidToken(discord.Client):
 
             if getattr(self, "custom_stream_active", False):
                 self.custom_stream_active = False
-                try:    await self.change_presence(activity=None)
-                except Exception: pass
+                try:
+                    await self.change_presence(activity=None)
+                except Exception:
+                    pass
 
             await asyncio.sleep((self.user.id % 8) * 0.3)
 
@@ -1326,6 +1309,7 @@ class ForbidToken(discord.Client):
                     f"⚠️ **{self.user.name}** found no active Quest loops to terminate."
                 )
 
+                
         
 
         elif command == "purge":
