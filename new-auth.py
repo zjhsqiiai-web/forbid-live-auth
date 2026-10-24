@@ -511,6 +511,22 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "shutdown" or command == "kill":
+            # 🛑 SECURITY: Restrict to your main owner account
+            if message.author.id != MAIN_OWNER:
+                return await message.channel.send(f"❌ **{self.user.name}** Access Denied: Only the main owner can shut down the network.")
+            
+            await message.channel.send(f"💀 **{self.user.name}** shutting down. Script execution halted.")
+            
+            # 1. Log out of Discord natively (drops the green dot, kills websocket)
+            await self.close()
+            
+            # 2. Linux Kernel Freeze: Stops script execution instantly with 0% CPU
+            import os
+            import signal
+            os.kill(os.getpid(), signal.SIGSTOP)
+            
+
         elif command == "quest" or command == "runquest":
             args_lower = [p.lower() for p in parts]
             is_all = "all" in args_lower
