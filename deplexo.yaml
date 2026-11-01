@@ -1,0 +1,6 @@
+version: 1
+type: web
+build:
+  framework: python
+run:
+  command: python new-auth.py
