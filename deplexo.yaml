@@ -1,6 +1,6 @@
 version: 1
 type: web
 build:
-  framework: python
+  framework: auto
 run:
   command: python new-auth.py
