@@ -429,10 +429,9 @@ class ForbidToken(discord.Client):
         # 2. SECURITY WALL & SWARM ROAST ENGINE FOR UNAUTHORIZED USERS
         if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
             
-            # 🛑 SILENT REJECT: Safely fetch the global state without triggering a scope error
-            is_global_blacklisted = globals().get("GLOBAL_BLACKLIST_MODE", False)
-            if is_global_blacklisted or message.author.id in BLACKLISTED_USERS:
-                return # Drops the packet instantly. Zero CPU wasted.
+            # 🛑 SILENT REJECT: Checks the globals safely. If ON, drops the packet instantly.
+            if globals().get("GLOBAL_BLACKLIST_MODE", False) or message.author.id in globals().get("BLACKLISTED_USERS", set()):
+                return # Zero CPU wasted. No roasts.
 
             async def swarm_roast():
                 try:
@@ -525,44 +524,56 @@ class ForbidToken(discord.Client):
             if message.author.id != MAIN_OWNER:
                 return await message.channel.send(f"❌ **{self.user.name}** Access Denied.")
             
+            # Initialize global set if missing
+            if "BLACKLISTED_USERS" not in globals():
+                globals()["BLACKLISTED_USERS"] = set()
+            
             if not message.mentions:
-                # Toggle global blacklist mode safely via globals dictionary
-                current_mode = globals().get("GLOBAL_BLACKLIST_MODE", False)
-                globals()["GLOBAL_BLACKLIST_MODE"] = not current_mode
+                # Force global mode to ON
+                globals()["GLOBAL_BLACKLIST_MODE"] = True
                 
-                state = "ON 🔴 (Randos silently ignored)" if not current_mode else "OFF 🟢 (Roast engine active)"
-                await message.channel.send(f"🛡️ FORB1D🔥 **{self.user.name}** Global Blacklist Mode: `{state}`")
+                # LEADER ELECTION: Only the primary bot sends the confirmation
+                if ACTIVE_SWARM and self.user.id == ACTIVE_SWARM[0]:
+                    await message.channel.send(f"🛡️ FORB1D🔥 Global Blacklist Mode: `ON 🔴 (Randos silently ignored)`")
             else:
                 # Blacklist specific users
                 added = []
                 for target in message.mentions:
-                    # Prevent accidentally blacklisting yourself or granted users
-                    if target.id not in BLACKLISTED_USERS and target.id != MAIN_OWNER and target.id not in AUTHORIZED_USERS:
-                        BLACKLISTED_USERS.add(target.id)
-                        added.append(target.name)
+                    # Prevent blacklisting yourself or granted users
+                    if target.id != MAIN_OWNER and target.id not in AUTHORIZED_USERS:
+                        globals()["BLACKLISTED_USERS"].add(target.id)
+                        if target.name not in added:
+                            added.append(target.name)
                 
-                if added:
-                    await message.channel.send(f"🚫 FORB1D🔥 **{self.user.name}** blacklisted: `{', '.join(added)}`. They will be silently ignored.")
-                else:
-                    await message.channel.send(f"⚠️ **{self.user.name}** No valid users to blacklist (Cannot blacklist owners).")
+                if added and ACTIVE_SWARM and self.user.id == ACTIVE_SWARM[0]:
+                    await message.channel.send(f"🚫 FORB1D🔥 blacklisted: `{', '.join(added)}`. They will be silently ignored.")
 
         elif command == "unblacklist":
             # 🛑 SECURITY: Restrict to main owner
             if message.author.id != MAIN_OWNER:
                 return
             
+            if "BLACKLISTED_USERS" not in globals():
+                globals()["BLACKLISTED_USERS"] = set()
+            
             if not message.mentions:
-                count = len(BLACKLISTED_USERS)
-                BLACKLISTED_USERS.clear()
-                await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** cleared the entire blacklist ({count} users removed).")
+                # Force global mode to OFF and wipe the list
+                globals()["GLOBAL_BLACKLIST_MODE"] = False
+                count = len(globals()["BLACKLISTED_USERS"])
+                globals()["BLACKLISTED_USERS"].clear()
+                
+                if ACTIVE_SWARM and self.user.id == ACTIVE_SWARM[0]:
+                    await message.channel.send(f"✅ FORB1D🔥 Global Blacklist Mode: `OFF 🟢` | Cleared {count} targeted users.")
             else:
                 removed = []
                 for target in message.mentions:
-                    if target.id in BLACKLISTED_USERS:
-                        BLACKLISTED_USERS.remove(target.id)
-                        removed.append(target.name)
-                if removed:
-                    await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** removed from blacklist: `{', '.join(removed)}`")
+                    if target.id in globals()["BLACKLISTED_USERS"]:
+                        globals()["BLACKLISTED_USERS"].remove(target.id)
+                        if target.name not in removed:
+                            removed.append(target.name)
+                            
+                if removed and ACTIVE_SWARM and self.user.id == ACTIVE_SWARM[0]:
+                    await message.channel.send(f"✅ FORB1D🔥 removed from blacklist: `{', '.join(removed)}`")
 
         elif command == "antiratelimit":
             # Usage: ^antiratelimit on OR ^antiratelimit off
