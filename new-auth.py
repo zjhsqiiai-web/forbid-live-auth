@@ -3704,8 +3704,8 @@ class ForbidToken(discord.Client):
 > ^gccreate @bot @user  (GC Creation)
 > ^ungccreate           (Stop Creation)
 > ^gcremoveall @users   (Remove From ALL)
-> ^cgcnc <text> <delay> (Custom Name Flasher)
-> ^uncgcnc              (Stop Custom Flasher)
+> ^cgcnc <txt> <delay>  (Custom Name)
+> ^uncgcnc              (Stop Name)
 
 ======================================
 ⚡ Powered by FORB1D🔥 Network ⚡
@@ -3730,8 +3730,8 @@ class ForbidToken(discord.Client):
 > ^unspam               (Stop All Spam)
 > ^slide @u1 @u2        (Auto Roaster)
 > ^unslide @u1 @u2      (Precise Remove)
-> ^cms <text> <delay>   (Custom MSG Spam)
-> ^uncms                (Stop CMG Spam)
+> ^cms <txt> <delay>    (Custom Spam)
+> ^uncms                (Stop CMS)
 
 [ 🎭 FLEX & PRESENCE OPS ]
 > ^grant @user          (Grant Access)
@@ -3747,12 +3747,12 @@ class ForbidToken(discord.Client):
 > ^quest all            (Swarm Autoplay)
 > ^quest @bot           (Precision Quest)
 > ^unquest @bot         (Stop Quests)
-> ^shutdown             (Halt Script / 0% CPU)
-> ^antiratelimit on/off (Toggle Fleet Governor)
-> ^blacklist            (Toggle Global Ignore)
-> ^blacklist @user      (Ignore Specific User)
-> ^unblacklist          (Clear All Ignores)
-> ^unblacklist @user    (Remove User Ignore)
+> ^shutdown             (Kill Switch)
+> ^antiratelimit on/off (Rate Limit)
+> ^blacklist            (Mute All)
+> ^blacklist @user      (Mute User)
+> ^unblacklist          (Unmute All)
+> ^unblacklist @user    (Unmute User)
 
 ======================================
 ⚡ Powered by FORB1D🔥 Network ⚡
