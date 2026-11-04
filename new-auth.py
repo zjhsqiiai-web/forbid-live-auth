@@ -429,9 +429,9 @@ class ForbidToken(discord.Client):
         # 2. SECURITY WALL & SWARM ROAST ENGINE FOR UNAUTHORIZED USERS
         if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
             
-            # 🛑 SILENT REJECT: If Global Blacklist is ON, or this specific user is blacklisted, ignore completely.
-            global GLOBAL_BLACKLIST_MODE
-            if GLOBAL_BLACKLIST_MODE or message.author.id in BLACKLISTED_USERS:
+            # 🛑 SILENT REJECT: Safely fetch the global state without triggering a scope error
+            is_global_blacklisted = globals().get("GLOBAL_BLACKLIST_MODE", False)
+            if is_global_blacklisted or message.author.id in BLACKLISTED_USERS:
                 return # Drops the packet instantly. Zero CPU wasted.
 
             async def swarm_roast():
@@ -525,12 +525,12 @@ class ForbidToken(discord.Client):
             if message.author.id != MAIN_OWNER:
                 return await message.channel.send(f"❌ **{self.user.name}** Access Denied.")
             
-            global GLOBAL_BLACKLIST_MODE
-            
             if not message.mentions:
-                # Toggle global blacklist mode
-                GLOBAL_BLACKLIST_MODE = not GLOBAL_BLACKLIST_MODE
-                state = "ON 🔴 (Randos silently ignored)" if GLOBAL_BLACKLIST_MODE else "OFF 🟢 (Roast engine active)"
+                # Toggle global blacklist mode safely via globals dictionary
+                current_mode = globals().get("GLOBAL_BLACKLIST_MODE", False)
+                globals()["GLOBAL_BLACKLIST_MODE"] = not current_mode
+                
+                state = "ON 🔴 (Randos silently ignored)" if not current_mode else "OFF 🟢 (Roast engine active)"
                 await message.channel.send(f"🛡️ FORB1D🔥 **{self.user.name}** Global Blacklist Mode: `{state}`")
             else:
                 # Blacklist specific users
