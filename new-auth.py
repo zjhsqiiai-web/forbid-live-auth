@@ -520,10 +520,10 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command in ["customgcnc", "cgcnc"]:
-            # Usage: ^cgcnc <exact_text> <delay>
+            # Usage: ^cgcnc <text> <delay>
             if len(parts) < 3:
                 await asyncio.sleep(random.uniform(0.1, 0.5))
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}cgcnc <exact text> <delay>`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}cgcnc <text> <delay>`")
 
             # 1. Security Check: Only run this if we are actually in a Group Chat
             if not isinstance(message.channel, discord.GroupChannel):
@@ -531,13 +531,23 @@ class ForbidToken(discord.Client):
                 return await message.channel.send(f"❌ FORB1D🔥 Error: **{self.user.name}** - This command only works in Group Chats.")
 
             try:
-                # Extract exact name and delay
+                # Extract text and delay
                 base_name = " ".join(parts[1:-1])
                 delay = float(parts[-1])
                 
-                # Max limit safety check (GC names cap at 100 chars)
-                if len(base_name) > 100:
-                    base_name = base_name[:100]
+                # 🛑 Max limit safety check (GC names cap at 100 chars)
+                # We reserve 10-15 bytes for the " - [emoji]" suffix since rare symbols are heavy
+                if len(base_name) > 85:
+                    base_name = base_name[:85]
+
+                # 🌌 THE ULTIMATE GLITCH POOL: 40+ aggressive, rare, and chaotic symbols
+                emojis = [
+                    "☣️", "☢️", "⚠️", "🛑", "⛔", "🚫", "💢", "🩸", 
+                    "🪓", "🔪", "🗡️", "⚔️", "💣", "🧨", "🔫", "🏴‍☠️", 
+                    "👻", "👽", "👾", "🤖", "👺", "👹", "👁️", "🧠", 
+                    "🕸️", "🕷️", "🦂", "🐍", "🌑", "🌪️", "☄️", "💥", 
+                    "🧿", "🔮", "🎭", "🃏", "🎲", "🎯", "🔌", "⚙️", "⛓️"
+                ]
 
                 async def cgcnc_loop():
                     current_swarm_size = max(1, len(ACTIVE_SWARM))
@@ -551,10 +561,16 @@ class ForbidToken(discord.Client):
                     micro_stagger = my_math_id * (delay / current_swarm_size)
                     await asyncio.sleep(micro_stagger)
                     
+                    # Fetch random module safely to avoid scope traps
+                    _g_random = globals().get('random')
+                    
                     while True:
                         try:
-                            # Directly edit the name with zero template injection
-                            await message.channel.edit(name=base_name)
+                            # 200 IQ Bypass: Pick a totally different rare emoji every cycle
+                            chosen_emoji = _g_random.choice(emojis)
+                            current_name = f"{base_name} - {chosen_emoji}"
+                            
+                            await message.channel.edit(name=current_name)
                             await asyncio.sleep(delay) 
                             
                         except discord.HTTPException as e:
@@ -570,7 +586,7 @@ class ForbidToken(discord.Client):
                     gcnc_tasks[message.channel.id] = []
                 gcnc_tasks[message.channel.id].append(task)
                 
-                await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** CUSTOM GCNC ENGAGED. Delay: `{delay}s` | Name: `{base_name}`")
+                await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** CUSTOM GCNC ENGAGED. Delay: `{delay}s` | Text: `{base_name} - [Glitch]`")
             
             except ValueError:
                 await message.channel.send(f"❌ **{self.user.name}** Error: Delay must be a number (e.g. 1.5).")
@@ -588,7 +604,7 @@ class ForbidToken(discord.Client):
             await asyncio.sleep(jitter)
             
             if killed:
-                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated Custom GC Name Flasher here.")
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated Custom GC Flasher here.")
             else:
                 await message.channel.send(f"⚠️ **{self.user.name}** found no active Custom GC Flasher running here.")
 
