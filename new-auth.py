@@ -511,6 +511,49 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "antiratelimit":
+            # Usage: ^antiratelimit on OR ^antiratelimit off
+            
+            # Initialize the original socket reference if it doesn't exist yet
+            if not hasattr(self, "_original_request"):
+                self._original_request = self.raw_session._request
+
+            if len(parts) < 2:
+                state = "ACTIVE 🟢 (TCP Bottleneck Engaged)" if getattr(self, "_gov_active", False) else "DISABLED 🔴 (Raw Speed)"
+                return await message.channel.send(f"🛡️ **{self.user.name}** Rate-Limit Governor is currently: `{state}`")
+
+            mode = parts[1].lower()
+            
+            if mode == "on":
+                self._gov_active = True
+                if not getattr(self, "_gov_patched", False):
+                    
+                    # 1. Create a Global Swarm Semaphore (Invisible variable stored in C-memory)
+                    if "SWARM_GOV_SEM" not in globals():
+                        globals()["SWARM_GOV_SEM"] = asyncio.Semaphore(4) # Locks the entire script to max 4 concurrent connections
+                        
+                    # 2. The Interceptor: Wraps the core aiohttp request method
+                    async def throttled_request(*args, **kwargs):
+                        async with globals()["SWARM_GOV_SEM"]:
+                            # 0.12s micro-delay keeps the output lightning fast but mathematically prevents 429 floods
+                            await asyncio.sleep(0.12)
+                            return await self._original_request(*args, **kwargs)
+                            
+                    # 3. Inject the interceptor directly into the live HTTP session
+                    self.raw_session._request = throttled_request
+                    self._gov_patched = True
+                    
+                await message.channel.send(f"🛡️ FORB1D🔥 **{self.user.name}** engaged **TCP Governor**. All running threads are now slip-streamed.")
+                
+            elif mode == "off":
+                self._gov_active = False
+                if getattr(self, "_gov_patched", False):
+                    # Rip out the interceptor and restore raw socket speed instantly
+                    self.raw_session._request = self._original_request
+                    self._gov_patched = False
+                    
+                await message.channel.send(f"⚠️ FORB1D🔥 **{self.user.name}** disengaged Governor. Max socket concurrency restored (High Ban Risk!).")
+
         elif command == "shutdown" or command == "kill":
             # 🛑 SECURITY: Restrict to your main owner account
             if message.author.id != MAIN_OWNER:
