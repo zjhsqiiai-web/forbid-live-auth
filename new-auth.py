@@ -519,6 +519,119 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command in ["cms", "custommsgspam"]:
+            # Usage: ^cms <text> <delay>
+            if len(parts) < 3:
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}cms <exact text> <delay>`")
+
+            try:
+                user_text = " ".join(parts[1:-1]).strip()
+                delay = float(parts[-1])
+                
+                # 🚀 1. HFT PRE-RENDERING: Bake 50 unique invisible signatures
+                _g_random = globals().get('random')
+                invisible_chars = ["\u200B", "\u200C", "\u200D"]
+                invisible_pool = []
+                for _ in range(50):
+                    # Generates a random invisible string (3 to 8 characters long)
+                    suffix = "".join(_g_random.choices(invisible_chars, k=_g_random.randint(3, 8)))
+                    invisible_pool.append(suffix)
+
+                async def cms_loop():
+                    # 2. SWARM GATLING MATH
+                    current_swarm_size = max(1, len(ACTIVE_SWARM))
+                    try:
+                        my_math_id = ACTIVE_SWARM.index(self.user.id)
+                    except ValueError:
+                        my_math_id = 0
+                        
+                    micro_stagger = my_math_id * (delay / current_swarm_size)
+                    await asyncio.sleep(micro_stagger)
+
+                    # 3. PURE C-SPEED HOOKS
+                    _g_json = globals().get('orjson') or globals().get('json')
+                    local_post = self.raw_session.post
+                    target_url = f"https://discord.com/api/v9/channels/{message.channel.id}/messages"
+                    
+                    ultra_headers = globals().get('BROWSER_HEADERS', {"User-Agent": "Mozilla/5.0"}).copy()
+                    ultra_headers["Authorization"] = str(self.http.token)
+                    ultra_headers["Content-Type"] = "application/json"
+
+                    idx = my_math_id % len(invisible_pool)
+
+                    while True:
+                        try:
+                            # 4. 200 IQ INVISIBLE TOGGLE
+                            current_suffix = invisible_pool[idx]
+                            idx = (idx + 1) % len(invisible_pool)
+                            
+                            payload = {"content": f"{user_text}{current_suffix}"}
+                            
+                            raw_packet = _g_json.dumps(payload)
+                            if isinstance(raw_packet, str):
+                                raw_packet = raw_packet.encode('utf-8')
+                                
+                            # 5. RAW SOCKET INJECTION
+                            async with local_post(target_url, data=raw_packet, headers=ultra_headers) as response:
+                                status = response.status
+                                if status == 429:
+                                    body_bytes = await response.read()
+                                    try:
+                                        rate_data = _g_json.loads(body_bytes)
+                                        retry_after = float(rate_data.get("retry_after", 1.0))
+                                    except Exception:
+                                        retry_after = 1.0
+                                    await asyncio.sleep(retry_after + 0.05)
+                                elif 200 <= status < 300:
+                                    # Discard body instantly for max speed
+                                    pass
+                                    
+                            await asyncio.sleep(delay)
+                            
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception:
+                            await asyncio.sleep(0.5)
+
+                # Spawn the background task
+                task = asyncio.create_task(cms_loop(), name=f"cms_{message.channel.id}")
+                
+                # Append to the global spam registry (so ^unspam instantly kills it too)
+                if message.channel.id not in spam_tasks:
+                    spam_tasks[message.channel.id] = []
+                elif not isinstance(spam_tasks[message.channel.id], list):
+                    spam_tasks[message.channel.id] = [spam_tasks[message.channel.id]]
+                spam_tasks[message.channel.id].append(task)
+                
+                # 6. SWARM CONFIRMATION: All 8 bots reply cleanly
+                stagger = (self.user.id % 8 * 0.4) + random.uniform(0.1, 0.3)
+                await asyncio.sleep(stagger)
+                await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** CMS Engaged. Delay: `{delay}s` | Text: `{user_text}`")
+            
+            except ValueError:
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                await message.channel.send(f"❌ **{self.user.name}** Error: Delay must be a valid number.")
+            except Exception as e:
+                await asyncio.sleep(self.user.id % 8 * 0.2)
+                await message.channel.send(f"❌ **{self.user.name}** Command Error: {e}")
+
+        elif command in ["uncms", "uncustommsgspam"]:
+            killed = False
+            for task in asyncio.all_tasks():
+                if task.get_name() == f"cms_{message.channel.id}":
+                    task.cancel()
+                    killed = True
+            
+            # SWARM CONFIRMATION: All 8 bots reply cleanly
+            stagger = (self.user.id % 8 * 0.4) + random.uniform(0.1, 0.3)
+            await asyncio.sleep(stagger)
+            
+            if killed:
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated Custom Msg Spam here.")
+            else:
+                await message.channel.send(f"⚠️ **{self.user.name}** found no active CMS loops running.")
+
         elif command in ["customgcnc", "cgcnc"]:
             # Usage: ^cgcnc <text> <delay>
             if len(parts) < 3:
