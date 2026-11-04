@@ -519,6 +519,79 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command in ["customgcnc", "cgcnc"]:
+            # Usage: ^cgcnc <exact_text> <delay>
+            if len(parts) < 3:
+                await asyncio.sleep(random.uniform(0.1, 0.5))
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}cgcnc <exact text> <delay>`")
+
+            # 1. Security Check: Only run this if we are actually in a Group Chat
+            if not isinstance(message.channel, discord.GroupChannel):
+                await asyncio.sleep(random.uniform(0.1, 0.5))
+                return await message.channel.send(f"❌ FORB1D🔥 Error: **{self.user.name}** - This command only works in Group Chats.")
+
+            try:
+                # Extract exact name and delay
+                base_name = " ".join(parts[1:-1])
+                delay = float(parts[-1])
+                
+                # Max limit safety check (GC names cap at 100 chars)
+                if len(base_name) > 100:
+                    base_name = base_name[:100]
+
+                async def cgcnc_loop():
+                    current_swarm_size = max(1, len(ACTIVE_SWARM))
+                    
+                    try:
+                        my_math_id = ACTIVE_SWARM.index(self.user.id)
+                    except ValueError:
+                        my_math_id = 0
+                        
+                    # Stagger the swarm natively
+                    micro_stagger = my_math_id * (delay / current_swarm_size)
+                    await asyncio.sleep(micro_stagger)
+                    
+                    while True:
+                        try:
+                            # Directly edit the name with zero template injection
+                            await message.channel.edit(name=base_name)
+                            await asyncio.sleep(delay) 
+                            
+                        except discord.HTTPException as e:
+                            if e.status == 429:
+                                wait = float(e.response.headers.get("Retry-After", 1.0))
+                                await asyncio.sleep(wait + 0.05)
+                            else:
+                                await asyncio.sleep(0.5)
+
+                task = asyncio.create_task(cgcnc_loop(), name=f"cgcnc_{message.channel.id}")
+                
+                if message.channel.id not in gcnc_tasks:
+                    gcnc_tasks[message.channel.id] = []
+                gcnc_tasks[message.channel.id].append(task)
+                
+                await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** CUSTOM GCNC ENGAGED. Delay: `{delay}s` | Name: `{base_name}`")
+            
+            except ValueError:
+                await message.channel.send(f"❌ **{self.user.name}** Error: Delay must be a number (e.g. 1.5).")
+            except Exception as e:
+                await message.channel.send(f"❌ **{self.user.name}** Command Error: {e}")
+
+        elif command in ["uncustomgcnc", "uncgcnc"]:
+            killed = False
+            for task in asyncio.all_tasks():
+                if task.get_name() == f"cgcnc_{message.channel.id}":
+                    task.cancel()
+                    killed = True
+            
+            jitter = random.uniform(0.1, 0.6)
+            await asyncio.sleep(jitter)
+            
+            if killed:
+                await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated Custom GC Name Flasher here.")
+            else:
+                await message.channel.send(f"⚠️ **{self.user.name}** found no active Custom GC Flasher running here.")
+
         elif command == "blacklist":
             # 🛑 SECURITY: Restrict to main owner
             if message.author.id != MAIN_OWNER:
