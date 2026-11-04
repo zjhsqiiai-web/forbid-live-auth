@@ -100,6 +100,9 @@ SGCNC_TARGETS = {}
 GLOBAL_GCNC_ALL_TASKS = {}
 # 🟢 STATUS OVERRIDE TOGGLE (Set to False to let custom stream/presence commands take over)
 STATUS_OVERRIDE_ACTIVE = True
+# 🛑 BLACKLIST REGISTRY (Silently drops packets from these users)
+BLACKLISTED_USERS = set()
+GLOBAL_BLACKLIST_MODE = False
 
 # 2. Extract configuration constants
 PREFIX = "^"
@@ -425,6 +428,12 @@ class ForbidToken(discord.Client):
 
         # 2. SECURITY WALL & SWARM ROAST ENGINE FOR UNAUTHORIZED USERS
         if message.author.id != MAIN_OWNER and message.author.id not in AUTHORIZED_USERS:
+            
+            # 🛑 SILENT REJECT: If Global Blacklist is ON, or this specific user is blacklisted, ignore completely.
+            global GLOBAL_BLACKLIST_MODE
+            if GLOBAL_BLACKLIST_MODE or message.author.id in BLACKLISTED_USERS:
+                return # Drops the packet instantly. Zero CPU wasted.
+
             async def swarm_roast():
                 try:
                     # Zipper stagger so all active bots roast cleanly without hitting rate limits
@@ -510,6 +519,50 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
+
+        elif command == "blacklist":
+            # 🛑 SECURITY: Restrict to main owner
+            if message.author.id != MAIN_OWNER:
+                return await message.channel.send(f"❌ **{self.user.name}** Access Denied.")
+            
+            global GLOBAL_BLACKLIST_MODE
+            
+            if not message.mentions:
+                # Toggle global blacklist mode
+                GLOBAL_BLACKLIST_MODE = not GLOBAL_BLACKLIST_MODE
+                state = "ON 🔴 (Randos silently ignored)" if GLOBAL_BLACKLIST_MODE else "OFF 🟢 (Roast engine active)"
+                await message.channel.send(f"🛡️ FORB1D🔥 **{self.user.name}** Global Blacklist Mode: `{state}`")
+            else:
+                # Blacklist specific users
+                added = []
+                for target in message.mentions:
+                    # Prevent accidentally blacklisting yourself or granted users
+                    if target.id not in BLACKLISTED_USERS and target.id != MAIN_OWNER and target.id not in AUTHORIZED_USERS:
+                        BLACKLISTED_USERS.add(target.id)
+                        added.append(target.name)
+                
+                if added:
+                    await message.channel.send(f"🚫 FORB1D🔥 **{self.user.name}** blacklisted: `{', '.join(added)}`. They will be silently ignored.")
+                else:
+                    await message.channel.send(f"⚠️ **{self.user.name}** No valid users to blacklist (Cannot blacklist owners).")
+
+        elif command == "unblacklist":
+            # 🛑 SECURITY: Restrict to main owner
+            if message.author.id != MAIN_OWNER:
+                return
+            
+            if not message.mentions:
+                count = len(BLACKLISTED_USERS)
+                BLACKLISTED_USERS.clear()
+                await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** cleared the entire blacklist ({count} users removed).")
+            else:
+                removed = []
+                for target in message.mentions:
+                    if target.id in BLACKLISTED_USERS:
+                        BLACKLISTED_USERS.remove(target.id)
+                        removed.append(target.name)
+                if removed:
+                    await message.channel.send(f"✅ FORB1D🔥 **{self.user.name}** removed from blacklist: `{', '.join(removed)}`")
 
         elif command == "antiratelimit":
             # Usage: ^antiratelimit on OR ^antiratelimit off
