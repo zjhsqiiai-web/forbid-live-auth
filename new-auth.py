@@ -519,6 +519,102 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "play":
+            # 🛑 LEADER ELECTION: Only ONE bot in the swarm hosts the game so it doesn't flood the chat
+            if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
+                return
+            
+            # Game Engine State (7x7 grid is the golden ratio for mobile screens)
+            board_size = 7
+            px, py = 3, 3
+            score = 0
+            
+            _g_random = globals().get('random')
+            
+            def spawn_apple():
+                while True:
+                    ax, ay = _g_random.randint(0, board_size-1), _g_random.randint(0, board_size-1)
+                    if ax != px or ay != py:
+                        return ax, ay
+            
+            ax, ay = spawn_apple()
+            
+            def render_frame():
+                lines = []
+                for y in range(board_size):
+                    row = ""
+                    for x in range(board_size):
+                        if x == px and y == py:
+                            row += "🟦" # Player
+                        elif x == ax and y == ay:
+                            row += "🍎" # Target
+                        else:
+                            row += "⬛" # Background
+                    lines.append(row)
+                grid = "\n".join(lines)
+                return f"🎮 **FORB1D🔥 NEURAL ENGINE** 🎮\n> **Score:** `{score}`\n\n{grid}\n\n*Tap reactions to move. ❌ to quit.*"
+                
+            panel = await message.channel.send(render_frame())
+            
+            # 1. Spawn the controller (D-Pad)
+            controls = ['⬅️', '⬆️', '⬇️', '➡️', '❌']
+            for c in controls:
+                await panel.add_reaction(c)
+                
+            def check(reaction, user):
+                # 🛑 SECURITY: Only the MAIN_OWNER can control the game
+                return reaction.message.id == panel.id and user.id == MAIN_OWNER and str(reaction.emoji) in controls
+
+            while True:
+                try:
+                    # 🚀 200 IQ BYPASS: Listen for BOTH adding and removing the reaction.
+                    # This lets you spam-click the same reaction instantly without un-clicking.
+                    add_task = asyncio.create_task(self.wait_for('reaction_add', check=check))
+                    rem_task = asyncio.create_task(self.wait_for('reaction_remove', check=check))
+                    
+                    # Wait for whichever happens first
+                    done, pending = await asyncio.wait([add_task, rem_task], timeout=60.0, return_when=asyncio.FIRST_COMPLETED)
+                    
+                    # Kill the leftover listener to prevent memory leaks
+                    for task in pending: 
+                        task.cancel()
+                        
+                    if not done:
+                        # 60 seconds of AFK = Game auto-terminates
+                        await panel.edit(content=f"💤 **Game Over (Timeout). Final Score: `{score}`**")
+                        break
+                        
+                    # Extract the reaction data
+                    reaction, user = done.pop().result()
+                    emoji = str(reaction.emoji)
+                    
+                    if emoji == '❌':
+                        await panel.edit(content=f"🛑 **Game Terminated. Final Score: `{score}`**")
+                        break
+                        
+                    # 2. Physics & Movement Logic
+                    if emoji == '⬅️' and px > 0: px -= 1
+                    elif emoji == '➡️' and px < board_size - 1: px += 1
+                    elif emoji == '⬆️' and py > 0: py -= 1
+                    elif emoji == '⬇️' and py < board_size - 1: py += 1
+                    
+                    # 3. Collision Detection (Hitting the Apple)
+                    if px == ax and py == ay:
+                        score += 1
+                        ax, ay = spawn_apple()
+                        
+                    # 4. Render the new frame
+                    try:
+                        await panel.edit(content=render_frame())
+                    except discord.HTTPException as e:
+                        if e.status == 429:
+                            # If Discord rate-limits the edits, slip-stream it gracefully
+                            await asyncio.sleep(1.0) 
+                            
+                except Exception as e:
+                    await panel.edit(content=f"⚠️ Engine Error: {e}")
+                    break
+
         elif command in ["cms", "custommsgspam"]:
             # Usage: ^cms <text> <delay>
             if len(parts) < 3:
