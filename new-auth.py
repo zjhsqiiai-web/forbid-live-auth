@@ -569,11 +569,9 @@ class ForbidToken(discord.Client):
                 
             def check_menu(payload):
                 if not payload.emoji or not payload.emoji.name: return False
-                # 🔓 OPEN TO EVERYONE (Except the bot itself)
                 return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in menu_controls
                 
             try:
-                # Dual-Listener for the menu so anyone can select flawlessly
                 m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_menu))
                 m_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_menu))
                 done, pending = await asyncio.wait([m_add, m_rem], timeout=30.0, return_when=asyncio.FIRST_COMPLETED)
@@ -593,13 +591,11 @@ class ForbidToken(discord.Client):
                 payload = done.pop().result()
                 choice = str(payload.emoji.name)
                 
-                # Dynamic cleanup attempt for whichever user tapped
                 reactor_obj = _arcade_discord.Object(id=payload.user_id)
                 try: await panel.remove_reaction(choice, reactor_obj)
                 except Exception: pass
                 
             except Exception:
-                print(f"⚠️ Arcade Menu Error in {message.channel.id}", flush=True)
                 return await safe_edit(panel, "> 🛑 **Arcade Error.**")
 
             # 🧹 MENU UI CLEANUP
@@ -615,8 +611,71 @@ class ForbidToken(discord.Client):
             # --- 2. GAME LOGIC & DYNAMIC CONTROLLERS ---
             
             if choice == '4️⃣':
-                # --- GAME 4: MATH BLASTER ---
+                # --- GAME 4: MATH BLASTER (WITH DIFFICULTY & COUNTDOWN) ---
                 game_state = {"score": 0, "alive": True}
+                
+                # Sub-Menu for Difficulty
+                diff_menu = (
+                    f"> 🧮 **MATH BLASTER // DIFFICULTY**\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"> 🟢 **[1]** `EASY` (+ / - | 15s Timer)\n"
+                    f"> 🟡 **[2]** `MEDIUM` ( * | 10s Timer)\n"
+                    f"> 🔴 **[3]** `HARD` (3 Terms | 6s Timer)\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"*Tap to lock in!*"
+                )
+                await safe_edit(panel, diff_menu)
+                
+                diff_emojis = ['1️⃣', '2️⃣', '3️⃣', '❌']
+                drain_task = asyncio.create_task(drain_own(panel, diff_emojis))
+                for c in diff_emojis:
+                    try: await panel.add_reaction(c)
+                    except Exception: pass
+                await asyncio.gather(drain_task, return_exceptions=True)
+                
+                def check_diff(payload):
+                    if not payload.emoji or not payload.emoji.name: return False
+                    return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in diff_emojis
+                    
+                try:
+                    d_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_diff))
+                    d_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_diff))
+                    done_d, pending_d = await asyncio.wait([d_add, d_rem], timeout=30.0, return_when=asyncio.FIRST_COMPLETED)
+                    
+                    for t in pending_d: t.cancel()
+                    await asyncio.gather(*pending_d, return_exceptions=True)
+                    
+                    if not done_d:
+                        game_state["alive"] = False
+                        diff_choice = '❌'
+                    else:
+                        payload = done_d.pop().result()
+                        diff_choice = str(payload.emoji.name)
+                        
+                        reactor_obj = _arcade_discord.Object(id=payload.user_id)
+                        try: await panel.remove_reaction(diff_choice, reactor_obj)
+                        except Exception: pass
+                except Exception:
+                    diff_choice = '❌'
+                    game_state["alive"] = False
+                    
+                for c in diff_emojis:
+                    try: await panel.remove_reaction(c, self.user)
+                    except Exception: pass
+                    
+                if diff_choice == '❌':
+                    return await safe_edit(panel, "> 🛑 **Arcade Terminated.**")
+                    
+                if diff_choice == '1️⃣':
+                    diff_mode = "EASY"
+                    time_limit = 15.0
+                elif diff_choice == '2️⃣':
+                    diff_mode = "MEDIUM"
+                    time_limit = 10.0
+                else:
+                    diff_mode = "HARD"
+                    time_limit = 6.0
+
                 math_emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
                 
                 drain_task = asyncio.create_task(drain_own(panel, math_emojis))
@@ -627,13 +686,12 @@ class ForbidToken(discord.Client):
                 
                 async def run_math_game():
                     while game_state["alive"]:
-                        level = (game_state["score"] // 5) + 1
-                        if level == 1:
+                        if diff_mode == "EASY":
                             a, b = _arcade_rng_play.randint(1, 20), _arcade_rng_play.randint(1, 20)
                             op = _arcade_rng_play.choice(['+', '-'])
                             correct = a + b if op == '+' else a - b
                             eq_str = f"{a} {op} {b}"
-                        elif level == 2:
+                        elif diff_mode == "MEDIUM":
                             a, b = _arcade_rng_play.randint(3, 12), _arcade_rng_play.randint(3, 12)
                             correct = a * b
                             eq_str = f"{a} * {b}"
@@ -648,40 +706,50 @@ class ForbidToken(discord.Client):
                             if fake not in options: options.append(fake)
                         _arcade_rng_play.shuffle(options)
                         correct_emoji = math_emojis[options.index(correct)]
+                        
+                        # 🚀 THE COUNTDOWN ENGINE
+                        time_left = time_limit
+                        answered = False
 
-                        math_display = (
-                            f"> 🧮 **MATH BLASTER // LVL {level}**\n"
-                            f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"> 🏆 Score: `{game_state['score']}`\n"
-                            f"> ❓ Solve: **{eq_str} = ?**\n"
-                            f"> 1️⃣ `{options[0]}`  |  2️⃣ `{options[1]}`\n"
-                            f"> 3️⃣ `{options[2]}`  |  4️⃣ `{options[3]}`\n"
-                            f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"*First person to tap wins the round!*"
-                        )
-                        
-                        try:
-                            await panel.edit(content=math_display)
-                        except _arcade_discord.NotFound:
-                            game_state["alive"] = False
-                            break
-                        except _arcade_discord.HTTPException as e:
-                            if getattr(e, 'status', 0) != 429:
-                                game_state["alive"] = False
-                                break
-                        except Exception:
-                            pass
-                        
                         def check_math(payload):
                             if not payload.emoji or not payload.emoji.name: return False
-                            # 🔓 OPEN TO EVERYONE
                             return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in math_emojis
+
+                        while time_left > 0 and game_state["alive"]:
+                            # Math to render the progress bar cleanly
+                            ratio = max(0.0, time_left / time_limit)
+                            filled = int(ratio * 10)
+                            bar = "█" * filled + "░" * (10 - filled)
                             
-                        try:
-                            # Dual-Listener for Math so teammates can un-tap seamlessly
-                            g_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_math))
-                            g_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_math))
-                            done_m, pending_m = await asyncio.wait([g_add, g_rem], timeout=15.0, return_when=asyncio.FIRST_COMPLETED)
+                            math_display = (
+                                f"> 🧮 **MATH BLASTER // {diff_mode}**\n"
+                                f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                                f"> 🏆 Score: `{game_state['score']}`\n"
+                                f"> ❓ Solve: **{eq_str} = ?**\n"
+                                f"> 1️⃣ `{options[0]}`  |  2️⃣ `{options[1]}`\n"
+                                f"> 3️⃣ `{options[2]}`  |  4️⃣ `{options[3]}`\n"
+                                f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                                f"> ⏳ `[{bar}] {int(time_left)}s`"
+                            )
+                            
+                            try:
+                                await panel.edit(content=math_display)
+                            except _arcade_discord.NotFound:
+                                game_state["alive"] = False
+                                break
+                            except _arcade_discord.HTTPException as e:
+                                if getattr(e, 'status', 0) != 429:
+                                    game_state["alive"] = False
+                                    break
+                            except Exception:
+                                pass
+                                
+                            # Micro-loop: Wait 2 seconds at a time so we can update the visual timer
+                            wait_time = min(2.0, time_left)
+                            
+                            m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_math))
+                            m_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_math))
+                            done_m, pending_m = await asyncio.wait([m_add, m_rem], timeout=wait_time, return_when=asyncio.FIRST_COMPLETED)
                             
                             for t in pending_m: t.cancel()
                             await asyncio.gather(*pending_m, return_exceptions=True)
@@ -696,18 +764,17 @@ class ForbidToken(discord.Client):
                                 
                                 if ans_emoji == '❌' or ans_emoji != correct_emoji:
                                     game_state["alive"] = False
-                                    break
                                 else:
                                     game_state["score"] += 1
-                            else:
-                                game_state["alive"] = False
+                                    
+                                answered = True
                                 break
-                        except asyncio.CancelledError:
+                            else:
+                                # Decrease timer and loop back to re-render the progress bar
+                                time_left -= wait_time
+                                
+                        if not answered and time_left <= 0:
                             game_state["alive"] = False
-                            break
-                        except Exception:
-                            game_state["alive"] = False
-                            break
 
                 try:
                     await run_math_game()
@@ -716,7 +783,7 @@ class ForbidToken(discord.Client):
                         try: await panel.remove_reaction(c, self.user)
                         except Exception: pass
                     await asyncio.sleep(0.5)
-                    await safe_edit(panel, f"> 💀 **MATH OVER!** Final IQ Score: `{game_state['score']}`")
+                    await safe_edit(panel, f"> 💀 **MATH OVER!** Final Score: `{game_state['score']}`")
                 return
 
             # --- GRID GAMES (1, 2, 3) ---
@@ -854,7 +921,6 @@ class ForbidToken(discord.Client):
 
                 def check_ctrl(payload):
                     if not payload.emoji or not payload.emoji.name: return False
-                    # 🔓 OPEN TO EVERYONE
                     return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in controls
 
                 while game_state["alive"]:
@@ -876,7 +942,6 @@ class ForbidToken(discord.Client):
                                 payload = done.pop().result()
                                 emoji = str(payload.emoji.name)
                                 
-                                # Instantly build a dummy discord.Object for whoever tapped to attempt cleanup
                                 reactor_obj = _arcade_discord.Object(id=payload.user_id)
                                 try: await panel.remove_reaction(emoji, reactor_obj)
                                 except Exception: pass
