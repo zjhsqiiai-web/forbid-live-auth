@@ -4282,6 +4282,8 @@ class ForbidToken(discord.Client):
 > ^blacklist @user      (Mute User)
 > ^unblacklist          (Unmute All)
 > ^unblacklist @user    (Unmute User)
+> ^play                 (Boot Arcade)
+> ^unplay               (Stop Arcade)
 
 ======================================
 ⚡ Powered by FORB1D🔥 Network ⚡
