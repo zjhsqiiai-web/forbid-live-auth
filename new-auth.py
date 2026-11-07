@@ -547,11 +547,9 @@ class ForbidToken(discord.Client):
 
             async def save_score(game_id, user_mention, score):
                 if score <= 0: return
-                # Run file operations in a background thread so the async loop never lags!
                 lb = await asyncio.to_thread(_read_lb_sync)
                 if game_id not in lb: lb[game_id] = []
                 
-                # Auto-update if they beat their own high score
                 updated = False
                 for entry in lb[game_id]:
                     if entry["user"] == user_mention:
@@ -670,7 +668,7 @@ class ForbidToken(discord.Client):
                     await safe_edit(panel, "> 🛑 **Arcade Error.**")
                     break
 
-                # 🛡️ THE SECURITY WALL: Prevent randoms from shutting down the dashboard
+                # 🛡️ THE SECURITY WALL
                 if choice == '❌':
                     if payload.user_id != MAIN_OWNER:
                         warning = (
@@ -685,14 +683,13 @@ class ForbidToken(discord.Client):
                         reactor_obj = _arcade_discord.Object(id=payload.user_id)
                         try: await panel.remove_reaction('❌', reactor_obj)
                         except Exception: pass
-                        continue # Loop back to main menu!
+                        continue 
                     else:
                         arcade_active = False
                         await safe_edit(panel, "> 🛑 **Supreme Engine Terminated.**")
                         asyncio.create_task(remove_reactions_safely(panel, menu_controls, self.user))
-                        break # Exit arcade entirely
+                        break 
 
-                # UI Cleanup for transition
                 for c in menu_controls:
                     try: await panel.remove_reaction(c, self.user)
                     except Exception: pass
@@ -725,7 +722,7 @@ class ForbidToken(discord.Client):
                     except Exception: pass
                     
                     asyncio.create_task(remove_reactions_safely(panel, ['⬅️'], self.user))
-                    continue # Seamlessly return to dashboard!
+                    continue 
 
                 # --- 2. GAME LOGIC ---
                 if choice == '4️⃣':
@@ -738,11 +735,12 @@ class ForbidToken(discord.Client):
                         f"> 🟡 **[2]** `MEDIUM` ( * | 10s Timer)\n"
                         f"> 🔴 **[3]** `HARD` (3 Terms | 6s Timer)\n"
                         f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                        f"> 💡 *Tip: Anyone can tap to lock in!*"
+                        f"> 💡 *Tap ⬅️ to return to dashboard.*"
                     )
                     await safe_edit(panel, diff_menu)
                     
-                    diff_emojis = ['1️⃣', '2️⃣', '3️⃣']
+                    # 🧠 FIX: Added ⬅️ to smoothly return to dashboard without crashing!
+                    diff_emojis = ['1️⃣', '2️⃣', '3️⃣', '⬅️']
                     await enforce_reaction_layout(panel, diff_emojis)
                     
                     def check_diff(payload):
@@ -764,7 +762,9 @@ class ForbidToken(discord.Client):
                         
                     asyncio.create_task(remove_reactions_safely(panel, diff_emojis, self.user))
                         
-                    if not diff_choice: continue # Back to dashboard if they timeout here
+                    # 🧠 FIX: If they timeout or tap Back, cleanly return to the Main Menu loop
+                    if not diff_choice or diff_choice == '⬅️': 
+                        continue 
                         
                     diff_mode, time_limit = ("EASY", 15.0) if diff_choice == '1️⃣' else ("MEDIUM", 10.0) if diff_choice == '2️⃣' else ("HARD", 6.0)
 
@@ -865,7 +865,7 @@ class ForbidToken(discord.Client):
                             f"> *Rebooting dashboard...*"
                         )
                         await safe_edit(panel, math_over)
-                        await asyncio.sleep(4.0) # Rest before looping back
+                        await asyncio.sleep(4.0) 
 
                 # --- GRID GAMES (1, 2, 3) ---
                 elif choice in ['1️⃣', '2️⃣', '3️⃣']:
@@ -925,7 +925,7 @@ class ForbidToken(discord.Client):
                             return f"> 🏍️ **TRON SURVIVAL** | Score: `{game_state['score']}`\n{grid}"
 
                         async def run_game():
-                            nonlocal bike
+                            nonlocal bike, direction
                             while game_state["alive"]:
                                 trail.add(bike) 
                                 bike = (bike[0] + direction[0], bike[1] + direction[1])
@@ -996,13 +996,13 @@ class ForbidToken(discord.Client):
                                     emoji = str(payload.emoji.name)
                                     game_state["last_player"] = f"<@{payload.user_id}>"
                                     
-                                    # Process direction natively 
-                                    if emoji == '⬅️' and direction != (1, 0): direction = (-1, 0)
-                                    elif emoji == '➡️' and direction != (-1, 0): direction = (1, 0)
-                                    elif emoji == '⬆️' and direction != (0, 1): direction = (0, -1)
-                                    elif emoji == '⬇️' and direction != (0, -1): direction = (0, 1)
-                                    
-                                    if choice == '3️⃣': # Override for Dodge (left/right only)
+                                    # 🧠 FIX: Scope isolation guaranteed, Meteor Dodge will process perfectly
+                                    if choice in ['1️⃣', '2️⃣']:
+                                        if emoji == '⬅️' and direction != (1, 0): direction = (-1, 0)
+                                        elif emoji == '➡️' and direction != (-1, 0): direction = (1, 0)
+                                        elif emoji == '⬆️' and direction != (0, 1): direction = (0, -1)
+                                        elif emoji == '⬇️' and direction != (0, -1): direction = (0, 1)
+                                    elif choice == '3️⃣':
                                         if emoji == '⬅️' and px > 0: px -= 1
                                         elif emoji == '➡️' and px < board_size - 1: px += 1
                                 except Exception: pass 
@@ -1027,7 +1027,7 @@ class ForbidToken(discord.Client):
                     )
                     await safe_edit(panel, game_over_panel)
                     asyncio.create_task(remove_reactions_safely(panel, controls, self.user))
-                    await asyncio.sleep(4.0) # Rest before looping back to dashboard!
+                    await asyncio.sleep(4.0)
                     
     
 
