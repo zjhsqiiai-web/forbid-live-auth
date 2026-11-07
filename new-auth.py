@@ -527,61 +527,76 @@ class ForbidToken(discord.Client):
             
             import random as _arcade_rng_play 
             import discord as _arcade_discord
+            import json as _arcade_json
+            import os as _arcade_os
             
+            # --- 🏆 LEADERBOARD REGISTRY ---
+            LB_FILE = "forbid_lb.json"
+            
+            def get_leaderboard():
+                if not _arcade_os.path.exists(LB_FILE):
+                    return {'1️⃣': [], '2️⃣': [], '3️⃣': [], '4️⃣': []}
+                try:
+                    with open(LB_FILE, "r") as f:
+                        return _arcade_json.load(f)
+                except Exception:
+                    return {'1️⃣': [], '2️⃣': [], '3️⃣': [], '4️⃣': []}
+
+            def save_score(game_id, user_mention, score):
+                if score <= 0: return
+                lb = get_leaderboard()
+                if game_id not in lb: lb[game_id] = []
+                
+                lb[game_id].append({"user": user_mention, "score": score})
+                lb[game_id] = sorted(lb[game_id], key=lambda x: x["score"], reverse=True)[:5]
+                
+                try:
+                    with open(LB_FILE, "w") as f:
+                        _arcade_json.dump(lb, f)
+                except Exception: pass
+
+            # --- 🛡️ FAULT-TOLERANT UI MANAGERS ---
             async def safe_edit(msg, content):
                 try: await msg.edit(content=content)
                 except Exception: pass
 
-            # 🧠 10,000 IQ AUTO-HEALING UI ENFORCER
             async def enforce_reaction_layout(msg, expected_emojis):
-                """Verifies order, nukes anomalies, and rebuilds the UI flawlessly."""
                 for attempt in range(3):
-                    try:
-                        fresh_msg = await msg.channel.fetch_message(msg.id)
-                    except Exception:
-                        fresh_msg = msg
+                    try: fresh_msg = await msg.channel.fetch_message(msg.id)
+                    except Exception: fresh_msg = msg
                         
                     current_emojis = [str(r.emoji) for r in fresh_msg.reactions]
-                    
-                    if current_emojis == expected_emojis:
-                        return # Perfection achieved!
+                    if current_emojis == expected_emojis: return 
                         
-                    # 1. Find the exact index where the order broke
                     match_idx = 0
                     while match_idx < min(len(current_emojis), len(expected_emojis)):
-                        if current_emojis[match_idx] != expected_emojis[match_idx]:
-                            break
+                        if current_emojis[match_idx] != expected_emojis[match_idx]: break
                         match_idx += 1
                         
-                    # 2. Nuke everything from the desync point onward
                     if match_idx < len(current_emojis):
                         for bad_emoji in current_emojis[match_idx:]:
                             try:
                                 await fresh_msg.clear_reaction(bad_emoji)
                                 await asyncio.sleep(0.3)
                             except _arcade_discord.Forbidden:
-                                # Fallback if bot lacks Manage Messages permission
                                 try: await fresh_msg.remove_reaction(bad_emoji, self.user)
                                 except Exception: pass
                                 await asyncio.sleep(0.3)
                             except Exception: pass
                                 
-                    # 3. Rebuild the missing emojis cleanly
                     for e in expected_emojis[match_idx:]:
                         retry = 0
                         while retry < 4:
                             try:
                                 await fresh_msg.add_reaction(e)
-                                await asyncio.sleep(0.4) # Slip-stream pacing
+                                await asyncio.sleep(0.4) 
                                 break
                             except _arcade_discord.HTTPException as err:
                                 if getattr(err, 'status', 0) == 429:
-                                    await asyncio.sleep(1.5 + retry) # Backoff & Auto-heal
+                                    await asyncio.sleep(1.5 + retry) 
                                     retry += 1
-                                else:
-                                    break
-                            except Exception:
-                                break
+                                else: break
+                            except Exception: break
 
             async def remove_reactions_safely(msg, emojis, target_usr):
                 for e in emojis:
@@ -591,33 +606,29 @@ class ForbidToken(discord.Client):
                     except Exception: pass
 
             async def flush_stale_events(msg, emojis):
-                """Destroys laggy clicks stuck in Discord's pipeline before a round starts."""
                 def chk(p): return p.message_id == msg.id and p.emoji and str(p.emoji.name) in emojis
                 for event_type in ['raw_reaction_add', 'raw_reaction_remove']:
                     while True:
                         try: await asyncio.wait_for(self.wait_for(event_type, check=chk), timeout=0.05)
                         except asyncio.TimeoutError: break
 
-            # --- 1. THE NATIVE MENU UI ---
+            # --- 1. THE SUPREME MENU UI ---
             menu_panel = (
-                f"> 🕹️ **FORB1D🔥 // COMMUNAL ARCADE** 🕹️\n"
+                f"> 👑 **FORB1D🔥 // SUPREME ARCADE ENGINE** 👑\n"
                 f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"> 🐍 **[1]** `NEURAL WORM` (Snake)\n"
                 f"> 🏍️ **[2]** `TRON CYCLE` (Survival)\n"
                 f"> ☄️ **[3]** `METEOR DODGE` (Reaction)\n"
                 f"> 🧮 **[4]** `MATH BLASTER` (IQ Test)\n"
+                f"> 🏆 **[5]** `HALL OF FAME` (Leaderboard)\n"
                 f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"> 💡 *Tip: Anyone can tap to boot!*"
             )
             
-            try:
-                panel = await message.channel.send(menu_panel)
-            except Exception:
-                return 
+            try: panel = await message.channel.send(menu_panel)
+            except Exception: return 
                 
-            menu_controls = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
-            
-            # Auto-Heal Layout Injection
+            menu_controls = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '❌']
             await enforce_reaction_layout(panel, menu_controls)
                 
             def check_menu(payload):
@@ -647,12 +658,40 @@ class ForbidToken(discord.Client):
             if choice == '❌':
                 return await safe_edit(panel, "> 🛑 **Arcade Terminated by User.**")
 
+            # --- 🏆 5: THE HALL OF FAME ---
+            if choice == '5️⃣':
+                lb = get_leaderboard()
+                titles = {'1️⃣': '🐍 NEURAL WORM', '2️⃣': '🏍️ TRON CYCLE', '3️⃣': '☄️ METEOR DODGE', '4️⃣': '🧮 MATH BLASTER'}
+                
+                lb_text = f"> 👑 **FORB1D🔥 // HALL OF FAME** 👑\n> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                for c_id, title in titles.items():
+                    lb_text += f"> **{title}**\n"
+                    if not lb.get(c_id):
+                        lb_text += ">   *No records established.*\n"
+                    else:
+                        for idx, entry in enumerate(lb[c_id]):
+                            lb_text += f">   #{idx+1} | 🏆 `{entry['score']}` pts | {entry['user']}\n"
+                
+                lb_text += "> ━━━━━━━━━━━━━━━━━━━━━━\n> 💡 *Tap ❌ to close.*"
+                await safe_edit(panel, lb_text)
+                
+                await enforce_reaction_layout(panel, ['❌'])
+                def check_close(p): return p.message_id == panel.id and p.user_id != self.user.id and str(p.emoji.name) == '❌'
+                
+                try:
+                    c_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_close))
+                    await asyncio.wait([c_add], timeout=30.0, return_when=asyncio.FIRST_COMPLETED)
+                except Exception: pass
+                
+                asyncio.create_task(remove_reactions_safely(panel, ['❌'], self.user))
+                return await safe_edit(panel, "> 🛑 **Hall of Fame Closed.**")
+
             board_size = 7
             
             # --- 2. GAME LOGIC & DYNAMIC CONTROLLERS ---
             
             if choice == '4️⃣':
-                game_state = {"score": 0, "alive": True, "reason": "UNKNOWN"}
+                game_state = {"score": 0, "alive": True, "reason": "UNKNOWN", "last_player": "Nobody"}
                 
                 diff_menu = (
                     f"> 🧮 **MATH BLASTER // DIFFICULTY**\n"
@@ -740,16 +779,11 @@ class ForbidToken(discord.Client):
                                 f"> ⏳ `[{bar}] {int(time_left)}s`"
                             )
                             
-                            try:
-                                await panel.edit(content=math_display)
-                            except _arcade_discord.NotFound:
-                                game_state["alive"], game_state["reason"] = False, "MESSAGE DELETED"
-                                break
+                            try: await panel.edit(content=math_display)
+                            except _arcade_discord.NotFound: game_state["alive"], game_state["reason"] = False, "MESSAGE DELETED"; break
                             except _arcade_discord.HTTPException as e:
                                 if getattr(e, 'status', 0) == 429: await asyncio.sleep(1.0)
-                                else:
-                                    game_state["alive"], game_state["reason"] = False, "DISCORD API ERROR"
-                                    break
+                                else: game_state["alive"], game_state["reason"] = False, "DISCORD API ERROR"; break
                             except Exception: pass
                                 
                             wait_time = min(2.0, time_left)
@@ -762,15 +796,16 @@ class ForbidToken(discord.Client):
                             
                             if done_m:
                                 completed_task = done_m.pop()
-                                ans_emoji = str(completed_task.result().emoji.name)
+                                payload = completed_task.result()
+                                ans_emoji = str(payload.emoji.name)
                                 
                                 if ans_emoji == '❌':
                                     game_state["alive"], game_state["reason"] = False, "QUIT BY USER"
                                 elif ans_emoji == correct_emoji:
                                     game_state["score"] += 1
+                                    game_state["last_player"] = f"<@{payload.user_id}>"
                                     answered = True
                                 else:
-                                    # 🧠 FORGIVENESS ALGORITHM: Ignore accidental un-clicks of wrong answers
                                     if completed_task == m_rem: continue
                                     else: game_state["alive"], game_state["reason"] = False, "INCORRECT ANSWER"
                                         
@@ -783,9 +818,10 @@ class ForbidToken(discord.Client):
 
                 try: await run_math_game()
                 finally:
+                    save_score(choice, game_state["last_player"], game_state["score"])
                     asyncio.create_task(remove_reactions_safely(panel, math_emojis, self.user))
                     await asyncio.sleep(0.5)
-                    await safe_edit(panel, f"> 💀 **MATH OVER!**\n> 🏆 Score: `{game_state['score']}`\n> 🩸 Cause: `{game_state['reason']}`")
+                    await safe_edit(panel, f"> 👑 **FORB1D🔥 // MATH OVER!**\n> 🏆 Score: `{game_state['score']}`\n> 👤 Player: {game_state['last_player']}\n> 🩸 Cause: `{game_state['reason']}`")
                 return
 
             # --- GRID GAMES (1, 2, 3) ---
@@ -801,7 +837,7 @@ class ForbidToken(discord.Client):
                         return _arcade_rng_play.choice(free) if free else None
                             
                     food = spawn_food()
-                    game_state = {"score": 0, "alive": True, "reason": "UNKNOWN"}
+                    game_state = {"score": 0, "alive": True, "reason": "UNKNOWN", "last_player": "Nobody"}
 
                     def render_snake():
                         grid = "\n".join("".join("🟩" if (x, y) == snake[0] else "🔲" if (x, y) in snake else "🍎" if (x, y) == food else "⬛" for x in range(board_size)) for y in range(board_size))
@@ -839,7 +875,7 @@ class ForbidToken(discord.Client):
 
                 elif choice == '2️⃣':
                     bike, trail, direction = (3, 3), set(), (0, -1)
-                    game_state = {"score": 0, "alive": True, "reason": "UNKNOWN"}
+                    game_state = {"score": 0, "alive": True, "reason": "UNKNOWN", "last_player": "Nobody"}
                     
                     def render_tron():
                         grid = "\n".join("".join("🟦" if (x, y) == bike else "💠" if (x, y) in trail else "⬛" for x in range(board_size)) for y in range(board_size))
@@ -869,7 +905,7 @@ class ForbidToken(discord.Client):
 
                 elif choice == '3️⃣':
                     px, py, meteors = 3, board_size - 1, []
-                    game_state = {"score": 0, "alive": True, "reason": "UNKNOWN"}
+                    game_state = {"score": 0, "alive": True, "reason": "UNKNOWN", "last_player": "Nobody"}
                     
                     def render_dodge():
                         grid = "\n".join("".join("🚀" if x == px and y == py else "☄️" if (x, y) in meteors else "⬛" for x in range(board_size)) for y in range(board_size))
@@ -911,10 +947,12 @@ class ForbidToken(discord.Client):
                         for t in pending: t.cancel()
                         await asyncio.gather(*pending, return_exceptions=True)
                             
-                        # Process EVERY simultaneous input 
                         for completed_task in done:
                             try:
-                                emoji = str(completed_task.result().emoji.name)
+                                payload = completed_task.result()
+                                emoji = str(payload.emoji.name)
+                                game_state["last_player"] = f"<@{payload.user_id}>"
+                                
                                 if emoji == '❌':
                                     game_state["alive"], game_state["reason"] = False, "QUIT BY USER"
                                     game_task.cancel()
@@ -935,11 +973,14 @@ class ForbidToken(discord.Client):
 
                 if not game_task.done(): game_task.cancel()
                 await asyncio.gather(game_task, return_exceptions=True)
+                
+                save_score(choice, game_state["last_player"], game_state["score"])
 
                 game_over_panel = (
-                    f"> 💀 **SIMULATION TERMINATED** 💀\n"
+                    f"> 👑 **FORB1D🔥 // SIMULATION TERMINATED** 👑\n"
                     f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"> 🏆 Final Score : `{game_state['score']}`\n"
+                    f"> 👤 Last Player : {game_state['last_player']}\n"
                     f"> 🩸 Cause       : `{game_state['reason']}`\n"
                     f"> ━━━━━━━━━━━━━━━━━━━━━━"
                 )
