@@ -528,18 +528,43 @@ class ForbidToken(discord.Client):
             import random as _arcade_rng_play 
             import discord as _arcade_discord
             
+            # --- RATE-LIMIT SLIP-STREAM GOVERNORS ---
             async def safe_edit(msg, content):
                 try: 
                     await msg.edit(content=content)
                 except Exception: 
                     pass
 
+            async def add_reactions_safely(msg, emojis):
+                """Bypasses Discord's 429 rate limit by explicitly pacing reaction deployments."""
+                for e in emojis:
+                    try:
+                        await msg.add_reaction(e)
+                        await asyncio.sleep(0.35) # Perfect slip-stream delay
+                    except _arcade_discord.HTTPException as err:
+                        if getattr(err, 'status', 0) == 429:
+                            await asyncio.sleep(1.0) # Back off if we clip the limit
+                            try: await msg.add_reaction(e)
+                            except: pass
+                    except Exception:
+                        pass
+
+            async def remove_reactions_safely(msg, emojis, target_usr):
+                """Background task to cleanly wipe UI without tripping anti-spam."""
+                for e in emojis:
+                    try:
+                        await msg.remove_reaction(e, target_usr)
+                        await asyncio.sleep(0.25)
+                    except Exception:
+                        pass
+
             async def drain_own(msg, emojis):
                 def chk(p):
                     return p.message_id == msg.id and p.user_id == self.user.id and p.emoji and str(p.emoji.name) in emojis
                 for _ in emojis:
                     try:
-                        await asyncio.wait_for(self.wait_for('raw_reaction_add', check=chk), timeout=0.5)
+                        # Increased timeout to 1.0s to accommodate the 0.35s sleep in the adder
+                        await asyncio.wait_for(self.wait_for('raw_reaction_add', check=chk), timeout=1.0)
                     except asyncio.TimeoutError:
                         break
 
@@ -562,10 +587,9 @@ class ForbidToken(discord.Client):
                 
             menu_controls = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
             
+            # Flawless setup execution
             drain_task = asyncio.create_task(drain_own(panel, menu_controls))
-            for c in menu_controls:
-                try: await panel.add_reaction(c)
-                except Exception: pass
+            await add_reactions_safely(panel, menu_controls)
             await asyncio.gather(drain_task, return_exceptions=True)
                 
             def check_menu(payload):
@@ -581,8 +605,7 @@ class ForbidToken(discord.Client):
                 await asyncio.gather(*pending, return_exceptions=True) 
                 
                 if not done:
-                    try: await panel.clear_reactions()
-                    except Exception: pass
+                    asyncio.create_task(remove_reactions_safely(panel, menu_controls, self.user))
                     return await safe_edit(panel, "> 💤 **Arcade Timeout. System sleeping.**")
                     
                 payload = done.pop().result()
@@ -591,9 +614,8 @@ class ForbidToken(discord.Client):
             except Exception:
                 return await safe_edit(panel, "> 🛑 **Arcade Error.**")
 
-            # 🧹 NON-BLOCKING UI CLEANUP
-            for c in menu_controls:
-                asyncio.create_task(panel.remove_reaction(c, self.user))
+            # 🧹 THROTTLED UI CLEANUP
+            asyncio.create_task(remove_reactions_safely(panel, menu_controls, self.user))
 
             if choice == '❌':
                 return await safe_edit(panel, "> 🛑 **Arcade Terminated by User.**")
@@ -618,10 +640,9 @@ class ForbidToken(discord.Client):
                 await safe_edit(panel, diff_menu)
                 
                 diff_emojis = ['1️⃣', '2️⃣', '3️⃣', '❌']
+                
                 drain_task = asyncio.create_task(drain_own(panel, diff_emojis))
-                for c in diff_emojis:
-                    try: await panel.add_reaction(c)
-                    except Exception: pass
+                await add_reactions_safely(panel, diff_emojis)
                 await asyncio.gather(drain_task, return_exceptions=True)
                 
                 def check_diff(payload):
@@ -648,8 +669,7 @@ class ForbidToken(discord.Client):
                     game_state["alive"] = False
                     game_state["reason"] = "ERROR"
                     
-                for c in diff_emojis:
-                    asyncio.create_task(panel.remove_reaction(c, self.user))
+                asyncio.create_task(remove_reactions_safely(panel, diff_emojis, self.user))
                     
                 if diff_choice == '❌':
                     return await safe_edit(panel, "> 🛑 **Arcade Terminated.**")
@@ -667,9 +687,7 @@ class ForbidToken(discord.Client):
                 math_emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
                 
                 drain_task = asyncio.create_task(drain_own(panel, math_emojis))
-                for c in math_emojis:
-                    try: await panel.add_reaction(c)
-                    except Exception: pass
+                await add_reactions_safely(panel, math_emojis)
                 await asyncio.gather(drain_task, return_exceptions=True)
                 
                 async def run_math_game():
@@ -767,8 +785,7 @@ class ForbidToken(discord.Client):
                 try:
                     await run_math_game()
                 finally:
-                    for c in math_emojis:
-                        asyncio.create_task(panel.remove_reaction(c, self.user))
+                    asyncio.create_task(remove_reactions_safely(panel, math_emojis, self.user))
                     await asyncio.sleep(0.5)
                     await safe_edit(panel, f"> 💀 **MATH OVER!**\n> 🏆 Score: `{game_state['score']}`\n> 🩸 Cause: `{game_state['reason']}`")
                 return
@@ -779,9 +796,7 @@ class ForbidToken(discord.Client):
                 controls = ['⬅️', '⬆️', '⬇️', '➡️', '❌']
                 
                 drain_task = asyncio.create_task(drain_own(panel, controls))
-                for c in controls:
-                    try: await panel.add_reaction(c)
-                    except Exception: pass
+                await add_reactions_safely(panel, controls)
                 await asyncio.gather(drain_task, return_exceptions=True)
 
                 if choice == '1️⃣':
@@ -954,6 +969,8 @@ class ForbidToken(discord.Client):
                                     game_state["alive"] = False
                                     game_state["reason"] = "QUIT BY USER"
                                     game_task.cancel()
+                                    try: await asyncio.gather(game_task, return_exceptions=True)
+                                    except Exception: pass 
                                     break
                                     
                                 if choice in ['1️⃣', '2️⃣']:
@@ -986,8 +1003,7 @@ class ForbidToken(discord.Client):
                 )
                 await safe_edit(panel, game_over_panel)
                 
-                for c in controls:
-                    asyncio.create_task(panel.remove_reaction(c, self.user))
+                asyncio.create_task(remove_reactions_safely(panel, controls, self.user))
                     
     
 
