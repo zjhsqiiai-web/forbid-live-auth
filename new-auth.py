@@ -519,6 +519,26 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "unplay":
+            # 🛑 GLOBAL EMP: Instantly kills all active Arcade sessions across the swarm
+            if message.author.id != MAIN_OWNER: 
+                return
+                
+            globals()["ARCADE_KILL_SWITCH"] = True
+            
+            try: await message.delete()
+            except Exception: pass
+            
+            override_msg = await message.channel.send("> 🛑 **[SWARM OVERRIDE]** Transmitting EMP kill signal to all Arcade nodes...")
+            await asyncio.sleep(2.0)
+            
+            # Reset the flag so you can use ^play again later
+            globals()["ARCADE_KILL_SWITCH"] = False
+            
+            try: await override_msg.delete()
+            except Exception: pass
+            return
+
         elif command == "play":
             # 🛑 LEADER ELECTION
             active_swarm = globals().get("ACTIVE_SWARM", [])
@@ -527,40 +547,10 @@ class ForbidToken(discord.Client):
             
             import random as _arcade_rng_play 
             import discord as _arcade_discord
-            import json as _arcade_json
-            import os as _arcade_os
             
-            # --- 🏆 NON-BLOCKING THREADED LEADERBOARD ---
-            LB_FILE_FORBID = "forbid_lb.json"
+            # Reset the kill switch on fresh boot
+            globals()["ARCADE_KILL_SWITCH"] = False
             
-            def _read_lb_sync():
-                if not _arcade_os.path.exists(LB_FILE_FORBID):
-                    return {'1️⃣': [], '2️⃣': [], '3️⃣': [], '4️⃣': []}
-                try:
-                    with open(LB_FILE_FORBID, "r") as f: return _arcade_json.load(f)
-                except Exception: return {'1️⃣': [], '2️⃣': [], '3️⃣': [], '4️⃣': []}
-
-            def _write_lb_sync(lb):
-                try:
-                    with open(LB_FILE_FORBID, "w") as f: _arcade_json.dump(lb, f)
-                except Exception: pass
-
-            async def save_score(game_id, user_mention, score):
-                if score <= 0: return
-                lb = await asyncio.to_thread(_read_lb_sync)
-                if game_id not in lb: lb[game_id] = []
-                
-                updated = False
-                for entry in lb[game_id]:
-                    if entry["user"] == user_mention:
-                        if score > entry["score"]: entry["score"] = score
-                        updated = True
-                        break
-                
-                if not updated: lb[game_id].append({"user": user_mention, "score": score})
-                lb[game_id] = sorted(lb[game_id], key=lambda x: x["score"], reverse=True)[:5]
-                await asyncio.to_thread(_write_lb_sync, lb)
-
             # --- 🛡️ FAULT-TOLERANT UI MANAGERS ---
             async def safe_edit(msg, content):
                 try: await msg.edit(content=content)
@@ -568,6 +558,7 @@ class ForbidToken(discord.Client):
 
             async def enforce_reaction_layout(msg, expected_emojis):
                 for attempt in range(3):
+                    if globals().get("ARCADE_KILL_SWITCH"): return
                     try: fresh_msg = await msg.channel.fetch_message(msg.id)
                     except Exception: fresh_msg = msg
                         
@@ -593,6 +584,7 @@ class ForbidToken(discord.Client):
                     for e in expected_emojis[match_idx:]:
                         retry = 0
                         while retry < 4:
+                            if globals().get("ARCADE_KILL_SWITCH"): return
                             try:
                                 await fresh_msg.add_reaction(e)
                                 await asyncio.sleep(0.4) 
@@ -625,7 +617,6 @@ class ForbidToken(discord.Client):
                 f"> 🏍️ **[2]** `TRON CYCLE` (Survival)\n"
                 f"> ☄️ **[3]** `METEOR DODGE` (Reaction)\n"
                 f"> 🧮 **[4]** `MATH BLASTER` (IQ Test)\n"
-                f"> 🏆 **[5]** `HALL OF FAME` (Leaderboard)\n"
                 f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"> 💡 *Tip: Anyone can tap to boot!*"
             )
@@ -633,14 +624,18 @@ class ForbidToken(discord.Client):
             try: panel = await message.channel.send(menu_panel)
             except Exception: return 
                 
-            menu_controls = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '❌']
+            menu_controls = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
             
             arcade_active = True
             
             # ♾️ THE CONTINUOUS DASHBOARD LOOP
             while arcade_active:
+                if globals().get("ARCADE_KILL_SWITCH"): break
+                
                 await safe_edit(panel, menu_panel)
                 await enforce_reaction_layout(panel, menu_controls)
+                
+                if globals().get("ARCADE_KILL_SWITCH"): break
                     
                 def check_menu(payload):
                     if not payload.emoji or not payload.emoji.name: return False
@@ -649,10 +644,21 @@ class ForbidToken(discord.Client):
                 try:
                     m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_menu))
                     m_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_menu))
-                    done, pending = await asyncio.wait([m_add, m_rem], timeout=60.0, return_when=asyncio.FIRST_COMPLETED)
                     
-                    for t in pending: t.cancel()
-                    await asyncio.gather(*pending, return_exceptions=True) 
+                    # Kill Switch Monitor Loop
+                    done = None
+                    while not globals().get("ARCADE_KILL_SWITCH"):
+                        done_chk, pending = await asyncio.wait([m_add, m_rem], timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+                        if done_chk:
+                            done = done_chk
+                            break
+                            
+                    for t in [m_add, m_rem]: t.cancel()
+                    await asyncio.gather(m_add, m_rem, return_exceptions=True) 
+                    
+                    if globals().get("ARCADE_KILL_SWITCH"):
+                        arcade_active = False
+                        break
                     
                     if not done:
                         arcade_active = False
@@ -695,34 +701,6 @@ class ForbidToken(discord.Client):
                     except Exception: pass
 
                 board_size = 7
-                
-                # --- 🏆 5: THE HALL OF FAME ---
-                if choice == '5️⃣':
-                    lb = await asyncio.to_thread(_read_lb_sync)
-                    titles = {'1️⃣': '🐍 NEURAL WORM', '2️⃣': '🏍️ TRON CYCLE', '3️⃣': '☄️ METEOR DODGE', '4️⃣': '🧮 MATH BLASTER'}
-                    
-                    lb_text = f"> 👑 **FORB1D🔥 // HALL OF FAME**\n> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                    for c_id, title in titles.items():
-                        lb_text += f"> **{title}**\n"
-                        if not lb.get(c_id):
-                            lb_text += ">   *No records established.*\n"
-                        else:
-                            for idx, entry in enumerate(lb[c_id]):
-                                lb_text += f">   #{idx+1} | 🏆 `{entry['score']}` pts | {entry['user']}\n"
-                    
-                    lb_text += "> ━━━━━━━━━━━━━━━━━━━━━━\n> 💡 *Tap ⬅️ to return to dashboard.*"
-                    await safe_edit(panel, lb_text)
-                    
-                    await enforce_reaction_layout(panel, ['⬅️'])
-                    def check_close(p): return p.message_id == panel.id and p.user_id != self.user.id and str(p.emoji.name) == '⬅️'
-                    
-                    try:
-                        c_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_close))
-                        await asyncio.wait([c_add], timeout=30.0, return_when=asyncio.FIRST_COMPLETED)
-                    except Exception: pass
-                    
-                    asyncio.create_task(remove_reactions_safely(panel, ['⬅️'], self.user))
-                    continue 
 
                 # --- 2. GAME LOGIC ---
                 if choice == '4️⃣':
@@ -739,7 +717,6 @@ class ForbidToken(discord.Client):
                     )
                     await safe_edit(panel, diff_menu)
                     
-                    # 🧠 FIX: Added ⬅️ to smoothly return to dashboard without crashing!
                     diff_emojis = ['1️⃣', '2️⃣', '3️⃣', '⬅️']
                     await enforce_reaction_layout(panel, diff_emojis)
                     
@@ -749,9 +726,20 @@ class ForbidToken(discord.Client):
                         
                     try:
                         d_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_diff))
-                        done_d, pending_d = await asyncio.wait([d_add], timeout=30.0, return_when=asyncio.FIRST_COMPLETED)
-                        for t in pending_d: t.cancel()
-                        await asyncio.gather(*pending_d, return_exceptions=True)
+                        
+                        done_d = None
+                        while not globals().get("ARCADE_KILL_SWITCH"):
+                            done_chk, pending_d = await asyncio.wait([d_add], timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+                            if done_chk:
+                                done_d = done_chk
+                                break
+                        
+                        d_add.cancel()
+                        await asyncio.gather(d_add, return_exceptions=True)
+                        
+                        if globals().get("ARCADE_KILL_SWITCH"):
+                            game_state["alive"] = False
+                            break
                         
                         if not done_d:
                             diff_choice = None
@@ -762,7 +750,6 @@ class ForbidToken(discord.Client):
                         
                     asyncio.create_task(remove_reactions_safely(panel, diff_emojis, self.user))
                         
-                    # 🧠 FIX: If they timeout or tap Back, cleanly return to the Main Menu loop
                     if not diff_choice or diff_choice == '⬅️': 
                         continue 
                         
@@ -773,6 +760,10 @@ class ForbidToken(discord.Client):
                     
                     async def run_math_game():
                         while game_state["alive"]:
+                            if globals().get("ARCADE_KILL_SWITCH"):
+                                game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                break
+                                
                             level = (game_state["score"] // 5) + 1
                             if diff_mode == "EASY":
                                 a, b = _arcade_rng_play.randint(1, 20), _arcade_rng_play.randint(1, 20)
@@ -800,6 +791,10 @@ class ForbidToken(discord.Client):
                                 return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in math_emojis
 
                             while time_left > 0 and game_state["alive"]:
+                                if globals().get("ARCADE_KILL_SWITCH"):
+                                    game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                    break
+                                    
                                 ratio = max(0.0, time_left / time_limit)
                                 filled = int(ratio * 10)
                                 bar = "█" * filled + "░" * (10 - filled)
@@ -822,7 +817,7 @@ class ForbidToken(discord.Client):
                                     else: game_state["alive"], game_state["reason"] = False, "DISCORD API ERROR"; break
                                 except Exception: pass
                                     
-                                wait_time = min(2.0, time_left)
+                                wait_time = min(1.0, time_left)
                                 m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_math))
                                 m_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_math))
                                 done_m, pending_m = await asyncio.wait([m_add, m_rem], timeout=wait_time, return_when=asyncio.FIRST_COMPLETED)
@@ -847,12 +842,11 @@ class ForbidToken(discord.Client):
                                 else:
                                     time_left -= wait_time
                                     
-                            if not answered and time_left <= 0:
+                            if not answered and time_left <= 0 and game_state["alive"]:
                                 game_state["alive"], game_state["reason"] = False, "TIME OUT"
 
                     try: await run_math_game()
                     finally:
-                        await save_score(choice, game_state["last_player"], game_state["score"])
                         asyncio.create_task(remove_reactions_safely(panel, math_emojis, self.user))
                         
                         math_over = (
@@ -865,7 +859,8 @@ class ForbidToken(discord.Client):
                             f"> *Rebooting dashboard...*"
                         )
                         await safe_edit(panel, math_over)
-                        await asyncio.sleep(4.0) 
+                        if not globals().get("ARCADE_KILL_SWITCH"):
+                            await asyncio.sleep(4.0) 
 
                 # --- GRID GAMES (1, 2, 3) ---
                 elif choice in ['1️⃣', '2️⃣', '3️⃣']:
@@ -889,6 +884,10 @@ class ForbidToken(discord.Client):
                         async def run_game():
                             nonlocal food, direction
                             while game_state["alive"]:
+                                if globals().get("ARCADE_KILL_SWITCH"):
+                                    game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                    break
+                                    
                                 hx, hy = snake[0]
                                 new_head = (hx + direction[0], hy + direction[1])
                                 if not (0 <= new_head[0] < board_size and 0 <= new_head[1] < board_size):
@@ -927,6 +926,10 @@ class ForbidToken(discord.Client):
                         async def run_game():
                             nonlocal bike, direction
                             while game_state["alive"]:
+                                if globals().get("ARCADE_KILL_SWITCH"):
+                                    game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                    break
+                                    
                                 trail.add(bike) 
                                 bike = (bike[0] + direction[0], bike[1] + direction[1])
                                 if not (0 <= bike[0] < board_size and 0 <= bike[1] < board_size):
@@ -957,6 +960,10 @@ class ForbidToken(discord.Client):
                         async def run_game():
                             nonlocal meteors, px
                             while game_state["alive"]:
+                                if globals().get("ARCADE_KILL_SWITCH"):
+                                    game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                    break
+                                    
                                 meteors = [(mx, my + 1) for mx, my in meteors if my + 1 < board_size]
                                 if (px, py) in meteors:
                                     game_state["alive"], game_state["reason"] = False, "HIT BY METEOR"
@@ -978,6 +985,10 @@ class ForbidToken(discord.Client):
                         return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in controls
 
                     while game_state["alive"]:
+                        if globals().get("ARCADE_KILL_SWITCH"):
+                            game_state["alive"] = False
+                            break
+                            
                         if game_task.done(): 
                             game_state["alive"] = False
                             break
@@ -996,7 +1007,6 @@ class ForbidToken(discord.Client):
                                     emoji = str(payload.emoji.name)
                                     game_state["last_player"] = f"<@{payload.user_id}>"
                                     
-                                    # 🧠 FIX: Scope isolation guaranteed, Meteor Dodge will process perfectly
                                     if choice in ['1️⃣', '2️⃣']:
                                         if emoji == '⬅️' and direction != (1, 0): direction = (-1, 0)
                                         elif emoji == '➡️' and direction != (-1, 0): direction = (1, 0)
@@ -1014,8 +1024,6 @@ class ForbidToken(discord.Client):
                     if not game_task.done(): game_task.cancel()
                     await asyncio.gather(game_task, return_exceptions=True)
                     
-                    await save_score(choice, game_state["last_player"], game_state["score"])
-
                     game_over_panel = (
                         f"> 👑 **FORB1D🔥 // SIMULATION TERMINATED**\n"
                         f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -1027,7 +1035,13 @@ class ForbidToken(discord.Client):
                     )
                     await safe_edit(panel, game_over_panel)
                     asyncio.create_task(remove_reactions_safely(panel, controls, self.user))
-                    await asyncio.sleep(4.0)
+                    
+                    if not globals().get("ARCADE_KILL_SWITCH"):
+                        await asyncio.sleep(4.0)
+
+            # Cleanup final panel if killed by override
+            if globals().get("ARCADE_KILL_SWITCH"):
+                await safe_edit(panel, "> 🛑 **[SWARM OVERRIDE] Supreme Engine Terminated.**")
                     
     
 
