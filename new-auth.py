@@ -520,8 +520,9 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "play":
-            # 🛑 LEADER ELECTION
-            if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
+            # 🛑 LEADER ELECTION FIX: Forced string casting so Int vs String never mismatches
+            active_swarm = globals().get("ACTIVE_SWARM", [])
+            if active_swarm and str(self.user.id) != str(active_swarm[0]):
                 return
             
             import random as _arcade_rng_play 
@@ -769,7 +770,7 @@ class ForbidToken(discord.Client):
                     for c in math_emojis:
                         asyncio.create_task(panel.remove_reaction(c, self.user))
                     await asyncio.sleep(0.5)
-                    await safe_edit(panel, f"> 💀 **MATH OVER!**\n> 🏆 Score: `{game_state['score']}`\n> 🩸 Death: `{game_state['reason']}`")
+                    await safe_edit(panel, f"> 💀 **MATH OVER!**\n> 🏆 Score: `{game_state['score']}`\n> 🩸 Cause: `{game_state['reason']}`")
                 return
 
             # --- GRID GAMES (1, 2, 3) ---
@@ -949,7 +950,6 @@ class ForbidToken(discord.Client):
                                 payload = done.pop().result()
                                 emoji = str(payload.emoji.name)
                                 
-                                # Instantly register direction without blocking for Discord cleanup requests!
                                 if emoji == '❌':
                                     game_state["alive"] = False
                                     game_state["reason"] = "QUIT BY USER"
