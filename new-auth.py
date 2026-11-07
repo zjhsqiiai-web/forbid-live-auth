@@ -518,6 +518,417 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
+
+        elif command == "play":
+            # 🛑 LEADER ELECTION: Only ONE bot hosts the arcade
+            if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
+                return
+            
+            # Fix Minor D: Uniquely named alias to prevent any outer-scope poisoning
+            import random as _arcade_rng_play 
+            
+            async def safe_edit(msg, content):
+                try: 
+                    await msg.edit(content=content)
+                except Exception: 
+                    pass
+
+            # Fix #1: Drainer timeout reduced to 0.75s
+            async def drain_own(msg, emojis):
+                def chk(p):
+                    return p.message_id == msg.id and p.user_id == self.user.id and p.emoji and str(p.emoji.name) in emojis
+                for _ in emojis:
+                    try:
+                        await asyncio.wait_for(self.wait_for('raw_reaction_add', check=chk), timeout=0.75)
+                    except asyncio.TimeoutError:
+                        break
+
+            # Fix #2: Correctly resolve the MAIN_OWNER user object for auto-cleanup
+            target_user = self.get_user(MAIN_OWNER)
+            if target_user is None:
+                try:
+                    target_user = await self.fetch_user(MAIN_OWNER)
+                except Exception:
+                    target_user = self.user # Last-ditch fallback
+
+            # --- 1. THE NATIVE MENU UI ---
+            menu_panel = (
+                f"> 🕹️ **FORB1D🔥 // NEURAL ARCADE** 🕹️\n"
+                f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"> 🐍 **[1]** `NEURAL WORM` (Snake)\n"
+                f"> 🏍️ **[2]** `TRON CYCLE` (Survival)\n"
+                f"> ☄️ **[3]** `METEOR DODGE` (Reaction)\n"
+                f"> 🧮 **[4]** `MATH BLASTER` (IQ Test)\n"
+                f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"*Tap a simulation below to boot.*"
+            )
+            
+            try:
+                panel = await message.channel.send(menu_panel)
+            except Exception:
+                return 
+                
+            menu_controls = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
+            
+            # Fix #1: Spawn drainer BEFORE firing HTTP requests
+            drain_task = asyncio.create_task(drain_own(panel, menu_controls))
+            for c in menu_controls:
+                try: await panel.add_reaction(c)
+                except Exception: pass
+            await asyncio.gather(drain_task, return_exceptions=True)
+                
+            def check_menu(payload):
+                if not payload.emoji or not payload.emoji.name: return False
+                return payload.message_id == panel.id and payload.user_id == MAIN_OWNER and str(payload.emoji.name) in menu_controls
+                
+            try:
+                wait_task = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_menu))
+                done, pending = await asyncio.wait([wait_task], timeout=30.0, return_when=asyncio.FIRST_COMPLETED)
+                
+                for t in pending: t.cancel()
+                await asyncio.gather(*pending, return_exceptions=True) 
+                
+                if not done:
+                    try: await panel.clear_reactions()
+                    except discord.Forbidden:
+                        for c in menu_controls:
+                            try: await panel.remove_reaction(c, self.user)
+                            except Exception: pass
+                    except Exception: pass
+                    return await safe_edit(panel, "> 💤 **Arcade Timeout. System sleeping.**")
+                    
+                payload = done.pop().result()
+                choice = str(payload.emoji.name)
+                
+            except Exception:
+                print(f"⚠️ Arcade Menu Error in {message.channel.id}", flush=True)
+                return await safe_edit(panel, "> 🛑 **Arcade Error.**")
+
+            # 🧹 MENU UI CLEANUP
+            for c in menu_controls:
+                try: await panel.remove_reaction(c, self.user)
+                except Exception: pass
+            
+            # Fix Minor B: Also clean up the user's selection tap
+            if target_user:
+                try: await panel.remove_reaction(choice, target_user)
+                except Exception: pass
+
+            if choice == '❌':
+                return await safe_edit(panel, "> 🛑 **Arcade Terminated.**")
+
+            board_size = 7
+            
+            # --- 2. GAME LOGIC & DYNAMIC CONTROLLERS ---
+            
+            if choice == '4️⃣':
+                # --- GAME 4: MATH BLASTER ---
+                game_state = {"score": 0, "alive": True}
+                math_emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
+                
+                # Fix #1: Drainer before HTTP
+                drain_task = asyncio.create_task(drain_own(panel, math_emojis))
+                for c in math_emojis:
+                    try: await panel.add_reaction(c)
+                    except Exception: pass
+                await asyncio.gather(drain_task, return_exceptions=True)
+                
+                async def run_math_game():
+                    while game_state["alive"]:
+                        level = (game_state["score"] // 5) + 1
+                        if level == 1:
+                            a, b = _arcade_rng_play.randint(1, 20), _arcade_rng_play.randint(1, 20)
+                            op = _arcade_rng_play.choice(['+', '-'])
+                            correct = a + b if op == '+' else a - b
+                            eq_str = f"{a} {op} {b}"
+                        elif level == 2:
+                            a, b = _arcade_rng_play.randint(3, 12), _arcade_rng_play.randint(3, 12)
+                            correct = a * b
+                            eq_str = f"{a} * {b}"
+                        else:
+                            a, b, c = _arcade_rng_play.randint(10, 50), _arcade_rng_play.randint(5, 20), _arcade_rng_play.randint(2, 10)
+                            correct = a + b - c
+                            eq_str = f"{a} + {b} - {c}"
+
+                        options = [correct]
+                        while len(options) < 4:
+                            fake = correct + _arcade_rng_play.randint(-10, 10)
+                            if fake not in options: options.append(fake)
+                        _arcade_rng_play.shuffle(options)
+                        correct_emoji = math_emojis[options.index(correct)]
+
+                        math_display = (
+                            f"> 🧮 **MATH BLASTER // LVL {level}**\n"
+                            f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"> 🏆 Score: `{game_state['score']}`\n"
+                            f"> ❓ Solve: **{eq_str} = ?**\n"
+                            f"> 1️⃣ `{options[0]}`  |  2️⃣ `{options[1]}`\n"
+                            f"> 3️⃣ `{options[2]}`  |  4️⃣ `{options[3]}`\n"
+                            f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"*Tap the correct number!*"
+                        )
+                        
+                        try:
+                            await panel.edit(content=math_display)
+                        except discord.NotFound:
+                            game_state["alive"] = False
+                            break
+                        except discord.HTTPException as e:
+                            if getattr(e, 'status', 0) != 429:
+                                game_state["alive"] = False
+                                break
+                        except Exception:
+                            pass
+                        
+                        def check_math(payload):
+                            if not payload.emoji or not payload.emoji.name: return False
+                            return payload.message_id == panel.id and payload.user_id == MAIN_OWNER and str(payload.emoji.name) in math_emojis
+                            
+                        try:
+                            m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_math))
+                            done_m, pending_m = await asyncio.wait([m_add], timeout=15.0, return_when=asyncio.FIRST_COMPLETED)
+                            
+                            for t in pending_m: t.cancel()
+                            await asyncio.gather(*pending_m, return_exceptions=True)
+                            
+                            if done_m:
+                                payload = done_m.pop().result()
+                                ans_emoji = str(payload.emoji.name)
+                                
+                                if target_user:
+                                    try: await panel.remove_reaction(ans_emoji, target_user)
+                                    except Exception: pass
+                                
+                                if ans_emoji == '❌' or ans_emoji != correct_emoji:
+                                    game_state["alive"] = False
+                                    break
+                                else:
+                                    game_state["score"] += 1
+                            else:
+                                game_state["alive"] = False
+                                break
+                        except asyncio.CancelledError:
+                            game_state["alive"] = False
+                            break
+                        except Exception:
+                            game_state["alive"] = False
+                            break
+
+                try:
+                    await run_math_game()
+                finally:
+                    for c in math_emojis:
+                        try: await panel.remove_reaction(c, self.user)
+                        except Exception: pass
+                    await asyncio.sleep(0.5)
+                    await safe_edit(panel, f"> 💀 **MATH OVER!** Final IQ Score: `{game_state['score']}`")
+                return
+
+            # --- GRID GAMES (1, 2, 3) ---
+            elif choice in ['1️⃣', '2️⃣', '3️⃣']:
+                
+                controls = ['⬅️', '⬆️', '⬇️', '➡️', '❌']
+                
+                # Fix #1: Drainer before HTTP
+                drain_task = asyncio.create_task(drain_own(panel, controls))
+                for c in controls:
+                    try: await panel.add_reaction(c)
+                    except Exception: pass
+                await asyncio.gather(drain_task, return_exceptions=True)
+
+                if choice == '1️⃣':
+                    # NEURAL WORM (SNAKE)
+                    snake = [(3, 3)]
+                    direction = (0, -1) 
+                    
+                    def spawn_food():
+                        free = [(x, y) for x in range(board_size) for y in range(board_size) if (x, y) not in snake]
+                        return _arcade_rng_play.choice(free) if free else None
+                            
+                    food = spawn_food()
+                    game_state = {"score": 0, "alive": True}
+
+                    def render_snake():
+                        grid = "\n".join("".join("🟩" if (x, y) == snake[0] else "🔲" if (x, y) in snake else "🍎" if (x, y) == food else "⬛" for x in range(board_size)) for y in range(board_size))
+                        return f"> 🐍 **NEURAL WORM** | Score: `{game_state['score']}`\n{grid}"
+
+                    async def run_game():
+                        nonlocal food, direction
+                        while game_state["alive"]:
+                            hx, hy = snake[0]
+                            new_head = (hx + direction[0], hy + direction[1])
+                            
+                            if not (0 <= new_head[0] < board_size and 0 <= new_head[1] < board_size) or new_head in snake:
+                                game_state["alive"] = False
+                                break
+                                
+                            snake.insert(0, new_head)
+                            if new_head == food:
+                                game_state["score"] += 1
+                                food = spawn_food()
+                                if not food: 
+                                    game_state["alive"] = False
+                                    break
+                            else:
+                                snake.pop()
+                                
+                            try: 
+                                await panel.edit(content=render_snake())
+                            except discord.NotFound:
+                                game_state["alive"] = False
+                                break
+                            except discord.HTTPException as e:
+                                if getattr(e, 'status', 0) != 429:
+                                    game_state["alive"] = False
+                                    break
+                            except Exception: 
+                                pass
+                            await asyncio.sleep(1.2) 
+
+                    game_task = asyncio.create_task(run_game())
+
+                elif choice == '2️⃣':
+                    # TRON CYCLE
+                    bike = (3, 3)
+                    trail = set()
+                    direction = (0, -1)
+                    game_state = {"score": 0, "alive": True}
+                    
+                    def render_tron():
+                        grid = "\n".join("".join("🟦" if (x, y) == bike else "💠" if (x, y) in trail else "⬛" for x in range(board_size)) for y in range(board_size))
+                        return f"> 🏍️ **TRON SURVIVAL** | Score: `{game_state['score']}`\n{grid}"
+
+                    async def run_game():
+                        nonlocal bike
+                        while game_state["alive"]:
+                            trail.add(bike) 
+                            bike = (bike[0] + direction[0], bike[1] + direction[1])
+                            
+                            if not (0 <= bike[0] < board_size and 0 <= bike[1] < board_size) or bike in trail:
+                                game_state["alive"] = False
+                                break
+                                
+                            game_state["score"] += 1
+                            try: 
+                                await panel.edit(content=render_tron())
+                            except discord.NotFound:
+                                game_state["alive"] = False
+                                break
+                            except discord.HTTPException as e:
+                                if getattr(e, 'status', 0) != 429:
+                                    game_state["alive"] = False
+                                    break
+                            except Exception: 
+                                pass
+                            await asyncio.sleep(1.0) 
+
+                    game_task = asyncio.create_task(run_game())
+
+                elif choice == '3️⃣':
+                    # METEOR DODGE
+                    px = 3
+                    py = board_size - 1
+                    meteors = []
+                    game_state = {"score": 0, "alive": True}
+                    
+                    def render_dodge():
+                        grid = "\n".join("".join("🚀" if x == px and y == py else "☄️" if (x, y) in meteors else "⬛" for x in range(board_size)) for y in range(board_size))
+                        return f"> ☄️ **METEOR DODGE** | Score: `{game_state['score']}`\n{grid}"
+
+                    async def run_game():
+                        nonlocal meteors, px
+                        while game_state["alive"]:
+                            meteors = [(mx, my + 1) for mx, my in meteors if my + 1 < board_size]
+                            if (px, py) in meteors:
+                                game_state["alive"] = False
+                                break
+                            if _arcade_rng_play.random() > 0.4:
+                                meteors.append((_arcade_rng_play.randint(0, board_size-1), 0))
+                                
+                            game_state["score"] += 1
+                            try: 
+                                await panel.edit(content=render_dodge())
+                            except discord.NotFound:
+                                game_state["alive"] = False
+                                break
+                            except discord.HTTPException as e:
+                                if getattr(e, 'status', 0) != 429:
+                                    game_state["alive"] = False
+                                    break
+                            except Exception: 
+                                pass
+                            await asyncio.sleep(1.0)
+
+                    game_task = asyncio.create_task(run_game())
+
+                # --- THE PERFECT GRID CONTROLLER ---
+                def check_ctrl(payload):
+                    if not payload.emoji or not payload.emoji.name: return False
+                    return payload.message_id == panel.id and payload.user_id == MAIN_OWNER and str(payload.emoji.name) in controls
+
+                while game_state["alive"]:
+                    if game_task.done(): 
+                        game_state["alive"] = False
+                        break
+                        
+                    try:
+                        add_task = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_ctrl))
+                        # Fix Minor A: Snappy controller timeout reduced to 0.5s for instant death screens
+                        done, pending = await asyncio.wait([add_task], timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+                        
+                        for t in pending: t.cancel()
+                        await asyncio.gather(*pending, return_exceptions=True)
+                            
+                        if done:
+                            try:
+                                payload = done.pop().result()
+                                emoji = str(payload.emoji.name)
+                                
+                                if target_user:
+                                    try: await panel.remove_reaction(emoji, target_user)
+                                    except Exception: pass
+                                
+                                if emoji == '❌':
+                                    game_state["alive"] = False
+                                    game_task.cancel()
+                                    try: await asyncio.gather(game_task, return_exceptions=True)
+                                    except Exception: pass 
+                                    break
+                                    
+                                if choice in ['1️⃣', '2️⃣']:
+                                    if emoji == '⬅️' and direction != (1, 0): direction = (-1, 0)
+                                    elif emoji == '➡️' and direction != (-1, 0): direction = (1, 0)
+                                    elif emoji == '⬆️' and direction != (0, 1): direction = (0, -1)
+                                    elif emoji == '⬇️' and direction != (0, -1): direction = (0, 1)
+                                elif choice == '3️⃣':
+                                    if emoji == '⬅️' and px > 0: px -= 1
+                                    elif emoji == '➡️' and px < board_size - 1: px += 1
+                            except Exception:
+                                pass 
+                                
+                    except asyncio.CancelledError:
+                        game_task.cancel()
+                        break
+                    except Exception:
+                        pass
+
+                if not game_task.done():
+                    game_task.cancel()
+                await asyncio.gather(game_task, return_exceptions=True)
+
+                # --- GAME OVER SCREEN ---
+                game_over_panel = (
+                    f"> 💀 **SIMULATION TERMINATED** 💀\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"> 🏆 Final Score : `{game_state['score']}`\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━"
+                )
+                await safe_edit(panel, game_over_panel)
+                
+                # 🧹 Clean UI on Death
+                for c in controls:
+                    try: await panel.remove_reaction(c, self.user)
+                    except Exception: pass
                     
     
 
