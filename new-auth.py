@@ -520,24 +520,18 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "play":
-            print(f"🕹️ [DEBUG] ^play command received by {self.user.name}", flush=True)
-            
-            # 🛑 LEADER ELECTION FIX: Safely cast to string to prevent Int vs String mismatch!
-            active_swarm = globals().get("ACTIVE_SWARM", [])
-            if active_swarm:
-                if str(self.user.id) != str(active_swarm[0]):
-                    print(f"🛑 [DEBUG] {self.user.name} is not the leader. Standing down.", flush=True)
-                    return
-            
-            print(f"👑 [DEBUG] {self.user.name} is the Arcade Leader! Booting...", flush=True)
+            # 🛑 LEADER ELECTION: Only ONE bot hosts the arcade
+            if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
+                return
             
             import random as _arcade_rng_play 
+            import discord as _arcade_discord
             
             async def safe_edit(msg, content):
                 try: 
                     await msg.edit(content=content)
-                except Exception as e: 
-                    print(f"⚠️ [DEBUG] safe_edit failed: {e}", flush=True)
+                except Exception: 
+                    pass
 
             async def drain_own(msg, emojis):
                 def chk(p):
@@ -548,35 +542,21 @@ class ForbidToken(discord.Client):
                     except asyncio.TimeoutError:
                         break
 
-            target_owner_id = globals().get("MAIN_OWNER")
-            target_user = None
-            if target_owner_id:
-                target_user = self.get_user(target_owner_id)
-                if target_user is None:
-                    try:
-                        target_user = await self.fetch_user(target_owner_id)
-                    except Exception:
-                        target_user = self.user
-            if not target_user:
-                target_user = self.user
-
+            # --- 1. THE NATIVE MENU UI ---
             menu_panel = (
-                f"> 🕹️ **FORB1D🔥 // NEURAL ARCADE** 🕹️\n"
+                f"> 🕹️ **FORB1D🔥 // COMMUNAL ARCADE** 🕹️\n"
                 f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"> 🐍 **[1]** `NEURAL WORM` (Snake)\n"
                 f"> 🏍️ **[2]** `TRON CYCLE` (Survival)\n"
                 f"> ☄️ **[3]** `METEOR DODGE` (Reaction)\n"
                 f"> 🧮 **[4]** `MATH BLASTER` (IQ Test)\n"
                 f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"*Tap a simulation below to boot.*"
+                f"*Anyone in chat can tap to boot!*"
             )
             
             try:
-                print(f"📤 [DEBUG {self.user.name}] Sending menu panel...", flush=True)
                 panel = await message.channel.send(menu_panel)
-                print(f"✅ [DEBUG {self.user.name}] Menu sent successfully. ID: {panel.id}", flush=True)
-            except Exception as e:
-                print(f"❌ [CRITICAL {self.user.name}] Failed to send menu message: {e}", flush=True)
+            except Exception:
                 return 
                 
             menu_controls = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
@@ -589,18 +569,21 @@ class ForbidToken(discord.Client):
                 
             def check_menu(payload):
                 if not payload.emoji or not payload.emoji.name: return False
-                return payload.message_id == panel.id and payload.user_id == target_user.id and str(payload.emoji.name) in menu_controls
+                # 🔓 OPEN TO EVERYONE (Except the bot itself)
+                return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in menu_controls
                 
             try:
-                wait_task = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_menu))
-                done, pending = await asyncio.wait([wait_task], timeout=30.0, return_when=asyncio.FIRST_COMPLETED)
+                # Dual-Listener for the menu so anyone can select flawlessly
+                m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_menu))
+                m_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_menu))
+                done, pending = await asyncio.wait([m_add, m_rem], timeout=30.0, return_when=asyncio.FIRST_COMPLETED)
                 
                 for t in pending: t.cancel()
                 await asyncio.gather(*pending, return_exceptions=True) 
                 
                 if not done:
                     try: await panel.clear_reactions()
-                    except discord.Forbidden:
+                    except _arcade_discord.Forbidden:
                         for c in menu_controls:
                             try: await panel.remove_reaction(c, self.user)
                             except Exception: pass
@@ -610,16 +593,18 @@ class ForbidToken(discord.Client):
                 payload = done.pop().result()
                 choice = str(payload.emoji.name)
                 
-            except Exception as e:
-                print(f"⚠️ [DEBUG] Arcade Menu Error: {e}", flush=True)
+                # Dynamic cleanup attempt for whichever user tapped
+                reactor_obj = _arcade_discord.Object(id=payload.user_id)
+                try: await panel.remove_reaction(choice, reactor_obj)
+                except Exception: pass
+                
+            except Exception:
+                print(f"⚠️ Arcade Menu Error in {message.channel.id}", flush=True)
                 return await safe_edit(panel, "> 🛑 **Arcade Error.**")
 
+            # 🧹 MENU UI CLEANUP
             for c in menu_controls:
                 try: await panel.remove_reaction(c, self.user)
-                except Exception: pass
-            
-            if target_user:
-                try: await panel.remove_reaction(choice, target_user)
                 except Exception: pass
 
             if choice == '❌':
@@ -627,7 +612,10 @@ class ForbidToken(discord.Client):
 
             board_size = 7
             
+            # --- 2. GAME LOGIC & DYNAMIC CONTROLLERS ---
+            
             if choice == '4️⃣':
+                # --- GAME 4: MATH BLASTER ---
                 game_state = {"score": 0, "alive": True}
                 math_emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
                 
@@ -669,15 +657,15 @@ class ForbidToken(discord.Client):
                             f"> 1️⃣ `{options[0]}`  |  2️⃣ `{options[1]}`\n"
                             f"> 3️⃣ `{options[2]}`  |  4️⃣ `{options[3]}`\n"
                             f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"*Tap the correct number!*"
+                            f"*First person to tap wins the round!*"
                         )
                         
                         try:
                             await panel.edit(content=math_display)
-                        except discord.NotFound:
+                        except _arcade_discord.NotFound:
                             game_state["alive"] = False
                             break
-                        except discord.HTTPException as e:
+                        except _arcade_discord.HTTPException as e:
                             if getattr(e, 'status', 0) != 429:
                                 game_state["alive"] = False
                                 break
@@ -686,11 +674,14 @@ class ForbidToken(discord.Client):
                         
                         def check_math(payload):
                             if not payload.emoji or not payload.emoji.name: return False
-                            return payload.message_id == panel.id and payload.user_id == target_user.id and str(payload.emoji.name) in math_emojis
+                            # 🔓 OPEN TO EVERYONE
+                            return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in math_emojis
                             
                         try:
-                            m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_math))
-                            done_m, pending_m = await asyncio.wait([m_add], timeout=15.0, return_when=asyncio.FIRST_COMPLETED)
+                            # Dual-Listener for Math so teammates can un-tap seamlessly
+                            g_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_math))
+                            g_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_math))
+                            done_m, pending_m = await asyncio.wait([g_add, g_rem], timeout=15.0, return_when=asyncio.FIRST_COMPLETED)
                             
                             for t in pending_m: t.cancel()
                             await asyncio.gather(*pending_m, return_exceptions=True)
@@ -699,9 +690,9 @@ class ForbidToken(discord.Client):
                                 payload = done_m.pop().result()
                                 ans_emoji = str(payload.emoji.name)
                                 
-                                if target_user:
-                                    try: await panel.remove_reaction(ans_emoji, target_user)
-                                    except Exception: pass
+                                reactor_obj = _arcade_discord.Object(id=payload.user_id)
+                                try: await panel.remove_reaction(ans_emoji, reactor_obj)
+                                except Exception: pass
                                 
                                 if ans_emoji == '❌' or ans_emoji != correct_emoji:
                                     game_state["alive"] = False
@@ -728,7 +719,9 @@ class ForbidToken(discord.Client):
                     await safe_edit(panel, f"> 💀 **MATH OVER!** Final IQ Score: `{game_state['score']}`")
                 return
 
+            # --- GRID GAMES (1, 2, 3) ---
             elif choice in ['1️⃣', '2️⃣', '3️⃣']:
+                
                 controls = ['⬅️', '⬆️', '⬇️', '➡️', '❌']
                 
                 drain_task = asyncio.create_task(drain_own(panel, controls))
@@ -774,10 +767,10 @@ class ForbidToken(discord.Client):
                                 
                             try: 
                                 await panel.edit(content=render_snake())
-                            except discord.NotFound:
+                            except _arcade_discord.NotFound:
                                 game_state["alive"] = False
                                 break
-                            except discord.HTTPException as e:
+                            except _arcade_discord.HTTPException as e:
                                 if getattr(e, 'status', 0) != 429:
                                     game_state["alive"] = False
                                     break
@@ -810,10 +803,10 @@ class ForbidToken(discord.Client):
                             game_state["score"] += 1
                             try: 
                                 await panel.edit(content=render_tron())
-                            except discord.NotFound:
+                            except _arcade_discord.NotFound:
                                 game_state["alive"] = False
                                 break
-                            except discord.HTTPException as e:
+                            except _arcade_discord.HTTPException as e:
                                 if getattr(e, 'status', 0) != 429:
                                     game_state["alive"] = False
                                     break
@@ -846,10 +839,10 @@ class ForbidToken(discord.Client):
                             game_state["score"] += 1
                             try: 
                                 await panel.edit(content=render_dodge())
-                            except discord.NotFound:
+                            except _arcade_discord.NotFound:
                                 game_state["alive"] = False
                                 break
-                            except discord.HTTPException as e:
+                            except _arcade_discord.HTTPException as e:
                                 if getattr(e, 'status', 0) != 429:
                                     game_state["alive"] = False
                                     break
@@ -861,7 +854,8 @@ class ForbidToken(discord.Client):
 
                 def check_ctrl(payload):
                     if not payload.emoji or not payload.emoji.name: return False
-                    return payload.message_id == panel.id and payload.user_id == target_user.id and str(payload.emoji.name) in controls
+                    # 🔓 OPEN TO EVERYONE
+                    return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in controls
 
                 while game_state["alive"]:
                     if game_task.done(): 
@@ -870,7 +864,9 @@ class ForbidToken(discord.Client):
                         
                     try:
                         add_task = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_ctrl))
-                        done, pending = await asyncio.wait([add_task], timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+                        rem_task = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_ctrl))
+                        
+                        done, pending = await asyncio.wait([add_task, rem_task], timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
                         
                         for t in pending: t.cancel()
                         await asyncio.gather(*pending, return_exceptions=True)
@@ -880,9 +876,10 @@ class ForbidToken(discord.Client):
                                 payload = done.pop().result()
                                 emoji = str(payload.emoji.name)
                                 
-                                if target_user:
-                                    try: await panel.remove_reaction(emoji, target_user)
-                                    except Exception: pass
+                                # Instantly build a dummy discord.Object for whoever tapped to attempt cleanup
+                                reactor_obj = _arcade_discord.Object(id=payload.user_id)
+                                try: await panel.remove_reaction(emoji, reactor_obj)
+                                except Exception: pass
                                 
                                 if emoji == '❌':
                                     game_state["alive"] = False
