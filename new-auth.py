@@ -520,20 +520,25 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "play":
-            # 🛑 LEADER ELECTION: Only ONE bot hosts the arcade
-            if ACTIVE_SWARM and self.user.id != ACTIVE_SWARM[0]:
-                return
+            print(f"🕹️ [DEBUG] ^play command received by {self.user.name}", flush=True)
             
-            # Fix Minor D: Uniquely named alias to prevent any outer-scope poisoning
+            # 🛑 LEADER ELECTION FIX: Safely cast to string to prevent Int vs String mismatch!
+            active_swarm = globals().get("ACTIVE_SWARM", [])
+            if active_swarm:
+                if str(self.user.id) != str(active_swarm[0]):
+                    print(f"🛑 [DEBUG] {self.user.name} is not the leader. Standing down.", flush=True)
+                    return
+            
+            print(f"👑 [DEBUG] {self.user.name} is the Arcade Leader! Booting...", flush=True)
+            
             import random as _arcade_rng_play 
             
             async def safe_edit(msg, content):
                 try: 
                     await msg.edit(content=content)
-                except Exception: 
-                    pass
+                except Exception as e: 
+                    print(f"⚠️ [DEBUG] safe_edit failed: {e}", flush=True)
 
-            # Fix #1: Drainer timeout reduced to 0.75s
             async def drain_own(msg, emojis):
                 def chk(p):
                     return p.message_id == msg.id and p.user_id == self.user.id and p.emoji and str(p.emoji.name) in emojis
@@ -543,15 +548,18 @@ class ForbidToken(discord.Client):
                     except asyncio.TimeoutError:
                         break
 
-            # Fix #2: Correctly resolve the MAIN_OWNER user object for auto-cleanup
-            target_user = self.get_user(MAIN_OWNER)
-            if target_user is None:
-                try:
-                    target_user = await self.fetch_user(MAIN_OWNER)
-                except Exception:
-                    target_user = self.user # Last-ditch fallback
+            target_owner_id = globals().get("MAIN_OWNER")
+            target_user = None
+            if target_owner_id:
+                target_user = self.get_user(target_owner_id)
+                if target_user is None:
+                    try:
+                        target_user = await self.fetch_user(target_owner_id)
+                    except Exception:
+                        target_user = self.user
+            if not target_user:
+                target_user = self.user
 
-            # --- 1. THE NATIVE MENU UI ---
             menu_panel = (
                 f"> 🕹️ **FORB1D🔥 // NEURAL ARCADE** 🕹️\n"
                 f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -564,13 +572,15 @@ class ForbidToken(discord.Client):
             )
             
             try:
+                print(f"📤 [DEBUG {self.user.name}] Sending menu panel...", flush=True)
                 panel = await message.channel.send(menu_panel)
-            except Exception:
+                print(f"✅ [DEBUG {self.user.name}] Menu sent successfully. ID: {panel.id}", flush=True)
+            except Exception as e:
+                print(f"❌ [CRITICAL {self.user.name}] Failed to send menu message: {e}", flush=True)
                 return 
                 
             menu_controls = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
             
-            # Fix #1: Spawn drainer BEFORE firing HTTP requests
             drain_task = asyncio.create_task(drain_own(panel, menu_controls))
             for c in menu_controls:
                 try: await panel.add_reaction(c)
@@ -579,7 +589,7 @@ class ForbidToken(discord.Client):
                 
             def check_menu(payload):
                 if not payload.emoji or not payload.emoji.name: return False
-                return payload.message_id == panel.id and payload.user_id == MAIN_OWNER and str(payload.emoji.name) in menu_controls
+                return payload.message_id == panel.id and payload.user_id == target_user.id and str(payload.emoji.name) in menu_controls
                 
             try:
                 wait_task = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_menu))
@@ -600,16 +610,14 @@ class ForbidToken(discord.Client):
                 payload = done.pop().result()
                 choice = str(payload.emoji.name)
                 
-            except Exception:
-                print(f"⚠️ Arcade Menu Error in {message.channel.id}", flush=True)
+            except Exception as e:
+                print(f"⚠️ [DEBUG] Arcade Menu Error: {e}", flush=True)
                 return await safe_edit(panel, "> 🛑 **Arcade Error.**")
 
-            # 🧹 MENU UI CLEANUP
             for c in menu_controls:
                 try: await panel.remove_reaction(c, self.user)
                 except Exception: pass
             
-            # Fix Minor B: Also clean up the user's selection tap
             if target_user:
                 try: await panel.remove_reaction(choice, target_user)
                 except Exception: pass
@@ -619,14 +627,10 @@ class ForbidToken(discord.Client):
 
             board_size = 7
             
-            # --- 2. GAME LOGIC & DYNAMIC CONTROLLERS ---
-            
             if choice == '4️⃣':
-                # --- GAME 4: MATH BLASTER ---
                 game_state = {"score": 0, "alive": True}
                 math_emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
                 
-                # Fix #1: Drainer before HTTP
                 drain_task = asyncio.create_task(drain_own(panel, math_emojis))
                 for c in math_emojis:
                     try: await panel.add_reaction(c)
@@ -682,7 +686,7 @@ class ForbidToken(discord.Client):
                         
                         def check_math(payload):
                             if not payload.emoji or not payload.emoji.name: return False
-                            return payload.message_id == panel.id and payload.user_id == MAIN_OWNER and str(payload.emoji.name) in math_emojis
+                            return payload.message_id == panel.id and payload.user_id == target_user.id and str(payload.emoji.name) in math_emojis
                             
                         try:
                             m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_math))
@@ -724,12 +728,9 @@ class ForbidToken(discord.Client):
                     await safe_edit(panel, f"> 💀 **MATH OVER!** Final IQ Score: `{game_state['score']}`")
                 return
 
-            # --- GRID GAMES (1, 2, 3) ---
             elif choice in ['1️⃣', '2️⃣', '3️⃣']:
-                
                 controls = ['⬅️', '⬆️', '⬇️', '➡️', '❌']
                 
-                # Fix #1: Drainer before HTTP
                 drain_task = asyncio.create_task(drain_own(panel, controls))
                 for c in controls:
                     try: await panel.add_reaction(c)
@@ -737,7 +738,6 @@ class ForbidToken(discord.Client):
                 await asyncio.gather(drain_task, return_exceptions=True)
 
                 if choice == '1️⃣':
-                    # NEURAL WORM (SNAKE)
                     snake = [(3, 3)]
                     direction = (0, -1) 
                     
@@ -788,7 +788,6 @@ class ForbidToken(discord.Client):
                     game_task = asyncio.create_task(run_game())
 
                 elif choice == '2️⃣':
-                    # TRON CYCLE
                     bike = (3, 3)
                     trail = set()
                     direction = (0, -1)
@@ -825,7 +824,6 @@ class ForbidToken(discord.Client):
                     game_task = asyncio.create_task(run_game())
 
                 elif choice == '3️⃣':
-                    # METEOR DODGE
                     px = 3
                     py = board_size - 1
                     meteors = []
@@ -861,10 +859,9 @@ class ForbidToken(discord.Client):
 
                     game_task = asyncio.create_task(run_game())
 
-                # --- THE PERFECT GRID CONTROLLER ---
                 def check_ctrl(payload):
                     if not payload.emoji or not payload.emoji.name: return False
-                    return payload.message_id == panel.id and payload.user_id == MAIN_OWNER and str(payload.emoji.name) in controls
+                    return payload.message_id == panel.id and payload.user_id == target_user.id and str(payload.emoji.name) in controls
 
                 while game_state["alive"]:
                     if game_task.done(): 
@@ -873,7 +870,6 @@ class ForbidToken(discord.Client):
                         
                     try:
                         add_task = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_ctrl))
-                        # Fix Minor A: Snappy controller timeout reduced to 0.5s for instant death screens
                         done, pending = await asyncio.wait([add_task], timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
                         
                         for t in pending: t.cancel()
@@ -916,7 +912,6 @@ class ForbidToken(discord.Client):
                     game_task.cancel()
                 await asyncio.gather(game_task, return_exceptions=True)
 
-                # --- GAME OVER SCREEN ---
                 game_over_panel = (
                     f"> 💀 **SIMULATION TERMINATED** 💀\n"
                     f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -925,7 +920,6 @@ class ForbidToken(discord.Client):
                 )
                 await safe_edit(panel, game_over_panel)
                 
-                # 🧹 Clean UI on Death
                 for c in controls:
                     try: await panel.remove_reaction(c, self.user)
                     except Exception: pass
