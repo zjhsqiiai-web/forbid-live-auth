@@ -216,12 +216,13 @@ class ForbidToken(discord.Client):
                 vr_active = globals().get("VR_MODE_ACTIVE", False)
                 is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
                 
+                # 🛑 HARD STOP: If VR is active, do nothing.
                 if vr_active:
-                    # 🥽 VR MODE IS ON: Do absolutely nothing, let the vrmode command manage the presence
                     await asyncio.sleep(45)
                     continue
                 
-                elif not is_locked:
+                # Normal behavior for when VR is off
+                if not is_locked:
                     await self.change_presence(
                         status=discord.Status.online,
                         afk=False,
@@ -536,15 +537,15 @@ class ForbidToken(discord.Client):
                 
             import discord as _discord_vr
             
-            # 🧠 BULLETPROOF PATCH: Intercept the native identify method
+            # 🧠 THE PERMANENT PATCH: Intercept the native identify method
             if not getattr(_discord_vr.gateway.DiscordWebSocket, "_vr_patched", False):
                 _original_identify = _discord_vr.gateway.DiscordWebSocket.identify
                 
                 async def _spoofed_identify(self_ws):
-                    # Let the library build its default payload first
+                    # Let the library build its default payload
                     await _original_identify(self_ws)
                     
-                    # If VR mode is active, overwrite the payload directly in the socket buffer
+                    # If VR mode is active, completely overwrite the payload
                     if globals().get("VR_MODE_ACTIVE", False):
                         vr_payload = {
                             'op': 2,
@@ -558,10 +559,17 @@ class ForbidToken(discord.Client):
                                 },
                                 'compress': False,
                                 'large_threshold': 250,
-                                'intents': 0
+                                'intents': 0,
+                                # 🔑 THE MISSING KEY: Explicitly declare a VR session in the presence
+                                'presence': {
+                                    'status': 'online',
+                                    'afk': False,
+                                    'since': 0,
+                                    'activities': [],
+                                    'client_status': {'vr': 'online'} 
+                                }
                             }
                         }
-                        # Send the corrected VR payload exactly once
                         await self_ws.send_as_json(vr_payload)
                 
                 _discord_vr.gateway.DiscordWebSocket.identify = _spoofed_identify
@@ -571,6 +579,7 @@ class ForbidToken(discord.Client):
             toggle = parts[1].lower() if len(parts) > 1 else "on"
             
             if toggle == "on":
+                # 🛑 VR MODE TAKES OVER: Stop all stream tasks
                 self.stop_rgb_task()
                 self.custom_stream_active = False
                 self.rgb_stream_active = False
@@ -592,25 +601,15 @@ class ForbidToken(discord.Client):
                     ws = getattr(self, "ws", None)
                     if ws:
                         try:
+                            # Wipe session to force a fresh IDENTIFY
                             ws.session_id = None
                             ws.sequence = None
                             if hasattr(ws, 'pool_ws_params'):
                                 ws.pool_ws_params['session'] = None
                                 ws.pool_ws_params['sequence'] = None
-                            # Close with 4000, let the patched identify handle the rest
                             await ws.close(4000)
                         except Exception:
                             pass
-                    
-                    await asyncio.sleep(3.5)
-                    try:
-                        await self.change_presence(
-                            status=discord.Status.online,
-                            afk=False,
-                            activity=discord.Activity(type=discord.ActivityType.watching, name="FORB1D NETWORK // VR")
-                        )
-                    except Exception:
-                        pass
                             
                 asyncio.create_task(force_vr())
                 return
@@ -642,16 +641,6 @@ class ForbidToken(discord.Client):
                             await ws.close(4000)
                         except Exception:
                             pass
-                            
-                    await asyncio.sleep(3.5)
-                    try:
-                        await self.change_presence(
-                            status=discord.Status.online,
-                            afk=False,
-                            activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
-                        )
-                    except Exception:
-                        pass
                             
                 asyncio.create_task(force_desktop())
                 return
