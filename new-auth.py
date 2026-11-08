@@ -526,75 +526,68 @@ class ForbidToken(discord.Client):
                 await message.delete()
             except Exception:
                 pass
-
+                
             import discord as _discord_vr
-
+            
             # 🧠 Subclass patch — applied once, survives all reconnects
             if not getattr(_discord_vr.gateway.DiscordWebSocket, "_vr_subclass_patched", False):
                 class VRDiscordWebSocket(_discord_vr.gateway.DiscordWebSocket):
                     async def send_as_json(self, data):
                         vr_active = globals().get("VR_MODE_ACTIVE")
                         identify_op = getattr(self, 'IDENTIFY', 2)
-
+                        
                         if isinstance(vr_active, bool) and vr_active and data.get('op') == identify_op:
                             try:
                                 data['d']['properties'] = {
                                     'os': 'Android',
-                                    'browser': 'Discord Android',
+                                    'browser': 'Discord Quest',  # 💥 THE MAGIC STRING FOR THE VR ICON
                                     'device': 'Oculus',
                                     'system_os': 'Android'
                                 }
-                                print("🟢 [VR] IDENTIFY intercepted — Quest headers injected", flush=True)
                             except (KeyError, TypeError):
                                 pass
                         return await super().send_as_json(data)
-
+                        
                 _discord_vr.gateway.DiscordWebSocket.from_client = VRDiscordWebSocket.from_client
                 _discord_vr.gateway.DiscordWebSocket._vr_subclass_patched = True
-
+                
             parts = message.content.split()
             toggle = parts[1].lower() if len(parts) > 1 else "on"
-
-            # 💥 Socket kill runs in background so the panel message sends cleanly first
+            
+            # 💥 Background task to snap the socket without freezing the UI
             async def snap_socket():
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(1.0) 
                 ws = getattr(self, "ws", None)
-                if ws is None:
-                    return
-                try:
-                    ws.session_id = None
-                    ws.sequence = None
-                except Exception:
-                    pass
-                try:
-                    # 4000 is in discord.py-self's _can_handle_close whitelist → guaranteed reconnect.
-                    # Session wipe above forces the reconnect to fall through to IDENTIFY (not RESUME).
-                    await ws.close(4000)
-                except Exception as e:
-                    print(f"⚠️ [VR] WS close failed: {e}", flush=True)
+                if ws and not getattr(ws, "closed", True):
+                    try:
+                        ws.session_id = None
+                        ws.sequence = None
+                        await ws.close(4007)
+                    except Exception as e:
+                        print(f"⚠️ [VR] WS close failed: {e}", flush=True)
 
             if toggle == "on":
                 globals()["VR_MODE_ACTIVE"] = True
-
+                
                 panel = (
                     f"> 👑 **FORB1D🔥 // VR PROTOCOL** 👑\n"
                     f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"> 🥽 **Status :** `META QUEST EMULATION ACTIVE`\n"
                     f"> ⚡ **Action :** `Forcing Gateway Re-Identify...`\n"
                     f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"> *Your icon will update in a few seconds.*"
+                    f"> *Your icon will update to the VR Headset in a few seconds.*"
                 )
-                try:
+                try: 
                     await message.channel.send(panel)
-                except Exception:
+                except Exception: 
                     pass
-
+                
                 asyncio.create_task(snap_socket())
                 return
-
+                
             else:
                 globals()["VR_MODE_ACTIVE"] = False
-
+                
                 panel = (
                     f"> 👑 **FORB1D🔥 // VR PROTOCOL** 👑\n"
                     f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -603,11 +596,11 @@ class ForbidToken(discord.Client):
                     f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"> *Your icon will revert in a few seconds.*"
                 )
-                try:
+                try: 
                     await message.channel.send(panel)
-                except Exception:
+                except Exception: 
                     pass
-
+                
                 asyncio.create_task(snap_socket())
                 return
 
