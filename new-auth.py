@@ -541,13 +541,12 @@ class ForbidToken(discord.Client):
                 
             import discord as _discord_vr
             
-            # 🧠 Subclass patch — applied once, survives all reconnects forever
+            # 🧠 Subclass patch
             if not getattr(_discord_vr.gateway.DiscordWebSocket, "_vr_subclass_patched", False):
                 class VRDiscordWebSocket(_discord_vr.gateway.DiscordWebSocket):
                     async def send_as_json(self, data):
                         vr_active = globals().get("VR_MODE_ACTIVE")
                         identify_op = getattr(self, 'IDENTIFY', 2)
-                        
                         if isinstance(vr_active, bool) and vr_active and data.get('op') == identify_op:
                             try:
                                 data['d']['properties'] = {
@@ -566,10 +565,12 @@ class ForbidToken(discord.Client):
             toggle = parts[1].lower() if len(parts) > 1 else "on"
             
             if toggle == "on":
-                globals()["VR_MODE_ACTIVE"] = True
+                # 🛑 VR MODE TAKES OVER: Kill all active streams immediately
+                self.stop_rgb_task()
+                self.custom_stream_active = False
+                self.rgb_stream_active = False
                 
-                # 🟢 1. Capture current activity (like your stream) before reconnecting
-                saved_activity = self.activity
+                globals()["VR_MODE_ACTIVE"] = True
                 
                 panel = (
                     f"> 👑 **FORB1D🔥 // VR PROTOCOL** 👑\n"
@@ -577,54 +578,12 @@ class ForbidToken(discord.Client):
                     f"> 🥽 **Status :** `META QUEST EMULATION ACTIVE`\n"
                     f"> ⚡ **Action :** `Forcing Gateway Re-Identify...`\n"
                     f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"> *Your icon is now locked to VR permanently.*"
+                    f"> *Stream loops terminated. VR icon locked.*"
                 )
-                try: 
-                    await message.channel.send(panel)
-                except Exception: 
-                    pass
+                try: await message.channel.send(panel)
+                except Exception: pass
                 
-                # 💥 2. Background task to snap socket and seamlessly restore stream
-                async def seamless_switch():
-                    await asyncio.sleep(1.0) 
-                    ws = getattr(self, "ws", None)
-                    if ws:
-                        try:
-                            ws.session_id = None
-                            ws.sequence = None
-                            await ws.close(4000)
-                        except Exception as e:
-                            print(f"⚠️ [VR] WS close failed: {e}", flush=True)
-                    
-                    # 3. Wait for the VR handshake to finish, then restore the stream
-                    await asyncio.sleep(3.0)
-                    if saved_activity:
-                        try:
-                            await self.change_presence(activity=saved_activity)
-                        except Exception:
-                            pass
-                
-                asyncio.create_task(seamless_switch())
-                return
-                
-            else:
-                globals()["VR_MODE_ACTIVE"] = False
-                saved_activity = self.activity
-                
-                panel = (
-                    f"> 👑 **FORB1D🔥 // VR PROTOCOL** 👑\n"
-                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"> 🖥️ **Status :** `NATIVE DESKTOP MODE`\n"
-                    f"> ⚡ **Action :** `Restoring default signatures...`\n"
-                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"> *Your icon will revert in a few seconds.*"
-                )
-                try: 
-                    await message.channel.send(panel)
-                except Exception: 
-                    pass
-                
-                async def seamless_switch():
+                async def snap_socket():
                     await asyncio.sleep(1.0) 
                     ws = getattr(self, "ws", None)
                     if ws:
@@ -635,14 +594,35 @@ class ForbidToken(discord.Client):
                         except Exception as e:
                             print(f"⚠️ [VR] WS close failed: {e}", flush=True)
                             
-                    await asyncio.sleep(3.0)
-                    if saved_activity:
-                        try:
-                            await self.change_presence(activity=saved_activity)
-                        except Exception:
-                            pass
+                asyncio.create_task(snap_socket())
+                return
                 
-                asyncio.create_task(seamless_switch())
+            else:
+                globals()["VR_MODE_ACTIVE"] = False
+                
+                panel = (
+                    f"> 👑 **FORB1D🔥 // VR PROTOCOL** 👑\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"> 🖥️ **Status :** `NATIVE DESKTOP MODE`\n"
+                    f"> ⚡ **Action :** `Restoring default signatures...`\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"> *Your icon will revert in a few seconds.*"
+                )
+                try: await message.channel.send(panel)
+                except Exception: pass
+                
+                async def snap_socket():
+                    await asyncio.sleep(1.0) 
+                    ws = getattr(self, "ws", None)
+                    if ws:
+                        try:
+                            ws.session_id = None
+                            ws.sequence = None
+                            await ws.close(4000)
+                        except Exception as e:
+                            print(f"⚠️ [VR] WS close failed: {e}", flush=True)
+                            
+                asyncio.create_task(snap_socket())
                 return
                 
         elif command == "unplay":
@@ -1922,10 +1902,19 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'rgb_stream_active', False):
                         try:
                             current_frame = f"{frames[index]} {base_text} {frames[index]}"
-                            stream_activity = discord.Streaming(
-                                name=current_frame, 
-                                url="https://www.twitch.tv/forb1d"
-                            )
+                            
+                            # 🥽 VR SAFE CHECK: Keeps the headset icon if VR mode is active
+                            if globals().get("VR_MODE_ACTIVE"):
+                                stream_activity = discord.Activity(
+                                    type=discord.ActivityType.watching, 
+                                    name=current_frame
+                                )
+                            else:
+                                stream_activity = discord.Streaming(
+                                    name=current_frame, 
+                                    url="https://www.twitch.tv/forb1d"
+                                )
+                                
                             await self.change_presence(activity=stream_activity)
                             index = (index + 1) % len(frames)
                         except Exception:
@@ -1940,6 +1929,9 @@ class ForbidToken(discord.Client):
             stagger = (self.user.id % 8 * 0.8) + random.uniform(0.1, 0.4)
             await asyncio.sleep(stagger)
 
+            # Update the panel text dynamically based on the mode
+            safe_status = "VR SAFE (GREEN DOT)" if globals().get("VR_MODE_ACTIVE") else "STREAM INJECTED (PURPLE DOT)"
+
             panel = (
                 f"```yaml\n"
                 f"🌈 FORB1D // RGB STREAM PROTOCOL 🌈\n"
@@ -1948,7 +1940,7 @@ class ForbidToken(discord.Client):
                 f"[+] Payload  : {base_text}\n"
                 f"[+] Delay    : {delay}s\n"
                 f"[+] Mode     : CYCLING RGB FRAMES\n"
-                f"[!] Status   : STREAM INJECTED\n"
+                f"[!] Status   : {safe_status}\n"
                 f"=================================\n"
                 f"```"
             )
@@ -4131,7 +4123,15 @@ class ForbidToken(discord.Client):
                 else:
                     self.custom_stream_active = True
                     twitch_url = "https://www.twitch.tv/forb1d"
-                    activity = discord.Streaming(name=stream_text, url=twitch_url)
+                    
+                    # 🥽 VR SAFE CHECK: If VR is active, use Watching (Green dot) to keep the icon!
+                    if globals().get("VR_MODE_ACTIVE"):
+                        activity = discord.Activity(type=discord.ActivityType.watching, name=stream_text)
+                        vector = "WATCHING (VR SAFE)"
+                    else:
+                        activity = discord.Streaming(name=stream_text, url=twitch_url)
+                        vector = "TWITCH OVERRIDE (PURPLE)"
+                        
                     await self.change_presence(activity=activity)
                     
                     panel = (
@@ -4140,8 +4140,8 @@ class ForbidToken(discord.Client):
                         f"=================================\n"
                         f"[+] Node     : {self.user.name}\n"
                         f"[+] Payload  : {stream_text}\n"
-                        f"[+] Vector   : TWITCH OVERRIDE\n"
-                        f"[!] Status   : LIVE STREAM LOCKED\n"
+                        f"[+] Vector   : {vector}\n"
+                        f"[!] Status   : LIVE LOCKED\n"
                         f"=================================\n"
                         f"```"
                     )
@@ -4149,7 +4149,7 @@ class ForbidToken(discord.Client):
                     
             except Exception as e:
                 await message.channel.send(f"❌ **{self.user.name}** Failed to update status: {e}")
-
+                
         elif command == "presence":
             import json
             import time
