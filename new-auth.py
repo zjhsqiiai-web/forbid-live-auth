@@ -518,6 +518,98 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
+        elif command == "vrmode":
+            # 🛑 META QUEST VR HEADSET ICON SPOOFER
+            if message.author.id != MAIN_OWNER:
+                return
+            try:
+                await message.delete()
+            except Exception:
+                pass
+
+            import discord as _discord_vr
+
+            # 🧠 Subclass patch — applied once, survives all reconnects
+            if not getattr(_discord_vr.gateway.DiscordWebSocket, "_vr_subclass_patched", False):
+                class VRDiscordWebSocket(_discord_vr.gateway.DiscordWebSocket):
+                    async def send_as_json(self, data):
+                        vr_active = globals().get("VR_MODE_ACTIVE")
+                        identify_op = getattr(self, 'IDENTIFY', 2)
+
+                        if isinstance(vr_active, bool) and vr_active and data.get('op') == identify_op:
+                            try:
+                                data['d']['properties'] = {
+                                    'os': 'Android',
+                                    'browser': 'Discord Android',
+                                    'device': 'Oculus',
+                                    'system_os': 'Android'
+                                }
+                                print("🟢 [VR] IDENTIFY intercepted — Quest headers injected", flush=True)
+                            except (KeyError, TypeError):
+                                pass
+                        return await super().send_as_json(data)
+
+                _discord_vr.gateway.DiscordWebSocket.from_client = VRDiscordWebSocket.from_client
+                _discord_vr.gateway.DiscordWebSocket._vr_subclass_patched = True
+
+            parts = message.content.split()
+            toggle = parts[1].lower() if len(parts) > 1 else "on"
+
+            # 💥 Socket kill runs in background so the panel message sends cleanly first
+            async def snap_socket():
+                await asyncio.sleep(1.0)
+                ws = getattr(self, "ws", None)
+                if ws is None:
+                    return
+                try:
+                    ws.session_id = None
+                    ws.sequence = None
+                except Exception:
+                    pass
+                try:
+                    # 4000 is in discord.py-self's _can_handle_close whitelist → guaranteed reconnect.
+                    # Session wipe above forces the reconnect to fall through to IDENTIFY (not RESUME).
+                    await ws.close(4000)
+                except Exception as e:
+                    print(f"⚠️ [VR] WS close failed: {e}", flush=True)
+
+            if toggle == "on":
+                globals()["VR_MODE_ACTIVE"] = True
+
+                panel = (
+                    f"> 👑 **FORB1D🔥 // VR PROTOCOL** 👑\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"> 🥽 **Status :** `META QUEST EMULATION ACTIVE`\n"
+                    f"> ⚡ **Action :** `Forcing Gateway Re-Identify...`\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"> *Your icon will update in a few seconds.*"
+                )
+                try:
+                    await message.channel.send(panel)
+                except Exception:
+                    pass
+
+                asyncio.create_task(snap_socket())
+                return
+
+            else:
+                globals()["VR_MODE_ACTIVE"] = False
+
+                panel = (
+                    f"> 👑 **FORB1D🔥 // VR PROTOCOL** 👑\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"> 🖥️ **Status :** `NATIVE DESKTOP MODE`\n"
+                    f"> ⚡ **Action :** `Restoring default signatures...`\n"
+                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"> *Your icon will revert in a few seconds.*"
+                )
+                try:
+                    await message.channel.send(panel)
+                except Exception:
+                    pass
+
+                asyncio.create_task(snap_socket())
+                return
 
         elif command == "unplay":
             # 🛑 GLOBAL EMP: Instantly kills all active Arcade sessions across the swarm
@@ -539,100 +631,7 @@ class ForbidToken(discord.Client):
             except Exception: pass
             return
 
-        elif command == "vrmode":
-            # 🛑 META QUEST VR HEADSET ICON SPOOFER
-            if message.author.id != MAIN_OWNER:
-                return
-            try:
-                await message.delete()
-            except Exception:
-                pass
-                
-            import discord as _discord_vr
-            
-            # 🧠 Subclass patch — applied once, survives all reconnects
-            if not getattr(_discord_vr.gateway.DiscordWebSocket, "_vr_subclass_patched", False):
-                class VRDiscordWebSocket(_discord_vr.gateway.DiscordWebSocket):
-                    async def send_as_json(self, data):
-                        vr_active = globals().get("VR_MODE_ACTIVE")
-                        # Defensive: fallback to literal 2 if IDENTIFY constant is missing
-                        identify_op = getattr(self, 'IDENTIFY', 2)
-                        
-                        if isinstance(vr_active, bool) and vr_active and data.get('op') == identify_op:
-                            try:
-                                data['d']['properties'] = {
-                                    'os': 'Android',
-                                    'browser': 'Discord Android',
-                                    'device': 'Oculus',
-                                    'system_os': 'Android'
-                                }
-                            except (KeyError, TypeError):
-                                pass
-                        return await super().send_as_json(data)
-                        
-                _discord_vr.gateway.DiscordWebSocket.from_client = VRDiscordWebSocket.from_client
-                _discord_vr.gateway.DiscordWebSocket._vr_subclass_patched = True
-                
-            parts = message.content.split()
-            toggle = parts[1].lower() if len(parts) > 1 else "on"
-            
-            if toggle == "on":
-                globals()["VR_MODE_ACTIVE"] = True
-                status_msg = await message.channel.send(
-                    "> 🥽 **[VR OVERRIDE]** Forcing non-resumable reconnect..."
-                )
-                
-                # 🔒 Atomic socket capture — prevents race with library's own reconnect loop
-                ws = self.ws
-                if ws and not ws.closed:
-                    try:
-                        ws.session_id = None
-                        ws.sequence = None
-                    except Exception:
-                        pass
-                        
-                    try:
-                        await ws.close(4007)  # Invalid Seq → forced new IDENTIFY
-                    except Exception as e:
-                        print(f"⚠️ [VR] WS close failed: {e}", flush=True)
-                        
-                await asyncio.sleep(3.0)
-                try:
-                    await status_msg.edit(
-                        content="> 🥽 **[VR OVERRIDE]** Forced Re-Identify sent. VR Icon is ACTIVE."
-                    )
-                except Exception as e:
-                    print(f"⚠️ [VR] Status edit failed: {e}", flush=True)
-                return  # 🔒 Explicit return — prevents fall-through
-                
-            else:
-                globals()["VR_MODE_ACTIVE"] = False
-                status_msg = await message.channel.send(
-                    "> 🖥️ **[DESKTOP MODE]** Restoring native signatures..."
-                )
-                
-                ws = self.ws
-                if ws and not ws.closed:
-                    try:
-                        ws.session_id = None
-                        ws.sequence = None
-                    except Exception:
-                        pass
-                        
-                    try:
-                        await ws.close(4007)
-                    except Exception as e:
-                        print(f"⚠️ [VR] WS close failed: {e}", flush=True)
-                        
-                await asyncio.sleep(3.0)
-                try:
-                    await status_msg.edit(
-                        content="> 🖥️ **[DESKTOP MODE]** Headers restored. Reconnected natively."
-                    )
-                except Exception as e:
-                    print(f"⚠️ [VR] Status edit failed: {e}", flush=True)
-                return
-
+        
         elif command == "play":
             # 🛑 LEADER ELECTION
             active_swarm = globals().get("ACTIVE_SWARM", [])
