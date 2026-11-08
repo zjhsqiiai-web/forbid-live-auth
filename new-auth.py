@@ -218,10 +218,17 @@ class ForbidToken(discord.Client):
         
         while not self.is_closed():
             try:
-                # 🛑 If Swarm is locked, do absolutely nothing to stay completely off the radar
+                # 🛑 If Swarm is locked, ensure status is dead and sleep
                 if globals().get("SWARM_LOCKED"):
+                    if self._last_presence_type != "cleared":
+                        try:
+                            await self.change_presence(activity=None, status=discord.Status.online)
+                            self._last_presence_type = "cleared"
+                        except Exception: pass
                     await asyncio.sleep(120)
                     continue
+                    
+                # ... (rest of your loop stays the same)
                     
                 is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
                 
@@ -256,13 +263,12 @@ class ForbidToken(discord.Client):
             return
 
         # 🛑 THE ABSOLUTE GHOST GATE 🛑
-        # (This MUST go before GCNC, Spam, Slide, and Auto-React!)
         if globals().get("SWARM_LOCKED"):
-            # The ONLY thing allowed through the gate is the Master's unlock command
-            if message.content.lower().startswith(f"{PREFIX}unlock") and message.author.id == MAIN_OWNER:
-                pass # Let it pass through the engines to hit your unlock command below!
+            # Let BOTH lock and unlock pass so all 8 bots can update their states!
+            if command in ["unlock", "lock"] and message.author.id == MAIN_OWNER:
+                pass 
             else:
-                return # 💀 KILL SWITCH: Drops the message entirely. Total Swarm silence.
+                return
 
         
 
@@ -549,18 +555,19 @@ class ForbidToken(discord.Client):
             if message.author.id != MAIN_OWNER: return
             globals()["SWARM_LOCKED"] = True
             
-            # Immediately strip all Rich Presence so the bots go completely quiet
+            # ALL 8 BOTS instantly strip their Rich Presence
             try:
                 await self.change_presence(activity=None, status=discord.Status.online)
                 self._last_presence_type = "cleared"
             except Exception: pass
             
-            # Human jitter before deletion
-            await asyncio.sleep(0.8)
-            try: await message.delete()
-            except Exception: pass
-            
-            confirm = await message.channel.send("> 🔒 **[SWARM LOCKED]** Ghost Protocol active. All nodes dark and ignoring commands.", delete_after=4.0)
+            # LEADER ELECTION: Only the first bot deletes the message and sends the confirmation
+            active_swarm = globals().get("ACTIVE_SWARM", [])
+            if active_swarm and str(self.user.id) == str(active_swarm[0]):
+                await asyncio.sleep(0.8) # Human jitter
+                try: await message.delete()
+                except Exception: pass
+                await message.channel.send("> 🔒 **[SWARM LOCKED]** Ghost Protocol active. All nodes dark and streams killed.", delete_after=4.0)
             return
 
         elif command == "unlock":
@@ -568,12 +575,13 @@ class ForbidToken(discord.Client):
             if message.author.id != MAIN_OWNER: return
             globals()["SWARM_LOCKED"] = False
             
-            # Human jitter before deletion
-            await asyncio.sleep(0.8)
-            try: await message.delete()
-            except Exception: pass
-            
-            confirm = await message.channel.send("> 🔓 **[SWARM UNLOCKED]** Network restored. All nodes active.", delete_after=4.0)
+            # LEADER ELECTION: Only the first bot deletes the message and sends the confirmation
+            active_swarm = globals().get("ACTIVE_SWARM", [])
+            if active_swarm and str(self.user.id) == str(active_swarm[0]):
+                await asyncio.sleep(0.8) # Human jitter
+                try: await message.delete()
+                except Exception: pass
+                await message.channel.send("> 🔓 **[SWARM UNLOCKED]** Network restored. All nodes active.", delete_after=4.0)
             return
 
         elif command == "unplay":
