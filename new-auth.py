@@ -213,15 +213,8 @@ class ForbidToken(discord.Client):
         await self.wait_until_ready()
         while not self.is_closed():
             try:
-                vr_active = globals().get("VR_MODE_ACTIVE", False)
+                # 🟢 Checks BOTH custom_stream_active AND rgb_stream_active
                 is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
-                
-                # 🛑 HARD STOP: If VR is active, do nothing.
-                if vr_active:
-                    await asyncio.sleep(45)
-                    continue
-                
-                # Normal behavior for when VR is off
                 if not is_locked:
                     await self.change_presence(
                         status=discord.Status.online,
@@ -1890,19 +1883,28 @@ class ForbidToken(discord.Client):
             await panel_msg.edit(content=final_panel)
 
         elif command.startswith("rgbstream"):
+            # Usage: ^rgbstream TARGET LOCKED 6
             parts = message.content.split(" ")
+            
             base_text = "FORB1D🔥 OPS"
             delay = 6.0
             
             if len(parts) > 1:
                 try:
                     delay = float(parts[-1])
-                    if delay < 5.0: delay = 5.0
-                    if len(parts) > 2: base_text = " ".join(parts[1:-1])
+                    # PROTECT THE NODE: Hard-cap at 5.0s minimum so Discord doesn't gateway-kick the bot
+                    if delay < 5.0:
+                        delay = 5.0
+                    
+                    if len(parts) > 2:
+                        base_text = " ".join(parts[1:-1])
                 except ValueError:
                     base_text = " ".join(parts[1:])
             
+            # 🛑 1. Kill any existing RGB task first so loops NEVER stack
             self.stop_rgb_task()
+            
+            # 🟢 2. Lock out both custom stream and default immortal loop
             self.custom_stream_active = True
             self.rgb_stream_active = True
             
@@ -1913,14 +1915,11 @@ class ForbidToken(discord.Client):
                     while getattr(self, 'rgb_stream_active', False):
                         try:
                             current_frame = f"{frames[index]} {base_text} {frames[index]}"
-                            
-                            # 🥽 VR SAFE CHECK
-                            if globals().get("VR_MODE_ACTIVE"):
-                                act = discord.Activity(type=discord.ActivityType.watching, name=current_frame)
-                            else:
-                                act = discord.Streaming(name=current_frame, url="https://www.twitch.tv/forb1d")
-                                
-                            await self.change_presence(activity=act)
+                            stream_activity = discord.Streaming(
+                                name=current_frame, 
+                                url="https://www.twitch.tv/forb1d"
+                            )
+                            await self.change_presence(activity=stream_activity)
                             index = (index + 1) % len(frames)
                         except Exception:
                             pass
@@ -1928,11 +1927,26 @@ class ForbidToken(discord.Client):
                 except asyncio.CancelledError:
                     pass
 
+            # Store the task reference on the bot instance so stop_rgb_task() can cancel it
             self._rgb_task = asyncio.create_task(rgb_stream_loop())
             
-            safe_status = "VR SAFE (GREEN DOT)" if globals().get("VR_MODE_ACTIVE") else "STREAM INJECTED (PURPLE DOT)"
-            panel = f"```yaml\n🌈 FORB1D // RGB STREAM PROTOCOL 🌈\n=================================\n[+] Payload  : {base_text}\n[+] Delay    : {delay}s\n[!] Status   : {safe_status}\n=================================\n```"
+            stagger = (self.user.id % 8 * 0.8) + random.uniform(0.1, 0.4)
+            await asyncio.sleep(stagger)
+
+            panel = (
+                f"```yaml\n"
+                f"🌈 FORB1D // RGB STREAM PROTOCOL 🌈\n"
+                f"=================================\n"
+                f"[+] Node     : {self.user.name}\n"
+                f"[+] Payload  : {base_text}\n"
+                f"[+] Delay    : {delay}s\n"
+                f"[+] Mode     : CYCLING RGB FRAMES\n"
+                f"[!] Status   : STREAM INJECTED\n"
+                f"=================================\n"
+                f"```"
+            )
             await message.channel.send(panel)
+
 
         
         elif command == "unrgbstream" or command == "stoprgb":
@@ -1959,6 +1973,7 @@ class ForbidToken(discord.Client):
                 f"```"
             )
             await message.channel.send(panel)
+
 
         elif command == "loud":
             # Usage: ^loud @user OR ^loud <channel_id>
@@ -4081,10 +4096,16 @@ class ForbidToken(discord.Client):
                 await message.channel.leave()
                 
         elif command == "stream":
+            # Usage: ^stream <Text> | ^stream stop
             if len(parts) < 2:
-                return await message.channel.send(f"❌ Usage: `{PREFIX}stream <text>` or `{PREFIX}stream stop`")
+                await asyncio.sleep(self.user.id % 8 * 1.0)
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}stream <text>` or `{PREFIX}stream stop`")
 
             stream_text = " ".join(parts[1:])
+            stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
+            await asyncio.sleep(stagger)
+
+            # 🛑 Kill any running RGB loop first so it never clashes
             self.stop_rgb_task()
 
             try:
@@ -4092,27 +4113,39 @@ class ForbidToken(discord.Client):
                     self.custom_stream_active = False
                     await self.change_presence(activity=None)
                     
-                    panel = f"```yaml\n🟣 FORB1D // STREAM CONTROLLER 🟣\n=================================\n[+] Action   : TERMINATE STREAM\n[!] Status   : DEFAULT LOOP RESUMED\n=================================\n```"
+                    panel = (
+                        f"```yaml\n"
+                        f"🟣 FORB1D // STREAM CONTROLLER 🟣\n"
+                        f"=================================\n"
+                        f"[+] Node     : {self.user.name}\n"
+                        f"[+] Action   : TERMINATE STREAM\n"
+                        f"[!] Status   : DEFAULT LOOP RESUMED\n"
+                        f"=================================\n"
+                        f"```"
+                    )
                     await message.channel.send(panel)
                 else:
                     self.custom_stream_active = True
-                    
-                    # 🥽 VR SAFE CHECK
-                    if globals().get("VR_MODE_ACTIVE"):
-                        activity = discord.Activity(type=discord.ActivityType.watching, name=stream_text)
-                        vector = "WATCHING (VR SAFE)"
-                    else:
-                        activity = discord.Streaming(name=stream_text, url="https://www.twitch.tv/forb1d")
-                        vector = "TWITCH OVERRIDE (PURPLE)"
-                        
+                    twitch_url = "https://www.twitch.tv/forb1d"
+                    activity = discord.Streaming(name=stream_text, url=twitch_url)
                     await self.change_presence(activity=activity)
                     
-                    panel = f"```yaml\n🟣 FORB1D // STREAM CONTROLLER 🟣\n=================================\n[+] Payload  : {stream_text}\n[+] Vector   : {vector}\n[!] Status   : LIVE LOCKED\n=================================\n```"
+                    panel = (
+                        f"```yaml\n"
+                        f"🟣 FORB1D // STREAM CONTROLLER 🟣\n"
+                        f"=================================\n"
+                        f"[+] Node     : {self.user.name}\n"
+                        f"[+] Payload  : {stream_text}\n"
+                        f"[+] Vector   : TWITCH OVERRIDE\n"
+                        f"[!] Status   : LIVE STREAM LOCKED\n"
+                        f"=================================\n"
+                        f"```"
+                    )
                     await message.channel.send(panel)
                     
             except Exception as e:
-                await message.channel.send(f"❌ Failed: {e}")
-                
+                await message.channel.send(f"❌ **{self.user.name}** Failed to update status: {e}")
+
         elif command == "presence":
             import json
             import time
