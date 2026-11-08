@@ -529,7 +529,7 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
-                    
+
         elif command == "vrmode":
             # 🛑 META QUEST VR HEADSET ICON SPOOFER
             if message.author.id != MAIN_OWNER:
@@ -569,7 +569,6 @@ class ForbidToken(discord.Client):
                 self.stop_rgb_task()
                 self.custom_stream_active = False
                 self.rgb_stream_active = False
-                
                 globals()["VR_MODE_ACTIVE"] = True
                 
                 panel = (
@@ -583,7 +582,7 @@ class ForbidToken(discord.Client):
                 try: await message.channel.send(panel)
                 except Exception: pass
                 
-                async def snap_socket():
+                async def snap_socket_and_force_vr():
                     await asyncio.sleep(1.0) 
                     ws = getattr(self, "ws", None)
                     if ws:
@@ -591,10 +590,21 @@ class ForbidToken(discord.Client):
                             ws.session_id = None
                             ws.sequence = None
                             await ws.close(4000)
-                        except Exception as e:
-                            print(f"⚠️ [VR] WS close failed: {e}", flush=True)
+                        except Exception:
+                            pass
+                    
+                    # 🟢 CRITICAL FIX: Wait for reconnect, then FORCE the presence immediately
+                    await asyncio.sleep(3.5)
+                    try:
+                        await self.change_presence(
+                            status=discord.Status.online,
+                            afk=False,
+                            activity=discord.Activity(type=discord.ActivityType.watching, name="FORB1D NETWORK // VR")
+                        )
+                    except Exception:
+                        pass
                             
-                asyncio.create_task(snap_socket())
+                asyncio.create_task(snap_socket_and_force_vr())
                 return
                 
             else:
@@ -606,12 +616,12 @@ class ForbidToken(discord.Client):
                     f"> 🖥️ **Status :** `NATIVE DESKTOP MODE`\n"
                     f"> ⚡ **Action :** `Restoring default signatures...`\n"
                     f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"> *Your icon will revert in a few seconds.*"
+                    f"> *VR icon permanently disabled.*"
                 )
                 try: await message.channel.send(panel)
                 except Exception: pass
                 
-                async def snap_socket():
+                async def snap_socket_and_force_desktop():
                     await asyncio.sleep(1.0) 
                     ws = getattr(self, "ws", None)
                     if ws:
@@ -619,10 +629,21 @@ class ForbidToken(discord.Client):
                             ws.session_id = None
                             ws.sequence = None
                             await ws.close(4000)
-                        except Exception as e:
-                            print(f"⚠️ [VR] WS close failed: {e}", flush=True)
+                        except Exception:
+                            pass
                             
-                asyncio.create_task(snap_socket())
+                    # Wait for reconnect, then restore the default purple stream
+                    await asyncio.sleep(3.5)
+                    try:
+                        await self.change_presence(
+                            status=discord.Status.online,
+                            afk=False,
+                            activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
+                        )
+                    except Exception:
+                        pass
+                            
+                asyncio.create_task(snap_socket_and_force_desktop())
                 return
                 
         elif command == "unplay":
@@ -1870,28 +1891,19 @@ class ForbidToken(discord.Client):
             await panel_msg.edit(content=final_panel)
 
         elif command.startswith("rgbstream"):
-            # Usage: ^rgbstream TARGET LOCKED 6
             parts = message.content.split(" ")
-            
             base_text = "FORB1D🔥 OPS"
             delay = 6.0
             
             if len(parts) > 1:
                 try:
                     delay = float(parts[-1])
-                    # PROTECT THE NODE: Hard-cap at 5.0s minimum so Discord doesn't gateway-kick the bot
-                    if delay < 5.0:
-                        delay = 5.0
-                    
-                    if len(parts) > 2:
-                        base_text = " ".join(parts[1:-1])
+                    if delay < 5.0: delay = 5.0
+                    if len(parts) > 2: base_text = " ".join(parts[1:-1])
                 except ValueError:
                     base_text = " ".join(parts[1:])
             
-            # 🛑 1. Kill any existing RGB task first so loops NEVER stack
             self.stop_rgb_task()
-            
-            # 🟢 2. Lock out both custom stream and default immortal loop
             self.custom_stream_active = True
             self.rgb_stream_active = True
             
@@ -1903,19 +1915,12 @@ class ForbidToken(discord.Client):
                         try:
                             current_frame = f"{frames[index]} {base_text} {frames[index]}"
                             
-                            # 🥽 VR SAFE CHECK: Keeps the headset icon if VR mode is active
                             if globals().get("VR_MODE_ACTIVE"):
-                                stream_activity = discord.Activity(
-                                    type=discord.ActivityType.watching, 
-                                    name=current_frame
-                                )
+                                act = discord.Activity(type=discord.ActivityType.watching, name=current_frame)
                             else:
-                                stream_activity = discord.Streaming(
-                                    name=current_frame, 
-                                    url="https://www.twitch.tv/forb1d"
-                                )
+                                act = discord.Streaming(name=current_frame, url="https://www.twitch.tv/forb1d")
                                 
-                            await self.change_presence(activity=stream_activity)
+                            await self.change_presence(activity=act)
                             index = (index + 1) % len(frames)
                         except Exception:
                             pass
@@ -1923,23 +1928,19 @@ class ForbidToken(discord.Client):
                 except asyncio.CancelledError:
                     pass
 
-            # Store the task reference on the bot instance so stop_rgb_task() can cancel it
             self._rgb_task = asyncio.create_task(rgb_stream_loop())
             
             stagger = (self.user.id % 8 * 0.8) + random.uniform(0.1, 0.4)
             await asyncio.sleep(stagger)
 
-            # Update the panel text dynamically based on the mode
             safe_status = "VR SAFE (GREEN DOT)" if globals().get("VR_MODE_ACTIVE") else "STREAM INJECTED (PURPLE DOT)"
 
             panel = (
                 f"```yaml\n"
                 f"🌈 FORB1D // RGB STREAM PROTOCOL 🌈\n"
                 f"=================================\n"
-                f"[+] Node     : {self.user.name}\n"
                 f"[+] Payload  : {base_text}\n"
                 f"[+] Delay    : {delay}s\n"
-                f"[+] Mode     : CYCLING RGB FRAMES\n"
                 f"[!] Status   : {safe_status}\n"
                 f"=================================\n"
                 f"```"
@@ -4092,7 +4093,6 @@ class ForbidToken(discord.Client):
                 await message.channel.leave()
                 
         elif command == "stream":
-            # Usage: ^stream <Text> | ^stream stop
             if len(parts) < 2:
                 await asyncio.sleep(self.user.id % 8 * 1.0)
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}stream <text>` or `{PREFIX}stream stop`")
@@ -4101,7 +4101,6 @@ class ForbidToken(discord.Client):
             stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
             await asyncio.sleep(stagger)
 
-            # 🛑 Kill any running RGB loop first so it never clashes
             self.stop_rgb_task()
 
             try:
@@ -4113,7 +4112,6 @@ class ForbidToken(discord.Client):
                         f"```yaml\n"
                         f"🟣 FORB1D // STREAM CONTROLLER 🟣\n"
                         f"=================================\n"
-                        f"[+] Node     : {self.user.name}\n"
                         f"[+] Action   : TERMINATE STREAM\n"
                         f"[!] Status   : DEFAULT LOOP RESUMED\n"
                         f"=================================\n"
@@ -4122,14 +4120,12 @@ class ForbidToken(discord.Client):
                     await message.channel.send(panel)
                 else:
                     self.custom_stream_active = True
-                    twitch_url = "https://www.twitch.tv/forb1d"
                     
-                    # 🥽 VR SAFE CHECK: If VR is active, use Watching (Green dot) to keep the icon!
                     if globals().get("VR_MODE_ACTIVE"):
                         activity = discord.Activity(type=discord.ActivityType.watching, name=stream_text)
                         vector = "WATCHING (VR SAFE)"
                     else:
-                        activity = discord.Streaming(name=stream_text, url=twitch_url)
+                        activity = discord.Streaming(name=stream_text, url="https://www.twitch.tv/forb1d")
                         vector = "TWITCH OVERRIDE (PURPLE)"
                         
                     await self.change_presence(activity=activity)
@@ -4138,7 +4134,6 @@ class ForbidToken(discord.Client):
                         f"```yaml\n"
                         f"🟣 FORB1D // STREAM CONTROLLER 🟣\n"
                         f"=================================\n"
-                        f"[+] Node     : {self.user.name}\n"
                         f"[+] Payload  : {stream_text}\n"
                         f"[+] Vector   : {vector}\n"
                         f"[!] Status   : LIVE LOCKED\n"
