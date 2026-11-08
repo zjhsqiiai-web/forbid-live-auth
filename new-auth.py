@@ -262,15 +262,18 @@ class ForbidToken(discord.Client):
         if message.author == self.user:
             return
 
-        # 🛑 THE ABSOLUTE GHOST GATE 🛑
-        if globals().get("SWARM_LOCKED"):
-            # Let BOTH lock and unlock pass so all 8 bots can update their states!
-            if command in ["unlock", "lock"] and message.author.id == MAIN_OWNER:
-                pass 
-            else:
-                return
+        # 2. Extract the command FIRST so the Ghost Gate knows what it is reading
+        command = ""
+        if message.content.startswith(PREFIX):
+            command = message.content.split()[0][len(PREFIX):].lower()
 
-        
+        # 🛑 THE ABSOLUTE GHOST GATE 🛑
+        # (This MUST go before GCNC, Spam, Slide, and Auto-React!)
+        if globals().get("SWARM_LOCKED"):
+            if command in ["unlock", "lock"] and message.author.id == MAIN_OWNER:
+                pass # Let the Master wake/sleep the swarm!
+            else:
+                return # 💀 KILL SWITCH: Drops EVERYTHING else. Total Swarm silence.
 
         # =========================================================
         # ⚡ ATOMIC SMART GCNC MIRROR ENGINE (ZERO LAG / NO LOOPS) ⚡
