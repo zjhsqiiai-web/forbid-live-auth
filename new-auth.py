@@ -215,12 +215,23 @@ class ForbidToken(discord.Client):
             try:
                 # 🟢 Checks BOTH custom_stream_active AND rgb_stream_active
                 is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
+                vr_active = globals().get("VR_MODE_ACTIVE", False)
+                
                 if not is_locked:
-                    await self.change_presence(
-                        status=discord.Status.online,
-                        afk=False,
-                        activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
-                    )
+                    if vr_active:
+                        # 🥽 VR MODE SAFE PRESENCE: Uses 'Watching' so the dot stays Green and the VR Icon shows!
+                        await self.change_presence(
+                            status=discord.Status.online,
+                            afk=False,
+                            activity=discord.Activity(type=discord.ActivityType.watching, name="FORB1D NETWORK // VR")
+                        )
+                    else:
+                        # 🟣 NATIVE PRESENCE: Twitch Streaming (Purple dot hides device icons)
+                        await self.change_presence(
+                            status=discord.Status.online,
+                            afk=False,
+                            activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
+                        )
             except Exception:
                 pass
             await asyncio.sleep(45)
