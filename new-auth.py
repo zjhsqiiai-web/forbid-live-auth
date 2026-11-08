@@ -541,7 +541,7 @@ class ForbidToken(discord.Client):
                 
             import discord as _discord_vr
             
-            # 🧠 Subclass patch — applied once, survives all reconnects
+            # 🧠 Subclass patch — applied once, survives all reconnects forever
             if not getattr(_discord_vr.gateway.DiscordWebSocket, "_vr_subclass_patched", False):
                 class VRDiscordWebSocket(_discord_vr.gateway.DiscordWebSocket):
                     async def send_as_json(self, data):
@@ -550,13 +550,11 @@ class ForbidToken(discord.Client):
                         
                         if isinstance(vr_active, bool) and vr_active and data.get('op') == identify_op:
                             try:
-                                # 🔑 CRITICAL FIX: Use $-prefixed keys for Discord to recognize them
                                 data['d']['properties'] = {
                                     '$os': 'android',
                                     '$browser': 'Discord VR',
                                     '$device': 'Oculus Quest'
                                 }
-                                print("🟢 [VR] IDENTIFY intercepted — Quest headers injected", flush=True)
                             except (KeyError, TypeError):
                                 pass
                         return await super().send_as_json(data)
@@ -567,22 +565,11 @@ class ForbidToken(discord.Client):
             parts = message.content.split()
             toggle = parts[1].lower() if len(parts) > 1 else "on"
             
-            # 💥 Background task to snap the socket safely
-            async def snap_socket():
-                await asyncio.sleep(1.0) 
-                ws = getattr(self, "ws", None)
-                if ws:
-                    try:
-                        # Wipe session credentials to force a new IDENTIFY on reconnect
-                        ws.session_id = None
-                        ws.sequence = None
-                        # 4000 triggers auto-reconnect in discord.py-self
-                        await ws.close(4000)
-                    except Exception as e:
-                        print(f"⚠️ [VR] WS close failed: {e}", flush=True)
-
             if toggle == "on":
                 globals()["VR_MODE_ACTIVE"] = True
+                
+                # 🟢 1. Capture current activity (like your stream) before reconnecting
+                saved_activity = self.activity
                 
                 panel = (
                     f"> 👑 **FORB1D🔥 // VR PROTOCOL** 👑\n"
@@ -590,18 +577,39 @@ class ForbidToken(discord.Client):
                     f"> 🥽 **Status :** `META QUEST EMULATION ACTIVE`\n"
                     f"> ⚡ **Action :** `Forcing Gateway Re-Identify...`\n"
                     f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"> *Your icon will update to the VR Headset in a few seconds.*"
+                    f"> *Your icon is now locked to VR permanently.*"
                 )
                 try: 
                     await message.channel.send(panel)
                 except Exception: 
                     pass
                 
-                asyncio.create_task(snap_socket())
+                # 💥 2. Background task to snap socket and seamlessly restore stream
+                async def seamless_switch():
+                    await asyncio.sleep(1.0) 
+                    ws = getattr(self, "ws", None)
+                    if ws:
+                        try:
+                            ws.session_id = None
+                            ws.sequence = None
+                            await ws.close(4000)
+                        except Exception as e:
+                            print(f"⚠️ [VR] WS close failed: {e}", flush=True)
+                    
+                    # 3. Wait for the VR handshake to finish, then restore the stream
+                    await asyncio.sleep(3.0)
+                    if saved_activity:
+                        try:
+                            await self.change_presence(activity=saved_activity)
+                        except Exception:
+                            pass
+                
+                asyncio.create_task(seamless_switch())
                 return
                 
             else:
                 globals()["VR_MODE_ACTIVE"] = False
+                saved_activity = self.activity
                 
                 panel = (
                     f"> 👑 **FORB1D🔥 // VR PROTOCOL** 👑\n"
@@ -616,7 +624,25 @@ class ForbidToken(discord.Client):
                 except Exception: 
                     pass
                 
-                asyncio.create_task(snap_socket())
+                async def seamless_switch():
+                    await asyncio.sleep(1.0) 
+                    ws = getattr(self, "ws", None)
+                    if ws:
+                        try:
+                            ws.session_id = None
+                            ws.sequence = None
+                            await ws.close(4000)
+                        except Exception as e:
+                            print(f"⚠️ [VR] WS close failed: {e}", flush=True)
+                            
+                    await asyncio.sleep(3.0)
+                    if saved_activity:
+                        try:
+                            await self.change_presence(activity=saved_activity)
+                        except Exception:
+                            pass
+                
+                asyncio.create_task(seamless_switch())
                 return
                 
         elif command == "unplay":
