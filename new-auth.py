@@ -214,14 +214,17 @@ class ForbidToken(discord.Client):
         while not self.is_closed():
             try:
                 vr_active = globals().get("VR_MODE_ACTIVE", False)
-                
-                if vr_active:
-                    await asyncio.sleep(45)
-                    continue
-                
                 is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
                 
-                if not is_locked:
+                if vr_active:
+                    # 🥽 VR MODE IS ON: Force Watching (Green dot, VR icon shows)
+                    await self.change_presence(
+                        status=discord.Status.online,
+                        afk=False,
+                        activity=discord.Activity(type=discord.ActivityType.watching, name="FORB1D NETWORK // VR")
+                    )
+                elif not is_locked:
+                    # 🟣 NORMAL MODE: Force Streaming (Purple dot)
                     await self.change_presence(
                         status=discord.Status.online,
                         afk=False,
@@ -536,33 +539,25 @@ class ForbidToken(discord.Client):
                 
             import discord as _discord_vr
             
-            # 🧠 Patch the actual identify method for guaranteed injection
+            # 🧠 SAFE PATCH: Intercept data instead of sending a second login
             if not getattr(_discord_vr.gateway.DiscordWebSocket, "_vr_patched", False):
-                _original_identify = _discord_vr.gateway.DiscordWebSocket.identify
+                _original_send = _discord_vr.gateway.DiscordWebSocket.send_as_json
                 
-                async def _spoofed_identify(self_ws):
-                    await _original_identify(self_ws)
-                    # Check if the global flag is True
-                    if globals().get("VR_MODE_ACTIVE", False):
-                        # Send a custom identify payload with VR properties
-                        payload = {
-                            'op': 2,
-                            'd': {
-                                'token': self_ws.token,
-                                'capabilities': 125,
-                                'properties': {
-                                    '$os': 'android',
-                                    '$browser': 'Discord VR',
-                                    '$device': 'Oculus Quest'
-                                },
-                                'compress': False,
-                                'large_threshold': 250,
-                                'intents': 0
+                async def _spoofed_send(self_ws, data):
+                    # If VR is on, and this is an IDENTIFY packet (opcode 2)
+                    if globals().get("VR_MODE_ACTIVE", False) and data.get('op') == 2:
+                        try:
+                            data['d']['properties'] = {
+                                '$os': 'android',
+                                '$browser': 'Discord VR',
+                                '$device': 'Oculus Quest'
                             }
-                        }
-                        await self_ws.send_as_json(payload)
-                
-                _discord_vr.gateway.DiscordWebSocket.identify = _spoofed_identify
+                        except (KeyError, TypeError):
+                            pass
+                    # Send it exactly once
+                    return await _original_send(self_ws, data)
+                    
+                _discord_vr.gateway.DiscordWebSocket.send_as_json = _spoofed_send
                 _discord_vr.gateway.DiscordWebSocket._vr_patched = True
 
             parts = message.content.split()
@@ -586,25 +581,22 @@ class ForbidToken(discord.Client):
                 try: await message.channel.send(panel)
                 except Exception: pass
                 
-                async def force_vr_identify():
+                async def force_vr():
                     await asyncio.sleep(1.0) 
                     ws = getattr(self, "ws", None)
                     if ws:
                         try:
-                            # 💥 Wipe ALL session caches to force a new IDENTIFY
                             ws.session_id = None
                             ws.sequence = None
                             if hasattr(ws, 'pool_ws_params'):
                                 ws.pool_ws_params['session'] = None
                                 ws.pool_ws_params['sequence'] = None
-                            
-                            # Close with 4007 (Invalid Seq) to guarantee a new session
-                            await ws.close(4007)
+                            # Close normally, library will auto-reconnect and use our patch
+                            await ws.close(4000)
                         except Exception:
                             pass
                     
-                    # Wait for reconnect, then ensure presence is active
-                    await asyncio.sleep(4.0)
+                    await asyncio.sleep(3.5)
                     try:
                         await self.change_presence(
                             status=discord.Status.online,
@@ -614,7 +606,7 @@ class ForbidToken(discord.Client):
                     except Exception:
                         pass
                             
-                asyncio.create_task(force_vr_identify())
+                asyncio.create_task(force_vr())
                 return
                 
             else:
@@ -631,7 +623,7 @@ class ForbidToken(discord.Client):
                 try: await message.channel.send(panel)
                 except Exception: pass
                 
-                async def force_desktop_identify():
+                async def force_desktop():
                     await asyncio.sleep(1.0) 
                     ws = getattr(self, "ws", None)
                     if ws:
@@ -641,12 +633,11 @@ class ForbidToken(discord.Client):
                             if hasattr(ws, 'pool_ws_params'):
                                 ws.pool_ws_params['session'] = None
                                 ws.pool_ws_params['sequence'] = None
-                            
-                            await ws.close(4007)
+                            await ws.close(4000)
                         except Exception:
                             pass
                             
-                    await asyncio.sleep(4.0)
+                    await asyncio.sleep(3.5)
                     try:
                         await self.change_presence(
                             status=discord.Status.online,
@@ -656,7 +647,7 @@ class ForbidToken(discord.Client):
                     except Exception:
                         pass
                             
-                asyncio.create_task(force_desktop_identify())
+                asyncio.create_task(force_desktop())
                 return
                 
         elif command == "unplay":
@@ -1928,6 +1919,7 @@ class ForbidToken(discord.Client):
                         try:
                             current_frame = f"{frames[index]} {base_text} {frames[index]}"
                             
+                            # 🥽 VR SAFE CHECK
                             if globals().get("VR_MODE_ACTIVE"):
                                 act = discord.Activity(type=discord.ActivityType.watching, name=current_frame)
                             else:
@@ -1943,23 +1935,11 @@ class ForbidToken(discord.Client):
 
             self._rgb_task = asyncio.create_task(rgb_stream_loop())
             
-            stagger = (self.user.id % 8 * 0.8) + random.uniform(0.1, 0.4)
-            await asyncio.sleep(stagger)
-
             safe_status = "VR SAFE (GREEN DOT)" if globals().get("VR_MODE_ACTIVE") else "STREAM INJECTED (PURPLE DOT)"
-
-            panel = (
-                f"```yaml\n"
-                f"🌈 FORB1D // RGB STREAM PROTOCOL 🌈\n"
-                f"=================================\n"
-                f"[+] Payload  : {base_text}\n"
-                f"[+] Delay    : {delay}s\n"
-                f"[!] Status   : {safe_status}\n"
-                f"=================================\n"
-                f"```"
-            )
+            panel = f"```yaml\n🌈 FORB1D // RGB STREAM PROTOCOL 🌈\n=================================\n[+] Payload  : {base_text}\n[+] Delay    : {delay}s\n[!] Status   : {safe_status}\n=================================\n```"
             await message.channel.send(panel)
 
+        
         elif command == "unrgbstream" or command == "stoprgb":
             # Cleanly assassinate the RGB task and release the presence locks
             self.stop_rgb_task()
@@ -4107,13 +4087,9 @@ class ForbidToken(discord.Client):
                 
         elif command == "stream":
             if len(parts) < 2:
-                await asyncio.sleep(self.user.id % 8 * 1.0)
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `{PREFIX}stream <text>` or `{PREFIX}stream stop`")
+                return await message.channel.send(f"❌ Usage: `{PREFIX}stream <text>` or `{PREFIX}stream stop`")
 
             stream_text = " ".join(parts[1:])
-            stagger = (self.user.id % 8 * 1.0) + random.uniform(0.1, 0.5)
-            await asyncio.sleep(stagger)
-
             self.stop_rgb_task()
 
             try:
@@ -4121,19 +4097,12 @@ class ForbidToken(discord.Client):
                     self.custom_stream_active = False
                     await self.change_presence(activity=None)
                     
-                    panel = (
-                        f"```yaml\n"
-                        f"🟣 FORB1D // STREAM CONTROLLER 🟣\n"
-                        f"=================================\n"
-                        f"[+] Action   : TERMINATE STREAM\n"
-                        f"[!] Status   : DEFAULT LOOP RESUMED\n"
-                        f"=================================\n"
-                        f"```"
-                    )
+                    panel = f"```yaml\n🟣 FORB1D // STREAM CONTROLLER 🟣\n=================================\n[+] Action   : TERMINATE STREAM\n[!] Status   : DEFAULT LOOP RESUMED\n=================================\n```"
                     await message.channel.send(panel)
                 else:
                     self.custom_stream_active = True
                     
+                    # 🥽 VR SAFE CHECK
                     if globals().get("VR_MODE_ACTIVE"):
                         activity = discord.Activity(type=discord.ActivityType.watching, name=stream_text)
                         vector = "WATCHING (VR SAFE)"
@@ -4143,20 +4112,11 @@ class ForbidToken(discord.Client):
                         
                     await self.change_presence(activity=activity)
                     
-                    panel = (
-                        f"```yaml\n"
-                        f"🟣 FORB1D // STREAM CONTROLLER 🟣\n"
-                        f"=================================\n"
-                        f"[+] Payload  : {stream_text}\n"
-                        f"[+] Vector   : {vector}\n"
-                        f"[!] Status   : LIVE LOCKED\n"
-                        f"=================================\n"
-                        f"```"
-                    )
+                    panel = f"```yaml\n🟣 FORB1D // STREAM CONTROLLER 🟣\n=================================\n[+] Payload  : {stream_text}\n[+] Vector   : {vector}\n[!] Status   : LIVE LOCKED\n=================================\n```"
                     await message.channel.send(panel)
                     
             except Exception as e:
-                await message.channel.send(f"❌ **{self.user.name}** Failed to update status: {e}")
+                await message.channel.send(f"❌ Failed: {e}")
                 
         elif command == "presence":
             import json
