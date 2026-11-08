@@ -210,28 +210,26 @@ class ForbidToken(discord.Client):
         self._rgb_task = None
 
     async def immortal_presence_loop(self):
-    await self.wait_until_ready()
-    while not self.is_closed():
-        try:
-            vr_active = globals().get("VR_MODE_ACTIVE", False)
-            
-            # 🛑 HARD STOP: If VR is active, do absolutely nothing.
-            # Let the vrmode command handle the presence entirely.
-            if vr_active:
-                await asyncio.sleep(45)
-                continue
-            
-            is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
-            
-            if not is_locked:
-                await self.change_presence(
-                    status=discord.Status.online,
-                    afk=False,
-                    activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
-                )
-        except Exception:
-            pass
-        await asyncio.sleep(45)
+        await self.wait_until_ready()
+        while not self.is_closed():
+            try:
+                vr_active = globals().get("VR_MODE_ACTIVE", False)
+                
+                if vr_active:
+                    await asyncio.sleep(45)
+                    continue
+                
+                is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
+                
+                if not is_locked:
+                    await self.change_presence(
+                        status=discord.Status.online,
+                        afk=False,
+                        activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
+                    )
+            except Exception:
+                pass
+            await asyncio.sleep(45)
 
     # 🛑 ADD THIS RIGHT UNDER ON_READY
     async def on_disconnect(self):
