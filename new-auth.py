@@ -519,6 +519,531 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "unplay":
+            # 🛑 GLOBAL EMP: Instantly kills all active Arcade sessions across the swarm
+            if message.author.id != MAIN_OWNER: 
+                return
+                
+            globals()["ARCADE_KILL_SWITCH"] = True
+            
+            try: await message.delete()
+            except Exception: pass
+            
+            override_msg = await message.channel.send("> 🛑 **[SWARM OVERRIDE]** Transmitting EMP kill signal to all Arcade nodes...")
+            await asyncio.sleep(2.0)
+            
+            # Reset the flag so you can use ^play again later
+            globals()["ARCADE_KILL_SWITCH"] = False
+            
+            try: await override_msg.delete()
+            except Exception: pass
+            return
+
+        
+        elif command == "play":
+            # 🛑 LEADER ELECTION
+            active_swarm = globals().get("ACTIVE_SWARM", [])
+            if active_swarm and str(self.user.id) != str(active_swarm[0]):
+                return
+            
+            import random as _arcade_rng_play 
+            import discord as _arcade_discord
+            
+            # Reset the kill switch on fresh boot
+            globals()["ARCADE_KILL_SWITCH"] = False
+            
+            # --- 🛡️ FAULT-TOLERANT UI MANAGERS ---
+            async def safe_edit(msg, content):
+                try: await msg.edit(content=content)
+                except Exception: pass
+
+            async def enforce_reaction_layout(msg, expected_emojis):
+                for attempt in range(3):
+                    if globals().get("ARCADE_KILL_SWITCH"): return
+                    try: fresh_msg = await msg.channel.fetch_message(msg.id)
+                    except Exception: fresh_msg = msg
+                        
+                    current_emojis = [str(r.emoji) for r in fresh_msg.reactions]
+                    if current_emojis == expected_emojis: return 
+                        
+                    match_idx = 0
+                    while match_idx < min(len(current_emojis), len(expected_emojis)):
+                        if current_emojis[match_idx] != expected_emojis[match_idx]: break
+                        match_idx += 1
+                        
+                    if match_idx < len(current_emojis):
+                        for bad_emoji in current_emojis[match_idx:]:
+                            try:
+                                await fresh_msg.clear_reaction(bad_emoji)
+                                await asyncio.sleep(0.3)
+                            except _arcade_discord.Forbidden:
+                                try: await fresh_msg.remove_reaction(bad_emoji, self.user)
+                                except Exception: pass
+                                await asyncio.sleep(0.3)
+                            except Exception: pass
+                                
+                    for e in expected_emojis[match_idx:]:
+                        retry = 0
+                        while retry < 4:
+                            if globals().get("ARCADE_KILL_SWITCH"): return
+                            try:
+                                await fresh_msg.add_reaction(e)
+                                await asyncio.sleep(0.4) 
+                                break
+                            except _arcade_discord.HTTPException as err:
+                                if getattr(err, 'status', 0) == 429:
+                                    await asyncio.sleep(1.5 + retry) 
+                                    retry += 1
+                                else: break
+                            except Exception: break
+
+            async def remove_reactions_safely(msg, emojis, target_usr):
+                for e in emojis:
+                    try:
+                        await msg.remove_reaction(e, target_usr)
+                        await asyncio.sleep(0.25)
+                    except Exception: pass
+
+            async def flush_stale_events(msg, emojis):
+                def chk(p): return p.message_id == msg.id and p.emoji and str(p.emoji.name) in emojis
+                for event_type in ['raw_reaction_add', 'raw_reaction_remove']:
+                    while True:
+                        try: await asyncio.wait_for(self.wait_for(event_type, check=chk), timeout=0.05)
+                        except asyncio.TimeoutError: break
+
+            menu_panel = (
+                f"> 👑 **FORB1D🔥 // SUPREME ARCADE ENGINE**\n"
+                f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"> 🐍 **[1]** `NEURAL WORM` (Snake)\n"
+                f"> 🏍️ **[2]** `TRON CYCLE` (Survival)\n"
+                f"> ☄️ **[3]** `METEOR DODGE` (Reaction)\n"
+                f"> 🧮 **[4]** `MATH BLASTER` (IQ Test)\n"
+                f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"> 💡 *Tip: Anyone can tap to boot!*"
+            )
+            
+            try: panel = await message.channel.send(menu_panel)
+            except Exception: return 
+                
+            menu_controls = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '❌']
+            
+            arcade_active = True
+            
+            # ♾️ THE CONTINUOUS DASHBOARD LOOP
+            while arcade_active:
+                if globals().get("ARCADE_KILL_SWITCH"): break
+                
+                await safe_edit(panel, menu_panel)
+                await enforce_reaction_layout(panel, menu_controls)
+                
+                if globals().get("ARCADE_KILL_SWITCH"): break
+                    
+                def check_menu(payload):
+                    if not payload.emoji or not payload.emoji.name: return False
+                    return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in menu_controls
+                    
+                try:
+                    m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_menu))
+                    m_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_menu))
+                    
+                    # Kill Switch Monitor Loop
+                    done = None
+                    while not globals().get("ARCADE_KILL_SWITCH"):
+                        done_chk, pending = await asyncio.wait([m_add, m_rem], timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+                        if done_chk:
+                            done = done_chk
+                            break
+                            
+                    for t in [m_add, m_rem]: t.cancel()
+                    await asyncio.gather(m_add, m_rem, return_exceptions=True) 
+                    
+                    if globals().get("ARCADE_KILL_SWITCH"):
+                        arcade_active = False
+                        break
+                    
+                    if not done:
+                        arcade_active = False
+                        asyncio.create_task(remove_reactions_safely(panel, menu_controls, self.user))
+                        await safe_edit(panel, "> 💤 **Arcade Timeout. System sleeping.**")
+                        break
+                        
+                    payload = done.pop().result()
+                    choice = str(payload.emoji.name)
+                    
+                except Exception:
+                    arcade_active = False
+                    await safe_edit(panel, "> 🛑 **Arcade Error.**")
+                    break
+
+                # 🛡️ THE SECURITY WALL
+                if choice == '❌':
+                    if payload.user_id != MAIN_OWNER:
+                        warning = (
+                            f"> 🛑 **ACCESS DENIED**\n"
+                            f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"> ⚠️ Only the Supreme Owner (`FORB1D🔥`) can shut down the engine.\n"
+                            f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"> *Redirecting to dashboard in 3 seconds...*"
+                        )
+                        await safe_edit(panel, warning)
+                        await asyncio.sleep(3.0)
+                        reactor_obj = _arcade_discord.Object(id=payload.user_id)
+                        try: await panel.remove_reaction('❌', reactor_obj)
+                        except Exception: pass
+                        continue 
+                    else:
+                        arcade_active = False
+                        await safe_edit(panel, "> 🛑 **Supreme Engine Terminated.**")
+                        asyncio.create_task(remove_reactions_safely(panel, menu_controls, self.user))
+                        break 
+
+                for c in menu_controls:
+                    try: await panel.remove_reaction(c, self.user)
+                    except Exception: pass
+
+                board_size = 7
+
+                # --- 2. GAME LOGIC ---
+                if choice == '4️⃣':
+                    game_state = {"score": 0, "alive": True, "reason": "UNKNOWN", "last_player": "Nobody"}
+                    
+                    diff_menu = (
+                        f"> 🧮 **MATH BLASTER // DIFFICULTY**\n"
+                        f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"> 🟢 **[1]** `EASY` (+ / - | 15s Timer)\n"
+                        f"> 🟡 **[2]** `MEDIUM` ( * | 10s Timer)\n"
+                        f"> 🔴 **[3]** `HARD` (3 Terms | 6s Timer)\n"
+                        f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"> 💡 *Tap ⬅️ to return to dashboard.*"
+                    )
+                    await safe_edit(panel, diff_menu)
+                    
+                    diff_emojis = ['1️⃣', '2️⃣', '3️⃣', '⬅️']
+                    await enforce_reaction_layout(panel, diff_emojis)
+                    
+                    def check_diff(payload):
+                        if not payload.emoji or not payload.emoji.name: return False
+                        return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in diff_emojis
+                        
+                    try:
+                        d_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_diff))
+                        
+                        done_d = None
+                        while not globals().get("ARCADE_KILL_SWITCH"):
+                            done_chk, pending_d = await asyncio.wait([d_add], timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+                            if done_chk:
+                                done_d = done_chk
+                                break
+                        
+                        d_add.cancel()
+                        await asyncio.gather(d_add, return_exceptions=True)
+                        
+                        if globals().get("ARCADE_KILL_SWITCH"):
+                            game_state["alive"] = False
+                            break
+                        
+                        if not done_d:
+                            diff_choice = None
+                        else:
+                            diff_choice = str(done_d.pop().result().emoji.name)
+                    except Exception:
+                        diff_choice = None
+                        
+                    asyncio.create_task(remove_reactions_safely(panel, diff_emojis, self.user))
+                        
+                    if not diff_choice or diff_choice == '⬅️': 
+                        continue 
+                        
+                    diff_mode, time_limit = ("EASY", 15.0) if diff_choice == '1️⃣' else ("MEDIUM", 10.0) if diff_choice == '2️⃣' else ("HARD", 6.0)
+
+                    math_emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣']
+                    await enforce_reaction_layout(panel, math_emojis)
+                    
+                    async def run_math_game():
+                        while game_state["alive"]:
+                            if globals().get("ARCADE_KILL_SWITCH"):
+                                game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                break
+                                
+                            level = (game_state["score"] // 5) + 1
+                            if diff_mode == "EASY":
+                                a, b = _arcade_rng_play.randint(1, 20), _arcade_rng_play.randint(1, 20)
+                                op = _arcade_rng_play.choice(['+', '-'])
+                                correct, eq_str = (a + b, f"{a} {op} {b}") if op == '+' else (a - b, f"{a} {op} {b}")
+                            elif diff_mode == "MEDIUM":
+                                a, b = _arcade_rng_play.randint(3, 12), _arcade_rng_play.randint(3, 12)
+                                correct, eq_str = a * b, f"{a} * {b}"
+                            else:
+                                a, b, c = _arcade_rng_play.randint(10, 50), _arcade_rng_play.randint(5, 20), _arcade_rng_play.randint(2, 10)
+                                correct, eq_str = a + b - c, f"{a} + {b} - {c}"
+
+                            options = [correct]
+                            while len(options) < 4:
+                                fake = correct + _arcade_rng_play.randint(-10, 10)
+                                if fake not in options: options.append(fake)
+                            _arcade_rng_play.shuffle(options)
+                            correct_emoji = math_emojis[options.index(correct)]
+                            
+                            await flush_stale_events(panel, math_emojis)
+                            time_left, answered = time_limit, False
+
+                            def check_math(payload):
+                                if not payload.emoji or not payload.emoji.name: return False
+                                return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in math_emojis
+
+                            while time_left > 0 and game_state["alive"]:
+                                if globals().get("ARCADE_KILL_SWITCH"):
+                                    game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                    break
+                                    
+                                ratio = max(0.0, time_left / time_limit)
+                                filled = int(ratio * 10)
+                                bar = "█" * filled + "░" * (10 - filled)
+                                
+                                math_display = (
+                                    f"> 🧮 **MATH BLASTER // {diff_mode}**\n"
+                                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"> 🏆 Score: `{game_state['score']}`\n"
+                                    f"> ❓ Solve: **{eq_str} = ?**\n"
+                                    f"> 1️⃣ `{options[0]}`  |  2️⃣ `{options[1]}`\n"
+                                    f"> 3️⃣ `{options[2]}`  |  4️⃣ `{options[3]}`\n"
+                                    f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"> ⏳ `[{bar}] {int(time_left)}s`"
+                                )
+                                
+                                try: await panel.edit(content=math_display)
+                                except _arcade_discord.NotFound: game_state["alive"], game_state["reason"] = False, "MESSAGE DELETED"; break
+                                except _arcade_discord.HTTPException as e:
+                                    if getattr(e, 'status', 0) == 429: await asyncio.sleep(1.0)
+                                    else: game_state["alive"], game_state["reason"] = False, "DISCORD API ERROR"; break
+                                except Exception: pass
+                                    
+                                wait_time = min(1.0, time_left)
+                                m_add = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_math))
+                                m_rem = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_math))
+                                done_m, pending_m = await asyncio.wait([m_add, m_rem], timeout=wait_time, return_when=asyncio.FIRST_COMPLETED)
+                                
+                                for t in pending_m: t.cancel()
+                                await asyncio.gather(*pending_m, return_exceptions=True)
+                                
+                                if done_m:
+                                    completed_task = done_m.pop()
+                                    payload = completed_task.result()
+                                    ans_emoji = str(payload.emoji.name)
+                                    
+                                    if ans_emoji == correct_emoji:
+                                        game_state["score"] += 1
+                                        game_state["last_player"] = f"<@{payload.user_id}>"
+                                        answered = True
+                                    else:
+                                        if completed_task == m_rem: continue
+                                        else: game_state["alive"], game_state["reason"] = False, "INCORRECT ANSWER"
+                                            
+                                    if answered or not game_state["alive"]: break
+                                else:
+                                    time_left -= wait_time
+                                    
+                            if not answered and time_left <= 0 and game_state["alive"]:
+                                game_state["alive"], game_state["reason"] = False, "TIME OUT"
+
+                    try: await run_math_game()
+                    finally:
+                        asyncio.create_task(remove_reactions_safely(panel, math_emojis, self.user))
+                        
+                        math_over = (
+                            f"> 👑 **FORB1D🔥 // MATH TERMINATED**\n"
+                            f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"> 🏆 Score : `{game_state['score']}`\n"
+                            f"> 👤 Player: {game_state['last_player']}\n"
+                            f"> 🩸 Cause : `{game_state['reason']}`\n"
+                            f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"> *Rebooting dashboard...*"
+                        )
+                        await safe_edit(panel, math_over)
+                        if not globals().get("ARCADE_KILL_SWITCH"):
+                            await asyncio.sleep(4.0) 
+
+                # --- GRID GAMES (1, 2, 3) ---
+                elif choice in ['1️⃣', '2️⃣', '3️⃣']:
+                    controls = ['⬅️', '⬆️', '⬇️', '➡️']
+                    await enforce_reaction_layout(panel, controls)
+
+                    if choice == '1️⃣':
+                        snake = [(3, 3)]
+                        direction = (0, -1) 
+                        def spawn_food():
+                            free = [(x, y) for x in range(board_size) for y in range(board_size) if (x, y) not in snake]
+                            return _arcade_rng_play.choice(free) if free else None
+                                
+                        food = spawn_food()
+                        game_state = {"score": 0, "alive": True, "reason": "UNKNOWN", "last_player": "Nobody"}
+
+                        def render_snake():
+                            grid = "\n".join("".join("🟩" if (x, y) == snake[0] else "🔲" if (x, y) in snake else "🍎" if (x, y) == food else "⬛" for x in range(board_size)) for y in range(board_size))
+                            return f"> 🐍 **NEURAL WORM** | Score: `{game_state['score']}`\n{grid}"
+
+                        async def run_game():
+                            nonlocal food, direction
+                            while game_state["alive"]:
+                                if globals().get("ARCADE_KILL_SWITCH"):
+                                    game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                    break
+                                    
+                                hx, hy = snake[0]
+                                new_head = (hx + direction[0], hy + direction[1])
+                                if not (0 <= new_head[0] < board_size and 0 <= new_head[1] < board_size):
+                                    game_state["alive"], game_state["reason"] = False, "CRASHED INTO WALL"
+                                    break
+                                if new_head in snake:
+                                    game_state["alive"], game_state["reason"] = False, "ATE OWN TAIL"
+                                    break
+                                    
+                                snake.insert(0, new_head)
+                                if new_head == food:
+                                    game_state["score"] += 1
+                                    food = spawn_food()
+                                    if not food: 
+                                        game_state["alive"], game_state["reason"] = False, "BOARD CLEARED (WIN)"
+                                        break
+                                else: snake.pop()
+                                    
+                                try: await panel.edit(content=render_snake())
+                                except _arcade_discord.NotFound: game_state["alive"], game_state["reason"] = False, "MESSAGE DELETED"; break
+                                except _arcade_discord.HTTPException as e:
+                                    if getattr(e, 'status', 0) == 429: await asyncio.sleep(1.0)
+                                    else: game_state["alive"], game_state["reason"] = False, "DISCORD API ERROR"; break
+                                except Exception: pass
+                                await asyncio.sleep(1.2) 
+                        game_task = asyncio.create_task(run_game())
+
+                    elif choice == '2️⃣':
+                        bike, trail, direction = (3, 3), set(), (0, -1)
+                        game_state = {"score": 0, "alive": True, "reason": "UNKNOWN", "last_player": "Nobody"}
+                        
+                        def render_tron():
+                            grid = "\n".join("".join("🟦" if (x, y) == bike else "💠" if (x, y) in trail else "⬛" for x in range(board_size)) for y in range(board_size))
+                            return f"> 🏍️ **TRON SURVIVAL** | Score: `{game_state['score']}`\n{grid}"
+
+                        async def run_game():
+                            nonlocal bike, direction
+                            while game_state["alive"]:
+                                if globals().get("ARCADE_KILL_SWITCH"):
+                                    game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                    break
+                                    
+                                trail.add(bike) 
+                                bike = (bike[0] + direction[0], bike[1] + direction[1])
+                                if not (0 <= bike[0] < board_size and 0 <= bike[1] < board_size):
+                                    game_state["alive"], game_state["reason"] = False, "CRASHED INTO WALL"
+                                    break
+                                if bike in trail:
+                                    game_state["alive"], game_state["reason"] = False, "HIT A TRAIL"
+                                    break
+                                    
+                                game_state["score"] += 1
+                                try: await panel.edit(content=render_tron())
+                                except _arcade_discord.NotFound: game_state["alive"], game_state["reason"] = False, "MESSAGE DELETED"; break
+                                except _arcade_discord.HTTPException as e:
+                                    if getattr(e, 'status', 0) == 429: await asyncio.sleep(1.0)
+                                    else: game_state["alive"], game_state["reason"] = False, "DISCORD API ERROR"; break
+                                except Exception: pass
+                                await asyncio.sleep(1.0) 
+                        game_task = asyncio.create_task(run_game())
+
+                    elif choice == '3️⃣':
+                        px, py, meteors = 3, board_size - 1, []
+                        game_state = {"score": 0, "alive": True, "reason": "UNKNOWN", "last_player": "Nobody"}
+                        
+                        def render_dodge():
+                            grid = "\n".join("".join("🚀" if x == px and y == py else "☄️" if (x, y) in meteors else "⬛" for x in range(board_size)) for y in range(board_size))
+                            return f"> ☄️ **METEOR DODGE** | Score: `{game_state['score']}`\n{grid}"
+
+                        async def run_game():
+                            nonlocal meteors, px
+                            while game_state["alive"]:
+                                if globals().get("ARCADE_KILL_SWITCH"):
+                                    game_state["alive"], game_state["reason"] = False, "SWARM OVERRIDE"
+                                    break
+                                    
+                                meteors = [(mx, my + 1) for mx, my in meteors if my + 1 < board_size]
+                                if (px, py) in meteors:
+                                    game_state["alive"], game_state["reason"] = False, "HIT BY METEOR"
+                                    break
+                                if _arcade_rng_play.random() > 0.4: meteors.append((_arcade_rng_play.randint(0, board_size-1), 0))
+                                    
+                                game_state["score"] += 1
+                                try: await panel.edit(content=render_dodge())
+                                except _arcade_discord.NotFound: game_state["alive"], game_state["reason"] = False, "MESSAGE DELETED"; break
+                                except _arcade_discord.HTTPException as e:
+                                    if getattr(e, 'status', 0) == 429: await asyncio.sleep(1.0)
+                                    else: game_state["alive"], game_state["reason"] = False, "DISCORD API ERROR"; break
+                                except Exception: pass
+                                await asyncio.sleep(1.0)
+                        game_task = asyncio.create_task(run_game())
+
+                    def check_ctrl(payload):
+                        if not payload.emoji or not payload.emoji.name: return False
+                        return payload.message_id == panel.id and payload.user_id != self.user.id and str(payload.emoji.name) in controls
+
+                    while game_state["alive"]:
+                        if globals().get("ARCADE_KILL_SWITCH"):
+                            game_state["alive"] = False
+                            break
+                            
+                        if game_task.done(): 
+                            game_state["alive"] = False
+                            break
+                            
+                        try:
+                            add_task = asyncio.create_task(self.wait_for('raw_reaction_add', check=check_ctrl))
+                            rem_task = asyncio.create_task(self.wait_for('raw_reaction_remove', check=check_ctrl))
+                            
+                            done, pending = await asyncio.wait([add_task, rem_task], timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+                            for t in pending: t.cancel()
+                            await asyncio.gather(*pending, return_exceptions=True)
+                                
+                            for completed_task in done:
+                                try:
+                                    payload = completed_task.result()
+                                    emoji = str(payload.emoji.name)
+                                    game_state["last_player"] = f"<@{payload.user_id}>"
+                                    
+                                    if choice in ['1️⃣', '2️⃣']:
+                                        if emoji == '⬅️' and direction != (1, 0): direction = (-1, 0)
+                                        elif emoji == '➡️' and direction != (-1, 0): direction = (1, 0)
+                                        elif emoji == '⬆️' and direction != (0, 1): direction = (0, -1)
+                                        elif emoji == '⬇️' and direction != (0, -1): direction = (0, 1)
+                                    elif choice == '3️⃣':
+                                        if emoji == '⬅️' and px > 0: px -= 1
+                                        elif emoji == '➡️' and px < board_size - 1: px += 1
+                                except Exception: pass 
+                        except asyncio.CancelledError:
+                            game_task.cancel()
+                            break
+                        except Exception: pass
+
+                    if not game_task.done(): game_task.cancel()
+                    await asyncio.gather(game_task, return_exceptions=True)
+                    
+                    game_over_panel = (
+                        f"> 👑 **FORB1D🔥 // SIMULATION TERMINATED**\n"
+                        f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"> 🏆 Score : `{game_state['score']}`\n"
+                        f"> 👤 Player: {game_state['last_player']}\n"
+                        f"> 🩸 Cause : `{game_state['reason']}`\n"
+                        f"> ━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"> *Rebooting dashboard...*"
+                    )
+                    await safe_edit(panel, game_over_panel)
+                    asyncio.create_task(remove_reactions_safely(panel, controls, self.user))
+                    
+                    if not globals().get("ARCADE_KILL_SWITCH"):
+                        await asyncio.sleep(4.0)
+
+            # Cleanup final panel if killed by override
+            if globals().get("ARCADE_KILL_SWITCH"):
+                await safe_edit(panel, "> 🛑 **[SWARM OVERRIDE] Supreme Engine Terminated.**")
+
      
         
                     
