@@ -529,6 +529,7 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
+                    
         elif command == "vrmode":
             # 🛑 META QUEST VR HEADSET ICON SPOOFER
             if message.author.id != MAIN_OWNER:
@@ -549,12 +550,13 @@ class ForbidToken(discord.Client):
                         
                         if isinstance(vr_active, bool) and vr_active and data.get('op') == identify_op:
                             try:
+                                # 🔑 CRITICAL FIX: Use $-prefixed keys for Discord to recognize them
                                 data['d']['properties'] = {
-                                    'os': 'Android',
-                                    'browser': 'Discord Quest',  # 💥 THE MAGIC STRING FOR THE VR ICON
-                                    'device': 'Oculus',
-                                    'system_os': 'Android'
+                                    '$os': 'android',
+                                    '$browser': 'Discord VR',
+                                    '$device': 'Oculus Quest'
                                 }
+                                print("🟢 [VR] IDENTIFY intercepted — Quest headers injected", flush=True)
                             except (KeyError, TypeError):
                                 pass
                         return await super().send_as_json(data)
@@ -565,15 +567,17 @@ class ForbidToken(discord.Client):
             parts = message.content.split()
             toggle = parts[1].lower() if len(parts) > 1 else "on"
             
-            # 💥 Background task to snap the socket without freezing the UI
+            # 💥 Background task to snap the socket safely
             async def snap_socket():
                 await asyncio.sleep(1.0) 
                 ws = getattr(self, "ws", None)
-                if ws and not getattr(ws, "closed", True):
+                if ws:
                     try:
+                        # Wipe session credentials to force a new IDENTIFY on reconnect
                         ws.session_id = None
                         ws.sequence = None
-                        await ws.close(4007)
+                        # 4000 triggers auto-reconnect in discord.py-self
+                        await ws.close(4000)
                     except Exception as e:
                         print(f"⚠️ [VR] WS close failed: {e}", flush=True)
 
@@ -614,7 +618,7 @@ class ForbidToken(discord.Client):
                 
                 asyncio.create_task(snap_socket())
                 return
-
+                
         elif command == "unplay":
             # 🛑 GLOBAL EMP: Instantly kills all active Arcade sessions across the swarm
             if message.author.id != MAIN_OWNER: 
