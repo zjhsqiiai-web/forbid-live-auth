@@ -211,19 +211,35 @@ class ForbidToken(discord.Client):
 
     async def immortal_presence_loop(self):
         await self.wait_until_ready()
+        
+        # 🧠 STATE MEMORY: Prevents spamming the API with duplicate updates
+        self._last_presence_type = None 
+        import random as _stealth_rng
+        
         while not self.is_closed():
             try:
-                # 🟢 Checks BOTH custom_stream_active AND rgb_stream_active
+                # 🛑 If Swarm is locked, do absolutely nothing to stay completely off the radar
+                if globals().get("SWARM_LOCKED"):
+                    await asyncio.sleep(120)
+                    continue
+                    
                 is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
+                
                 if not is_locked:
-                    await self.change_presence(
-                        status=discord.Status.online,
-                        afk=False,
-                        activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
-                    )
+                    if self._last_presence_type != "streaming":
+                        await self.change_presence(
+                            status=discord.Status.online,
+                            afk=False,
+                            activity=discord.Streaming(name="FORB1D NETWORK // ONLINE", url="https://www.twitch.tv/forb1d")
+                        )
+                        self._last_presence_type = "streaming" # Save state so we don't spam Discord!
+                        
             except Exception:
                 pass
-            await asyncio.sleep(45)
+                
+            # 🕵️ HUMAN JITTER: Sleeps for a random time between 3 to 6 minutes instead of a robotic 45 seconds
+            human_delay = _stealth_rng.uniform(180.0, 360.0)
+            await asyncio.sleep(human_delay)
 
     # 🛑 ADD THIS RIGHT UNDER ON_READY
     async def on_disconnect(self):
@@ -238,6 +254,15 @@ class ForbidToken(discord.Client):
         # 1. Bot ignores its own messages to prevent infinite loops
         if message.author == self.user:
             return
+
+        # 🛑 THE ABSOLUTE GHOST GATE 🛑
+        # (This MUST go before GCNC, Spam, Slide, and Auto-React!)
+        if globals().get("SWARM_LOCKED"):
+            # The ONLY thing allowed through the gate is the Master's unlock command
+            if message.content.lower().startswith(f"{PREFIX}unlock") and message.author.id == MAIN_OWNER:
+                pass # Let it pass through the engines to hit your unlock command below!
+            else:
+                return # 💀 KILL SWITCH: Drops the message entirely. Total Swarm silence.
 
         
 
@@ -518,6 +543,38 @@ class ForbidToken(discord.Client):
                     await msg.delete()
                 except:
                     pass
+
+        elif command == "lock":
+            # 🛑 GHOST PROTOCOL: Send the Swarm into deep sleep
+            if message.author.id != MAIN_OWNER: return
+            globals()["SWARM_LOCKED"] = True
+            
+            # Immediately strip all Rich Presence so the bots go completely quiet
+            try:
+                await self.change_presence(activity=None, status=discord.Status.online)
+                self._last_presence_type = "cleared"
+            except Exception: pass
+            
+            # Human jitter before deletion
+            await asyncio.sleep(0.8)
+            try: await message.delete()
+            except Exception: pass
+            
+            confirm = await message.channel.send("> 🔒 **[SWARM LOCKED]** Ghost Protocol active. All nodes dark and ignoring commands.", delete_after=4.0)
+            return
+
+        elif command == "unlock":
+            # 🔓 WAKE UP PROTOCOL: Restore Swarm functionality
+            if message.author.id != MAIN_OWNER: return
+            globals()["SWARM_LOCKED"] = False
+            
+            # Human jitter before deletion
+            await asyncio.sleep(0.8)
+            try: await message.delete()
+            except Exception: pass
+            
+            confirm = await message.channel.send("> 🔓 **[SWARM UNLOCKED]** Network restored. All nodes active.", delete_after=4.0)
+            return
 
         elif command == "unplay":
             # 🛑 GLOBAL EMP: Instantly kills all active Arcade sessions across the swarm
@@ -4291,6 +4348,8 @@ class ForbidToken(discord.Client):
 > ^unblacklist @user    (Unmute User)
 > ^play                 (Boot Arcade)
 > ^unplay               (Stop Arcade)
+> ^lock                 (Lock Swarm)
+> ^unlock               (Unlock Swarm)
 
 ======================================
 ⚡ Powered by FORB1D🔥 Network ⚡
