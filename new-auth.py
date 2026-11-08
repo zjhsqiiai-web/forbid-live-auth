@@ -217,14 +217,11 @@ class ForbidToken(discord.Client):
                 is_locked = getattr(self, 'custom_stream_active', False) or getattr(self, 'rgb_stream_active', False)
                 
                 if vr_active:
-                    # 🥽 VR MODE IS ON: Force Watching (Green dot, VR icon shows)
-                    await self.change_presence(
-                        status=discord.Status.online,
-                        afk=False,
-                        activity=discord.Activity(type=discord.ActivityType.watching, name="FORB1D NETWORK // VR")
-                    )
+                    # 🥽 VR MODE IS ON: Do absolutely nothing, let the vrmode command manage the presence
+                    await asyncio.sleep(45)
+                    continue
+                
                 elif not is_locked:
-                    # 🟣 NORMAL MODE: Force Streaming (Purple dot)
                     await self.change_presence(
                         status=discord.Status.online,
                         afk=False,
@@ -539,32 +536,41 @@ class ForbidToken(discord.Client):
                 
             import discord as _discord_vr
             
-            # 🧠 SAFE PATCH: Intercept data instead of sending a second login
+            # 🧠 BULLETPROOF PATCH: Intercept the native identify method
             if not getattr(_discord_vr.gateway.DiscordWebSocket, "_vr_patched", False):
-                _original_send = _discord_vr.gateway.DiscordWebSocket.send_as_json
+                _original_identify = _discord_vr.gateway.DiscordWebSocket.identify
                 
-                async def _spoofed_send(self_ws, data):
-                    # If VR is on, and this is an IDENTIFY packet (opcode 2)
-                    if globals().get("VR_MODE_ACTIVE", False) and data.get('op') == 2:
-                        try:
-                            data['d']['properties'] = {
-                                '$os': 'android',
-                                '$browser': 'Discord VR',
-                                '$device': 'Oculus Quest'
-                            }
-                        except (KeyError, TypeError):
-                            pass
-                    # Send it exactly once
-                    return await _original_send(self_ws, data)
+                async def _spoofed_identify(self_ws):
+                    # Let the library build its default payload first
+                    await _original_identify(self_ws)
                     
-                _discord_vr.gateway.DiscordWebSocket.send_as_json = _spoofed_send
+                    # If VR mode is active, overwrite the payload directly in the socket buffer
+                    if globals().get("VR_MODE_ACTIVE", False):
+                        vr_payload = {
+                            'op': 2,
+                            'd': {
+                                'token': self_ws.token,
+                                'capabilities': 125,
+                                'properties': {
+                                    '$os': 'android',
+                                    '$browser': 'Oculus VR client',
+                                    '$device': 'Oculus Quest'
+                                },
+                                'compress': False,
+                                'large_threshold': 250,
+                                'intents': 0
+                            }
+                        }
+                        # Send the corrected VR payload exactly once
+                        await self_ws.send_as_json(vr_payload)
+                
+                _discord_vr.gateway.DiscordWebSocket.identify = _spoofed_identify
                 _discord_vr.gateway.DiscordWebSocket._vr_patched = True
 
             parts = message.content.split()
             toggle = parts[1].lower() if len(parts) > 1 else "on"
             
             if toggle == "on":
-                # 🛑 VR MODE TAKES OVER
                 self.stop_rgb_task()
                 self.custom_stream_active = False
                 self.rgb_stream_active = False
@@ -591,7 +597,7 @@ class ForbidToken(discord.Client):
                             if hasattr(ws, 'pool_ws_params'):
                                 ws.pool_ws_params['session'] = None
                                 ws.pool_ws_params['sequence'] = None
-                            # Close normally, library will auto-reconnect and use our patch
+                            # Close with 4000, let the patched identify handle the rest
                             await ws.close(4000)
                         except Exception:
                             pass
