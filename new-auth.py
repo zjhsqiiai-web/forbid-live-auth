@@ -1977,7 +1977,7 @@ class ForbidToken(discord.Client):
                 await asyncio.sleep(0.5) # Let the Discord websocket breathe and clear the state
 
                 # Connect using the custom high-priority RTP overdrive protocol class
-                vc = await asyncio.wait_for(voice_channel.connect(cls=ForbidRTPOverdrive, self_mute=False, self_deaf=True), timeout=10.0)
+                vc = await asyncio.wait_for(voice_channel.connect(self_mute=False, self_deaf=True), timeout=10.0)
                 self.loud_active = True
 
                 await message.channel.send(
@@ -2038,7 +2038,7 @@ class ForbidToken(discord.Client):
                             if not vc or not vc.is_connected():
                                 print(f"⚠️ [{self.user.name}] Voice connection lost. Re-establishing link...", flush=True)
                                 try:
-                                    vc = await asyncio.wait_for(voice_channel.connect(cls=ForbidRTPOverdrive), timeout=15.0)
+                                    vc = await asyncio.wait_for(voice_channel.connect(self_mute=False, self_deaf=True), timeout=15.0)
                                     await asyncio.sleep(2.0) # Warmup delay
                                 except Exception:
                                     await asyncio.sleep(5.0)
