@@ -2053,22 +2053,27 @@ class ForbidToken(discord.Client):
                     # 🚨 THE SYNCHRONIZED DROP (ZERO DELAY) 🚨
                     try:
                         if vc and vc.is_connected():
-                            # 💥 FORCE THE GREEN RING TO LIGHT UP BEFORE SENDING PACKETS
                             await vc.ws.speak(True) 
                             vc.play(preloaded_source)
 
                         # 🔍 DEBUG: verify the deployed loud.mp3 actually has audio
-                        import subprocess
+                        import subprocess, os
+                        print(f"[DBG] === debug start ===", flush=True)
+                        size = os.path.getsize("loud.mp3")
+                        print(f"[DBG] loud.mp3 size: {size} bytes", flush=True)
                         _dur = subprocess.run(
                             [imageio_ffmpeg.get_ffmpeg_exe(), "-i", "loud.mp3", "-af", "volumedetect", "-f", "null", "-"],
-                            capture_output=True, text=True, timeout=15
+                            capture_output=True, text=True, timeout=30
                         )
+                        print(f"[DBG] ffmpeg rc={_dur.returncode}, stderr_lines={len(_dur.stderr.splitlines())}", flush=True)
                         for _line in _dur.stderr.splitlines():
-                            if "mean_volume" in _line or "max_volume" in _line:
-                                print(f"[DBG] {_line.strip()}", flush=True)
+                            s = _line.strip()
+                            if any(k in s for k in ("mean_volume", "max_volume", "Duration", "Audio:", "error", "Error", "No such")):
+                                print(f"[DBG] {s}", flush=True)
+                        print(f"[DBG] === debug end ===", flush=True)
 
                     except Exception as e:
-                        pass
+                        print(f"[DBG] DEBUG CRASHED: {type(e).__name__}: {e!r}", flush=True)
 
                     # --------------------------------------------------
                     # 🛠️ MAINTENANCE PHASE (Auto-Heal & Infinite Looping)
