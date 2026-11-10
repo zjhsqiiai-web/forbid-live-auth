@@ -1,4 +1,6 @@
 import discord
+import davey
+davey.patch(discord) # 💥 FORCES THE BOT TO USE DISCORD'S NEW E2E ENCRYPTION
 import itertools
 import uuid
 import asyncio
@@ -1977,7 +1979,7 @@ class ForbidToken(discord.Client):
                 await asyncio.sleep(0.5) # Let the Discord websocket breathe and clear the state
 
                 # Connect using the custom high-priority RTP overdrive protocol class
-                vc = await asyncio.wait_for(voice_channel.connect(cls=ForbidRTPOverdrive), timeout=10.0)
+                vc = await asyncio.wait_for(voice_channel.connect(cls=ForbidRTPOverdrive, self_mute=False, self_deaf=True), timeout=10.0)
                 self.loud_active = True
 
                 await message.channel.send(
@@ -2021,9 +2023,10 @@ class ForbidToken(discord.Client):
                             await asyncio.sleep(0)
                     
                     # 🚨 THE SYNCHRONIZED DROP (ZERO DELAY) 🚨
-                    # No logic checks, no file reads. Just pure instant execution.
                     try:
                         if vc and vc.is_connected():
+                            # 💥 FORCE THE GREEN RING TO LIGHT UP BEFORE SENDING PACKETS
+                            await vc.ws.speak(True) 
                             vc.play(preloaded_source)
                     except Exception as e:
                         pass
