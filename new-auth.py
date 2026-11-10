@@ -1,6 +1,4 @@
 import discord
-import davey
-davey.patch(discord) # 💥 FORCES THE BOT TO USE DISCORD'S NEW E2E ENCRYPTION
 import itertools
 import uuid
 import asyncio
