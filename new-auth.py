@@ -13,6 +13,31 @@ import av
 import math
 import aiohttp
 import textwrap
+import av
+import discord.opus
+from pathlib import Path
+
+def _load_bundled_opus():
+    if discord.opus.is_loaded():
+        return
+    av_dir = Path(av.__file__).resolve().parent
+    search_roots = [av_dir, av_dir.parent, av_dir.parent / "av.libs"]
+    patterns = ["libopus*.so*", "libopus*.dylib*", "opus*.dll"]
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for pattern in patterns:
+            for path in root.rglob(pattern):
+                try:
+                    discord.opus.load_opus(str(path))
+                    if discord.opus.is_loaded():
+                        print(f"✅ [opus] Loaded bundled libopus: {path.name}")
+                        return
+                except Exception as e:
+                    print(f"⚠️ [opus] Failed to load {path}: {e}")
+    print("❌ [opus] No bundled libopus found in PyAV — voice will fail")
+
+_load_bundled_opus()
 import json
 try:
     import orjson
@@ -2000,7 +2025,7 @@ class ForbidToken(discord.Client):
                         preloaded_source = discord.FFmpegPCMAudio(
                             "loud.mp3",
                             executable=imageio_ffmpeg.get_ffmpeg_exe(),  # <-- code-only fix
-                            options="-vn -ar 48000 -ac 2"
+                            options="-vn"
                         )
                     except Exception as e:
                         print(f"[{self.user.name}] Audio preload failed: {e}")
@@ -2055,7 +2080,7 @@ class ForbidToken(discord.Client):
                                 next_source = discord.FFmpegPCMAudio(
                                     "loud.mp3",
                                     executable=imageio_ffmpeg.get_ffmpeg_exe(),  # <-- code-only fix
-                                    options="-vn -ar 48000 -ac 2"
+                                    options="-vn"
                                 )
                                 vc.play(next_source)
 
@@ -2066,7 +2091,7 @@ class ForbidToken(discord.Client):
                             await asyncio.sleep(0.1)
 
                         except Exception as e:
-                            print(f"Audio Loop Error: {e}", flush=True)
+                            print(f"Audio Loop Error: {type(e).__name__}: {e!r}", flush=True)
                             await asyncio.sleep(2.0)
                             
                 asyncio.create_task(immortal_audio_loop())
