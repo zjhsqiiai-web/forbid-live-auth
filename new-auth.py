@@ -1996,7 +1996,10 @@ class ForbidToken(discord.Client):
                     # We force the bot to do the heavy lifting of reading the MP3 
                     # and initializing FFmpeg NOW, before the timer hits zero.
                     try:
-                        preloaded_source = PyAVMemoryAudio("loud.mp3")
+                        preloaded_source = discord.FFmpegPCMAudio(
+                            "loud.mp3", 
+                            options="-vn -ar 48000 -ac 2" # 💥 FORCES STRICT DISCORD COMPLIANCE
+                        )
                     except Exception as e:
                         print(f"[{self.user.name}] Audio preload failed: {e}")
                         return
@@ -2047,7 +2050,10 @@ class ForbidToken(discord.Client):
                             # 2. CONTINUOUS LOOPING
                             # Once the preloaded track finishes, we load and play the next one normally
                             if not vc.is_playing():
-                                next_source = PyAVMemoryAudio("loud.mp3")
+                                next_source = discord.FFmpegPCMAudio(
+                                    "loud.mp3", 
+                                    options="-vn -ar 48000 -ac 2"
+                                )
                                 vc.play(next_source)
 
                             # 3. PLAYBACK MONITOR
