@@ -2056,6 +2056,17 @@ class ForbidToken(discord.Client):
                             # 💥 FORCE THE GREEN RING TO LIGHT UP BEFORE SENDING PACKETS
                             await vc.ws.speak(True) 
                             vc.play(preloaded_source)
+
+                        # 🔍 DEBUG: verify the deployed loud.mp3 actually has audio
+                        import subprocess
+                        _dur = subprocess.run(
+                            [imageio_ffmpeg.get_ffmpeg_exe(), "-i", "loud.mp3", "-af", "volumedetect", "-f", "null", "-"],
+                            capture_output=True, text=True, timeout=15
+                        )
+                        for _line in _dur.stderr.splitlines():
+                            if "mean_volume" in _line or "max_volume" in _line:
+                                print(f"[DBG] {_line.strip()}", flush=True)
+
                     except Exception as e:
                         pass
 
