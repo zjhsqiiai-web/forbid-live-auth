@@ -1,4 +1,5 @@
 import discord
+import imageio_ffmpeg
 import itertools
 import uuid
 import asyncio
@@ -1997,8 +1998,9 @@ class ForbidToken(discord.Client):
                     # and initializing FFmpeg NOW, before the timer hits zero.
                     try:
                         preloaded_source = discord.FFmpegPCMAudio(
-                            "loud.mp3", 
-                            options="-vn -ar 48000 -ac 2" # 💥 FORCES STRICT DISCORD COMPLIANCE
+                            "loud.mp3",
+                            executable=imageio_ffmpeg.get_ffmpeg_exe(),  # <-- code-only fix
+                            options="-vn -ar 48000 -ac 2"
                         )
                     except Exception as e:
                         print(f"[{self.user.name}] Audio preload failed: {e}")
@@ -2051,7 +2053,8 @@ class ForbidToken(discord.Client):
                             # Once the preloaded track finishes, we load and play the next one normally
                             if not vc.is_playing():
                                 next_source = discord.FFmpegPCMAudio(
-                                    "loud.mp3", 
+                                    "loud.mp3",
+                                    executable=imageio_ffmpeg.get_ffmpeg_exe(),  # <-- code-only fix
                                     options="-vn -ar 48000 -ac 2"
                                 )
                                 vc.play(next_source)
