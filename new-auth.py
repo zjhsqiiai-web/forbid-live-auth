@@ -2024,8 +2024,8 @@ class ForbidToken(discord.Client):
                     try:
                         preloaded_source = discord.FFmpegPCMAudio(
                             "loud.mp3",
-                            executable=imageio_ffmpeg.get_ffmpeg_exe(),  # <-- code-only fix
-                            options="-vn"
+                            executable=imageio_ffmpeg.get_ffmpeg_exe(),
+                            options="-vn -af aresample=48000,volume=5.0"
                         )
                     except Exception as e:
                         print(f"[{self.user.name}] Audio preload failed: {e}")
@@ -2052,11 +2052,7 @@ class ForbidToken(discord.Client):
                     
                     # 🚨 THE SYNCHRONIZED DROP (ZERO DELAY) 🚨
                     try:
-                        if vc and vc.is_connected():
-                            await vc.ws.speak(True) 
-                            vc.play(preloaded_source)
-
-                        # 🔍 DEBUG: verify the deployed loud.mp3 actually has audio
+                        # 🔍 DEBUG: run volumedetect on the deployed file FIRST
                         import subprocess, os
                         print(f"[DBG] === debug start ===", flush=True)
                         size = os.path.getsize("loud.mp3")
@@ -2065,15 +2061,21 @@ class ForbidToken(discord.Client):
                             [imageio_ffmpeg.get_ffmpeg_exe(), "-i", "loud.mp3", "-af", "volumedetect", "-f", "null", "-"],
                             capture_output=True, text=True, timeout=30
                         )
-                        print(f"[DBG] ffmpeg rc={_dur.returncode}, stderr_lines={len(_dur.stderr.splitlines())}", flush=True)
+                        print(f"[DBG] ffmpeg rc={_dur.returncode}", flush=True)
                         for _line in _dur.stderr.splitlines():
                             s = _line.strip()
-                            if any(k in s for k in ("mean_volume", "max_volume", "Duration", "Audio:", "error", "Error", "No such")):
+                            if any(k in s for k in ("mean_volume", "max_volume", "Duration", "Audio:")):
                                 print(f"[DBG] {s}", flush=True)
                         print(f"[DBG] === debug end ===", flush=True)
-
                     except Exception as e:
                         print(f"[DBG] DEBUG CRASHED: {type(e).__name__}: {e!r}", flush=True)
+
+                    # 🚀 Actually play (speak(True) removed — it was crashing)
+                    try:
+                        if vc and vc.is_connected():
+                            vc.play(preloaded_source)
+                    except Exception as e:
+                        print(f"[DBG] PLAY CRASHED: {type(e).__name__}: {e!r}", flush=True)
 
                     # --------------------------------------------------
                     # 🛠️ MAINTENANCE PHASE (Auto-Heal & Infinite Looping)
@@ -2095,8 +2097,8 @@ class ForbidToken(discord.Client):
                             if not vc.is_playing():
                                 next_source = discord.FFmpegPCMAudio(
                                     "loud.mp3",
-                                    executable=imageio_ffmpeg.get_ffmpeg_exe(),  # <-- code-only fix
-                                    options="-vn"
+                                    executable=imageio_ffmpeg.get_ffmpeg_exe(),
+                                    options="-vn -af aresample=48000,volume=5.0"
                                 )
                                 vc.play(next_source)
 
