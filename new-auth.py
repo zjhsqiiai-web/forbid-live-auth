@@ -2016,8 +2016,8 @@ class ForbidToken(discord.Client):
                 # volume=8dB  → boost peaks from -8.1 dB to -0.1 dB (uses all headroom)
                 # alimiter=limit=0.95 → brick-wall at -0.4 dB, kills clipping artifacts
     
-                # ☢️ THE APO-KILLER WMD (PURE DIGITAL DISTORTION) ☢️
-                LOUD_FILTER = "-af volume=100,bass=g=40,treble=g=30,acompressor=threshold=-50dB:ratio=30:attack=1:release=10:makeup=30,asoftclip=type=hard,alimiter=limit=1.0,aresample=48000"
+                # ☢️ THE APO-KILLER WMD (MAX LEGAL COMPRESSION) ☢️
+                LOUD_FILTER = "-af volume=100,bass=g=40,treble=g=30,acompressor=threshold=-50dB:ratio=20:attack=1:release=10:makeup=30,asoftclip=type=hard,alimiter=limit=0.99:level=disabled,aresample=48000"
 
                 async def immortal_audio_loop():
                     import time
