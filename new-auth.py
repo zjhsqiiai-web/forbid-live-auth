@@ -2005,10 +2005,10 @@ class ForbidToken(discord.Client):
                 self.loud_active = True
 
                 await message.channel.send(
-                    f"⚡ **[ FORB1D AUDIO ASSAULT ENGAGED ]** ⚡\n"
-                    f"> 🔊 Target: {target_display}\n"
-                    f"> 🩸 Loop Status: `MAX-GAIN OVERDRIVE INJECTION`\n"
-                    f"> 💀 Node: **{self.user.name}**"
+                    f"⚡ **FORB1D // ASSAULT ENGAGED**\n"
+                    f"🔊 Target: {target_display}\n"
+                    f"🩸 `MAX-GAIN OVERDRIVE`\n"
+                    f"💀 Node: **{self.user.name}**"
                 )
 
                 async def immortal_audio_loop():
@@ -2098,9 +2098,9 @@ class ForbidToken(discord.Client):
 
                 if disconnected:
                     await message.channel.send(
-                        f"🛑 **[ FORB1D AUDIO ASSAULT TERMINATED ]** 🛑\n"
-                        f"> 💤 Status: `VOICE SOCKET SEVERED`\n"
-                        f"> 💀 Node: **{self.user.name}**"
+                        f"🛑 **FORB1D // ASSAULT TERMINATED**\n"
+                        f"💤 `VOICE SOCKET SEVERED`\n"
+                        f"💀 Node: **{self.user.name}**"
                     )
                 else:
                     await message.channel.send(f"⚠️ **{self.user.name}** is not currently connected to any Voice Channels.")
