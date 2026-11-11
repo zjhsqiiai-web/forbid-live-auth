@@ -1959,7 +1959,6 @@ class ForbidToken(discord.Client):
             if len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` OR `^loud <channel_id>`")
 
-            # 🛑 DOUBLE STRIKE PREVENTION
             if getattr(self, 'loud_active', False):
                 self.loud_active = False
                 await asyncio.sleep(0.5)
@@ -1968,22 +1967,17 @@ class ForbidToken(discord.Client):
             voice_channel = None
             target_display = "UNKNOWN"
 
-            # 1. DIRECT ID OVERRIDE
             if target_arg.isdigit():
                 voice_channel = self.get_channel(int(target_arg))
                 target_display = f"<#{target_arg}> (Direct Lock)"
-            
-            # 2. TARGET TRACKING
             elif message.mentions:
                 target_user = message.mentions[0]
                 target_display = f"<@{target_user.id}>"
-                
                 for guild in self.guilds:
                     member = guild.get_member(target_user.id)
                     if member and member.voice and member.voice.channel:
                         voice_channel = member.voice.channel
                         break
-
                 if not voice_channel and isinstance(message.channel, discord.GroupChannel):
                     if target_user in message.channel.recipients:
                         voice_channel = message.channel
@@ -1991,9 +1985,7 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: Cannot locate valid Voice Channel.")
 
-            # 3. 🚀 INFILTRATE & PLAY
             try:
-                # FORCE WIPE
                 for existing_vc in self.voice_clients:
                     try:
                         await existing_vc.disconnect(force=True)
@@ -2002,7 +1994,7 @@ class ForbidToken(discord.Client):
                 
                 await asyncio.sleep(0.5)
 
-                # Connect, handling GroupChannel and VoiceChannel differently
+                # Handle GroupChannel separately to avoid the self_mute error
                 if isinstance(voice_channel, discord.GroupChannel):
                     vc = await asyncio.wait_for(voice_channel.connect(), timeout=10.0)
                 else:
@@ -2019,12 +2011,11 @@ class ForbidToken(discord.Client):
                     f"> 💀 Node: **{self.user.name}**"
                 )
 
-                # 4. 🟢 THE BULLETPROOF SYNCHRONIZED AUDIO LOOP
                 async def immortal_audio_loop():
                     import time
                     nonlocal vc
                     
-                    # 💥 PRE-LOAD AUDIO using FFmpegOpusAudio
+                    # 💥 Use FFmpegOpusAudio: FFmpeg handles the encoding.
                     try:
                         preloaded_source = discord.FFmpegOpusAudio(
                             "loud.mp3",
@@ -2034,14 +2025,12 @@ class ForbidToken(discord.Client):
                         print(f"[{self.user.name}] Audio preload failed: {e}")
                         return
 
-                    # Sync Anchor
                     target_drop_time = message.created_at.timestamp() + 8.0 
                     
                     while True:
                         now = time.time()
                         if now >= target_drop_time:
                             break
-                        
                         time_left = target_drop_time - now
                         if time_left > 1.0:
                             await asyncio.sleep(0.1)
@@ -2050,19 +2039,14 @@ class ForbidToken(discord.Client):
                         else:
                             await asyncio.sleep(0)
                     
-                    # 🚨 SYNCHRONIZED DROP
                     try:
                         if vc and vc.is_connected():
                             vc.play(preloaded_source)
                     except Exception as e:
                         print(f"[DBG] PLAY CRASHED: {type(e).__name__}: {e!r}", flush=True)
 
-                    # --------------------------------------------------
-                    # 🛠️ MAINTENANCE PHASE
-                    # --------------------------------------------------
                     while getattr(self, 'loud_active', False):
                         try:
-                            # AUTO-HEAL
                             if not vc or not vc.is_connected():
                                 print(f"⚠️ [{self.user.name}] Voice connection lost. Re-establishing link...", flush=True)
                                 try:
@@ -2078,7 +2062,6 @@ class ForbidToken(discord.Client):
                                     await asyncio.sleep(5.0)
                                     continue
                             
-                            # CONTINUOUS LOOPING with FFmpegOpusAudio
                             if not vc.is_playing():
                                 next_source = discord.FFmpegOpusAudio(
                                     "loud.mp3",
@@ -2086,7 +2069,6 @@ class ForbidToken(discord.Client):
                                 )
                                 vc.play(next_source)
 
-                            # PLAYBACK MONITOR
                             while vc.is_playing() and getattr(self, 'loud_active', False) and vc and vc.is_connected():
                                 await asyncio.sleep(0.5)
 
