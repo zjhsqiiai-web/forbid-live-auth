@@ -580,64 +580,89 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "song":
-            # Usage: ^song <query>
-            #        ^song @user <query>
+            if not hasattr(self, '_voice_lock'):
+                self._voice_lock = asyncio.Lock()
+
             if len(parts) < 2:
                 return await message.channel.send(
                     f"❌ **{self.user.name}** Usage:\n"
-                    f"> `^song <name or url>` — plays in *your* VC\n"
-                    f"> `^song @user <name or url>` — plays in *their* VC"
+                    f"> `^song <name or url>`\n"
+                    f"> `^song @user <name or url>`\n"
+                    f"> `^song <channel_id or #channel> <name or url>`"
                 )
 
-            # ── 1. Parse target user + query ──────────────────────────────
-            target_user = message.author
-            query_parts = parts[1:]
+            # parse target and query
+            target_user = None
+            target_channel = None
+            query_parts = list(parts[1:])
 
             if message.mentions:
                 target_user = message.mentions[0]
                 mention_tokens = {f"<@{target_user.id}>", f"<@!{target_user.id}>"}
                 query_parts = [p for p in parts[1:] if p not in mention_tokens]
+            elif parts[1].startswith('<#') and parts[1].endswith('>'):
+                ch_inner = parts[1][2:-1]
+                if not ch_inner.isdigit():
+                    return await message.channel.send(f"❌ **FORB1D** // Invalid channel mention.")
+                target_channel = self.get_channel(int(ch_inner))
+                if not target_channel or not isinstance(target_channel, discord.VoiceChannel):
+                    return await message.channel.send(f"❌ **FORB1D** // Invalid voice channel.")
+                query_parts = parts[2:]
+            elif parts[1].isdigit() and len(parts[1]) >= 17:
+                target_channel = self.get_channel(int(parts[1]))
+                if not target_channel or not isinstance(target_channel, discord.VoiceChannel):
+                    return await message.channel.send(f"❌ **FORB1D** // Invalid voice channel ID: `{parts[1]}`")
+                query_parts = parts[2:]
+            else:
+                target_user = message.author
+                query_parts = parts[1:]
 
             query = " ".join(query_parts).strip()
             if not query:
-                return await message.channel.send(
-                    f"❌ **FORB1D** // No song name provided. Usage: `^song [@user] <name or url>`"
-                )
+                return await message.channel.send(f"❌ **FORB1D** // No song name provided.")
 
-            # ── 2. Locate target user's voice channel ─────────────────────
+            # resolve voice channel
             voice_channel = None
-
-            if isinstance(message.channel, discord.GroupChannel):
-                if target_user in message.channel.recipients:
-                    voice_channel = message.channel
-            else:
-                for guild in self.guilds:
-                    member = guild.get_member(target_user.id)
-                    if member and member.voice and member.voice.channel:
-                        voice_channel = member.voice.channel
-                        break
+            if target_channel:
+                voice_channel = target_channel
+            elif target_user:
+                if isinstance(message.channel, discord.GroupChannel):
+                    if target_user in message.channel.recipients:
+                        voice_channel = message.channel
+                else:
+                    for guild in self.guilds:
+                        member = guild.get_member(target_user.id)
+                        if member and member.voice and member.voice.channel:
+                            voice_channel = member.voice.channel
+                            break
 
             if not voice_channel:
+                who = (
+                    f"<#{target_channel.id}>" if target_channel
+                    else target_user.name if target_user
+                    else "you"
+                )
                 return await message.channel.send(
-                    f"⚠️ **FORB1D** // `{target_user.name}` is not in a Voice Channel."
+                    f"⚠️ **FORB1D** // {who} is not in a Voice Channel."
                 )
 
-            # ── 3. Kill ^loud + existing song, then take over VC ──────────
-            self.loud_active = False
-            self.song_active = False
-            await asyncio.sleep(1.2)  # let immortal loop / previous song exit cleanly
+            # acquire lock: serializes with ^loud, no race possible
+            async with self._voice_lock:
+                self.loud_active = False
+                self.song_active = False
+                await asyncio.sleep(1.2)
 
-            vc = None
-            for existing_vc in list(self.voice_clients):
-                if existing_vc.channel == voice_channel:
-                    vc = existing_vc
-                else:
+                # force-wipe any existing voice client cleanly
+                for existing_vc in list(self.voice_clients):
                     try:
+                        if existing_vc.is_playing():
+                            existing_vc.stop()
                         await existing_vc.disconnect(force=True)
                     except Exception:
                         pass
+                await asyncio.sleep(0.5)
 
-            if not vc:
+                # connect to target vc
                 try:
                     if isinstance(voice_channel, discord.GroupChannel):
                         vc = await asyncio.wait_for(voice_channel.connect(), timeout=10.0)
@@ -649,106 +674,109 @@ class ForbidToken(discord.Client):
                 except Exception as e:
                     return await message.channel.send(f"❌ Connection failed: `{e}`")
 
-            if vc.is_playing():
-                vc.stop()
-                await asyncio.sleep(0.5)
+                msg = await message.channel.send(f"⏳ **FORB1D** // Ripping `{query}` from SoundCloud...")
 
-            msg = await message.channel.send(
-                f"⏳ **FORB1D** // Ripping `{query}` from SoundCloud..."
-            )
+                import yt_dlp
+                YTDL_OPTIONS = {
+                    'format': 'bestaudio',
+                    'noplaylist': True,
+                    'default_search': 'scsearch',
+                    'quiet': True,
+                    'no_warnings': True,
+                }
 
-            # ── 4. Extract audio URL via yt-dlp ───────────────────────────
-            import yt_dlp
-            YTDL_OPTIONS = {
-                'format': 'bestaudio',
-                'noplaylist': True,
-                'default_search': 'scsearch',
-                'quiet': True,
-                'no_warnings': True,
-            }
+                # initial extraction
+                try:
+                    loop = asyncio.get_event_loop()
 
-            try:
-                loop = asyncio.get_event_loop()
+                    def fetch_audio_data():
+                        with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+                            return ydl.extract_info(query, download=False)
 
-                def fetch_audio_data():
-                    with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
-                        return ydl.extract_info(query, download=False)
+                    info = await loop.run_in_executor(None, fetch_audio_data)
 
-                info = await loop.run_in_executor(None, fetch_audio_data)
+                    if 'entries' in info:
+                        if not info['entries']:
+                            raise Exception("No SoundCloud results for that query.")
+                        info = info['entries'][0]
 
-                if 'entries' in info:
-                    if not info['entries']:
-                        raise Exception("No SoundCloud results for that query.")
-                    info = info['entries'][0]
+                    audio_url = info['url']
+                    title = info.get('title', 'Unknown Track')
+                    duration = info.get('duration', 0)
 
-                audio_url = info['url']
-                title = info.get('title', 'Unknown Track')
-                duration = info.get('duration', 0)
+                except Exception as e:
+                    try:
+                        await vc.disconnect()
+                    except Exception:
+                        pass
+                    return await msg.edit(content=f"❌ **FORB1D** // SoundCloud extraction failed: `{e}`")
 
-            except Exception as e:
-                return await msg.edit(
-                    content=f"❌ **FORB1D** // SoundCloud extraction failed: `{e}`"
+                # guard: connection still alive after slow extraction?
+                if not vc or not vc.is_connected():
+                    return await msg.edit(content=f"❌ **FORB1D** // Voice connection dropped during extraction.")
+
+                mins, secs = divmod(int(duration or 0), 60)
+                await msg.edit(content=(
+                    f"⚡ **FORB1D // LIVE AUDIO INJECTION**\n"
+                    f"> 🎶 **Track:** `{title}`\n"
+                    f"> ⏱️ **Duration:** `{mins}:{secs:02d}`\n"
+                    f"> 💎 **Filter:** `STUDIO MASTER (MAX RMS)`\n"
+                    f"> 🔁 **Mode:** `INFINITE LOOP`"
+                ))
+
+                LOUD_FILTER = (
+                    "-af "
+                    "acompressor=threshold=-18dB:ratio=4:attack=5:release=100:makeup=2,"
+                    "equalizer=f=80:width_type=o:width=2:g=4,"
+                    "equalizer=f=3000:width_type=o:width=2:g=3,"
+                    "alimiter=limit=0.95:level=disabled,"
+                    "aresample=48000"
                 )
 
-            mins, secs = divmod(int(duration or 0), 60)
-            await msg.edit(content=(
-                f"⚡ **FORB1D // LIVE AUDIO INJECTION**\n"
-                f"> 🎶 **Track:** `{title}`\n"
-                f"> ⏱️ **Duration:** `{mins}:{secs:02d}`\n"
-                f"> 💎 **Filter:** `STUDIO MASTER (MAX RMS)`\n"
-                f"> 🎯 **Target:** {target_user.mention}"
-            ))
-
-            # ── 5. Build FFmpeg filter chain ──────────────────────────────
-            LOUD_FILTER = (
-                "-af "
-                "acompressor=threshold=-18dB:ratio=4:attack=5:release=100:makeup=2,"
-                "equalizer=f=80:width_type=o:width=2:g=4,"
-                "equalizer=f=3000:width_type=o:width=2:g=3,"
-                "alimiter=limit=0.95:level=disabled,"
-                "aresample=48000"
-            )
-
-            # ── 6. Stream the URL through FFmpeg → Opus ───────────────────
-            try:
                 import imageio_ffmpeg
-                source = discord.FFmpegOpusAudio(
-                    audio_url,
-                    executable=imageio_ffmpeg.get_ffmpeg_exe(),
-                    bitrate=320,
-                    before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                    options=LOUD_FILTER,
-                )
-                vc.play(source)
                 self.song_active = True
 
-                # ── 7. Notify when THIS specific source finishes ──────────
-                async def notify_end():
-                    await asyncio.sleep(2)  # give play() time to register the source
-                    try:
-                        while (
-                            getattr(self, 'song_active', False)
-                            and vc.is_connected()
-                            and vc.is_playing()
-                            and getattr(vc, "_source", None) is source
-                        ):
-                            await asyncio.sleep(2)
-                        if (
-                            getattr(self, 'song_active', False)
-                            and vc.is_connected()
-                            and getattr(vc, "_source", None) is source
-                        ):
-                            await message.channel.send(
-                                f"✅ **FORB1D** // `{title}` finished."
+                # infinite loop: replays until song_active=False or vc drops
+                async def song_loop():
+                    nonlocal audio_url
+                    while getattr(self, 'song_active', False) and vc and vc.is_connected():
+                        try:
+                            source = discord.FFmpegOpusAudio(
+                                audio_url,
+                                executable=imageio_ffmpeg.get_ffmpeg_exe(),
+                                bitrate=320,
+                                before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                                options=LOUD_FILTER,
                             )
-                    except Exception:
-                        pass  # VC was disconnected by ^unsong / ^loud
+                            vc.play(source)
+                            await asyncio.sleep(1)
+                            while (
+                                getattr(self, 'song_active', False)
+                                and vc
+                                and vc.is_connected()
+                                and vc.is_playing()
+                            ):
+                                await asyncio.sleep(2)
+                        except Exception:
+                            # URL likely expired, re-extract and retry
+                            try:
+                                loop = asyncio.get_event_loop()
 
-                asyncio.create_task(notify_end())
+                                def refetch():
+                                    with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+                                        return ydl.extract_info(query, download=False)
 
-            except Exception as e:
-                await message.channel.send(f"❌ Playback Error: `{e}`")
+                                info = await loop.run_in_executor(None, refetch)
+                                if 'entries' in info:
+                                    if not info['entries']:
+                                        break
+                                    info = info['entries'][0]
+                                audio_url = info['url']
+                                await asyncio.sleep(1)
+                            except Exception:
+                                await asyncio.sleep(5)
 
+                asyncio.create_task(song_loop())
 
         elif command == "unsong":
             # Usage: ^unsong — stop any playback (song OR loud) and leave VC
@@ -2153,10 +2181,14 @@ class ForbidToken(discord.Client):
 
 
         elif command == "loud":
+            if not hasattr(self, '_voice_lock'):
+                self._voice_lock = asyncio.Lock()
+
             parts = message.content.split()
             if len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` OR `^loud <channel_id>`")
 
+            self.song_active = False
             if getattr(self, 'loud_active', False):
                 self.loud_active = False
                 await asyncio.sleep(0.5)
@@ -2186,134 +2218,135 @@ class ForbidToken(discord.Client):
                     f"💀 Cannot locate valid Voice Channel."
                 )
 
-            try:
-                for existing_vc in self.voice_clients:
-                    try:
-                        await existing_vc.disconnect(force=True)
-                    except Exception:
-                        pass
-
-                await asyncio.sleep(0.5)
-
-                if isinstance(voice_channel, discord.GroupChannel):
-                    vc = await asyncio.wait_for(voice_channel.connect(), timeout=10.0)
-                else:
-                    vc = await asyncio.wait_for(
-                        voice_channel.connect(self_mute=False, self_deaf=True),
-                        timeout=10.0,
-                    )
-                self.loud_active = True
-
-                await message.channel.send(
-                    f"⚡ **FORB1D // ASSAULT ENGAGED**\n"
-                    f"🔊 Target: {target_display}\n"
-                    f"🩸 `MAX-GAIN OVERDRIVE`\n"
-                    f"💀 Node: **{self.user.name}**"
-                )
-
-                # 🩸 MAX LOUDNESS FILTER CHAIN — applied by FFmpeg at runtime
-                # volume=8dB  → boost peaks from -8.1 dB to -0.1 dB (uses all headroom)
-                # alimiter=limit=0.95 → brick-wall at -0.4 dB, kills clipping artifacts
-    
-                # 💎 THE STUDIO MASTER (MAX CLEAR LOUDNESS) 💎
-                LOUD_FILTER = "-af equalizer=f=80:width_type=o:width=2:g=6,equalizer=f=3000:width_type=o:width=2:g=8,acompressor=threshold=-24dB:ratio=8:attack=2:release=30:makeup=16,alimiter=limit=0.98:attack=2:release=20:level=disabled,aresample=48000"
-
-                async def immortal_audio_loop():
-                    import time
-                    nonlocal vc
-
-                    try:
-                        preloaded_source = discord.FFmpegOpusAudio(
-                            "loud.mp3",
-                            executable=imageio_ffmpeg.get_ffmpeg_exe(),
-                            bitrate=320,
-                            options=LOUD_FILTER,
-                        )
-                    except Exception:
-                        return
-
-                    target_drop_time = message.created_at.timestamp() + 8.0
-
-                    while True:
-                        now = time.time()
-                        if now >= target_drop_time:
-                            break
-                        time_left = target_drop_time - now
-                        if time_left > 1.0:
-                            await asyncio.sleep(0.1)
-                        elif time_left > 0.05:
-                            await asyncio.sleep(0.01)
-                        else:
-                            await asyncio.sleep(0)
-
-                    try:
-                        if vc and vc.is_connected():
-                            vc.play(preloaded_source)
-                    except Exception:
-                        pass
-
-                    while getattr(self, 'loud_active', False):
+            async with self._voice_lock:
+                try:
+                    for existing_vc in self.voice_clients:
                         try:
-                            if not vc or not vc.is_connected():
-                                try:
-                                    if isinstance(voice_channel, discord.GroupChannel):
-                                        vc = await asyncio.wait_for(voice_channel.connect(), timeout=15.0)
-                                    else:
-                                        vc = await asyncio.wait_for(
-                                            voice_channel.connect(self_mute=False, self_deaf=True),
-                                            timeout=15.0,
-                                        )
-                                    await asyncio.sleep(2.0)
-                                except Exception:
-                                    await asyncio.sleep(5.0)
-                                    continue
-
-                            if not vc.is_playing():
-                                next_source = discord.FFmpegOpusAudio(
-                                    "loud.mp3",
-                                    executable=imageio_ffmpeg.get_ffmpeg_exe(),
-                                    bitrate=320,
-                                    options=LOUD_FILTER,
-                                )
-                                vc.play(next_source)
-
-                            while vc.is_playing() and getattr(self, 'loud_active', False) and vc and vc.is_connected():
-                                await asyncio.sleep(0.5)
-
-                            await asyncio.sleep(0.1)
-
+                            if existing_vc.is_playing():
+                                existing_vc.stop()
+                            await existing_vc.disconnect(force=True)
                         except Exception:
-                            await asyncio.sleep(2.0)
+                            pass
 
-                asyncio.create_task(immortal_audio_loop())
+                    await asyncio.sleep(1.0)
 
-            except asyncio.TimeoutError:
-                await message.channel.send(f"❌ **{self.user.name}** Voice connection timed out.")
-            except Exception as e:
-                await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
+                    if isinstance(voice_channel, discord.GroupChannel):
+                        vc = await asyncio.wait_for(voice_channel.connect(), timeout=10.0)
+                    else:
+                        vc = await asyncio.wait_for(
+                            voice_channel.connect(self_mute=False, self_deaf=True),
+                            timeout=10.0,
+                        )
+                    self.loud_active = True
+
+                    await message.channel.send(
+                        f"⚡ **FORB1D // ASSAULT ENGAGED**\n"
+                        f"🔊 Target: {target_display}\n"
+                        f"🩸 `MAX-GAIN OVERDRIVE`\n"
+                        f"💀 Node: **{self.user.name}**"
+                    )
+
+                    LOUD_FILTER = "-af equalizer=f=80:width_type=o:width=2:g=6,equalizer=f=3000:width_type=o:width=2:g=8,acompressor=threshold=-24dB:ratio=8:attack=2:release=30:makeup=16,alimiter=limit=0.98:attack=2:release=20:level=disabled,aresample=48000"
+
+                    async def immortal_audio_loop():
+                        import time
+                        nonlocal vc
+
+                        try:
+                            preloaded_source = discord.FFmpegOpusAudio(
+                                "loud.mp3",
+                                executable=imageio_ffmpeg.get_ffmpeg_exe(),
+                                bitrate=320,
+                                options=LOUD_FILTER,
+                            )
+                        except Exception:
+                            return
+
+                        target_drop_time = message.created_at.timestamp() + 8.0
+
+                        while True:
+                            now = time.time()
+                            if now >= target_drop_time:
+                                break
+                            time_left = target_drop_time - now
+                            if time_left > 1.0:
+                                await asyncio.sleep(0.1)
+                            elif time_left > 0.05:
+                                await asyncio.sleep(0.01)
+                            else:
+                                await asyncio.sleep(0)
+
+                        try:
+                            if vc and vc.is_connected():
+                                vc.play(preloaded_source)
+                        except Exception:
+                            pass
+
+                        while getattr(self, 'loud_active', False):
+                            try:
+                                if not vc or not vc.is_connected():
+                                    try:
+                                        if isinstance(voice_channel, discord.GroupChannel):
+                                            vc = await asyncio.wait_for(voice_channel.connect(), timeout=15.0)
+                                        else:
+                                            vc = await asyncio.wait_for(
+                                                voice_channel.connect(self_mute=False, self_deaf=True),
+                                                timeout=15.0,
+                                            )
+                                        await asyncio.sleep(2.0)
+                                    except Exception:
+                                        await asyncio.sleep(5.0)
+                                        continue
+
+                                if not vc.is_playing():
+                                    next_source = discord.FFmpegOpusAudio(
+                                        "loud.mp3",
+                                        executable=imageio_ffmpeg.get_ffmpeg_exe(),
+                                        bitrate=320,
+                                        options=LOUD_FILTER,
+                                    )
+                                    vc.play(next_source)
+
+                                while vc.is_playing() and getattr(self, 'loud_active', False) and vc and vc.is_connected():
+                                    await asyncio.sleep(0.5)
+
+                                await asyncio.sleep(0.1)
+
+                            except Exception:
+                                await asyncio.sleep(2.0)
+
+                    asyncio.create_task(immortal_audio_loop())
+
+                except asyncio.TimeoutError:
+                    await message.channel.send(f"❌ **{self.user.name}** Voice connection timed out.")
+                except Exception as e:
+                    await message.channel.send(f"❌ Voice Infiltration Error for **{self.user.name}**: {e}")
 
         elif command == "unloud":
-            # Usage: ^unloud
-            try:
-                self.loud_active = False
-                disconnected = False
+            self.loud_active = False
+            self.song_active = False
 
-                for vc in self.voice_clients:
+            disconnected = False
+            for vc in list(self.voice_clients):
+                try:
+                    if vc.is_playing():
+                        vc.stop()
                     if vc.is_connected():
                         await vc.disconnect()
                         disconnected = True
+                except Exception:
+                    pass
 
-                if disconnected:
-                    await message.channel.send(
-                        f"🛑 **FORB1D // ASSAULT TERMINATED**\n"
-                        f"💤 `VOICE SOCKET SEVERED`\n"
-                        f"💀 Node: **{self.user.name}**"
-                    )
-                else:
-                    await message.channel.send(f"⚠️ **{self.user.name}** is not currently connected to any Voice Channels.")
-
-            except Exception as e:
-                await message.channel.send(f"❌ Killswitch Error: {e}")
+            if disconnected:
+                await message.channel.send(
+                    f"🛑 **FORB1D // ASSAULT TERMINATED**\n"
+                    f"💤 `VOICE SOCKET SEVERED`\n"
+                    f"💀 Node: **{self.user.name}**"
+                )
+            else:
+                await message.channel.send(
+                    f"⚠️ **{self.user.name}** is not currently connected to any Voice Channels."
+                )
 
         
 
