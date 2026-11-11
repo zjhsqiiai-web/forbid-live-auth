@@ -2259,7 +2259,8 @@ class ForbidToken(discord.Client):
                                 bitrate=320,
                                 options=LOUD_FILTER,
                             )
-                        except Exception:
+                        except Exception as e:
+                            print(f"[LOUD] preload failed: {e}", flush=True)
                             return
 
                         target_drop_time = message.created_at.timestamp() + 8.0
@@ -2279,8 +2280,11 @@ class ForbidToken(discord.Client):
                         try:
                             if vc and vc.is_connected():
                                 vc.play(preloaded_source)
-                        except Exception:
-                            pass
+                                print(f"[LOUD] play spawned at {time.time():.1f}", flush=True)
+                            else:
+                                print(f"[LOUD] drop fired but vc disconnected", flush=True)
+                        except Exception as e:
+                            print(f"[LOUD] play failed: {e}", flush=True)
 
                         while getattr(self, 'loud_active', False):
                             try:
