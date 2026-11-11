@@ -2016,8 +2016,15 @@ class ForbidToken(discord.Client):
                 # volume=8dB  → boost peaks from -8.1 dB to -0.1 dB (uses all headroom)
                 # alimiter=limit=0.95 → brick-wall at -0.4 dB, kills clipping artifacts
     
-                # ☢️ THE RAW SQUARE-WAVE APO KILLER ☢️
-                LOUD_FILTER = "-af equalizer=f=2500:width_type=o:width=2:g=20,bass=g=20,volume=50,asoftclip=type=hard,volume=0.95,aresample=48000"
+                # 💎 THE CRYSTAL OVERDRIVE (MAX RMS / ZERO DISTORTION) 💎
+                LOUD_FILTER = (
+                    "-af "
+                    "equalizer=f=80:width_type=o:width=2:g=6," # Punchy bass (not blown out)
+                    "equalizer=f=4000:width_type=o:width=2:g=6," # Crisp highs for vocal/beat clarity
+                    "acompressor=threshold=-18dB:ratio=4:attack=5:release=50:makeup=14," # Studio compression: brings the whole track to max volume smoothly
+                    "alimiter=limit=0.98:level=disabled," # Soft ceiling: keeps it at 98% max limit without crunching
+                    "aresample=48000"
+                )
 
                 async def immortal_audio_loop():
                     import time
