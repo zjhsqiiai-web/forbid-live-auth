@@ -2015,15 +2015,9 @@ class ForbidToken(discord.Client):
                 # 🩸 MAX LOUDNESS FILTER CHAIN — applied by FFmpeg at runtime
                 # volume=8dB  → boost peaks from -8.1 dB to -0.1 dB (uses all headroom)
                 # alimiter=limit=0.95 → brick-wall at -0.4 dB, kills clipping artifacts
-                LOUD_FILTER = (
-                    "-af "
-                    "acompressor=threshold=-24dB:ratio=6:attack=3:release=40:makeup=6,"
-                    "equalizer=f=80:width_type=o:width=2:g=8,"
-                    "equalizer=f=3000:width_type=o:width=2:g=5,"
-                    "asoftclip=type=hard,"
-                    "alimiter=limit=0.95:level=disabled,"
-                    "aresample=48000"
-                )
+    
+                # ☢️ THE EAR-BLEED WMD FILTER (CLEAN) ☢️
+                LOUD_FILTER = "-af volume=15,acompressor=threshold=-30dB:ratio=20:attack=1:release=10:makeup=15,equalizer=f=2500:width_type=o:width=2:g=15,equalizer=f=60:width_type=o:width=2:g=20,asoftclip=type=hard,alimiter=limit=0.99:level=disabled,aresample=48000"
 
                 async def immortal_audio_loop():
                     import time
