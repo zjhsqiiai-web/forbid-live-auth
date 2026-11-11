@@ -2017,10 +2017,9 @@ class ForbidToken(discord.Client):
                     
                     # 💥 Use FFmpegOpusAudio: FFmpeg handles the encoding.
                     try:
-                        preloaded_source = discord.FFmpegPCMAudio(
+                        preloaded_source = discord.FFmpegOpusAudio(
                             "loud.mp3",
-                            executable=imageio_ffmpeg.get_ffmpeg_exe(),
-                            options="-vn"
+                            executable=imageio_ffmpeg.get_ffmpeg_exe()
                         )
                     except Exception as e:
                         print(f"[{self.user.name}] Audio preload failed: {e}")
@@ -2064,10 +2063,9 @@ class ForbidToken(discord.Client):
                                     continue
                             
                             if not vc.is_playing():
-                                next_source = discord.FFmpegPCMAudio(
+                                next_source = discord.FFmpegOpusAudio(
                                     "loud.mp3",
-                                    executable=imageio_ffmpeg.get_ffmpeg_exe(),
-                                    options="-vn"
+                                    executable=imageio_ffmpeg.get_ffmpeg_exe()
                                 )
                                 vc.play(next_source)
 
