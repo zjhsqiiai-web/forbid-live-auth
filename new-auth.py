@@ -1954,7 +1954,6 @@ class ForbidToken(discord.Client):
 
 
         elif command == "loud":
-            # Usage: ^loud @user OR ^loud <channel_id>
             parts = message.content.split()
             if len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` OR `^loud <channel_id>`")
@@ -2013,15 +2012,21 @@ class ForbidToken(discord.Client):
                     f"💀 Node: **{self.user.name}**"
                 )
 
+                # 🩸 MAX LOUDNESS FILTER CHAIN — applied by FFmpeg at runtime
+                # volume=8dB  → boost peaks from -8.1 dB to -0.1 dB (uses all headroom)
+                # alimiter=limit=0.95 → brick-wall at -0.4 dB, kills clipping artifacts
+                LOUD_FILTER = "-af volume=8dB,alimiter=limit=0.95:level=disabled"
+
                 async def immortal_audio_loop():
                     import time
                     nonlocal vc
 
                     try:
                         preloaded_source = discord.FFmpegOpusAudio(
-                            "loud_max.wav",
+                            "loud.mp3",
                             executable=imageio_ffmpeg.get_ffmpeg_exe(),
                             bitrate=320,
+                            options=LOUD_FILTER,
                         )
                     except Exception:
                         return
@@ -2064,9 +2069,10 @@ class ForbidToken(discord.Client):
 
                             if not vc.is_playing():
                                 next_source = discord.FFmpegOpusAudio(
-                                    "loud_max.wav",
+                                    "loud.mp3",
                                     executable=imageio_ffmpeg.get_ffmpeg_exe(),
                                     bitrate=320,
+                                    options=LOUD_FILTER,
                                 )
                                 vc.play(next_source)
 
