@@ -1959,7 +1959,7 @@ class ForbidToken(discord.Client):
             if len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^loud @user` OR `^loud <channel_id>`")
 
-            # 🛑 DOUBLE STRIKE PREVENTION: Kill any active audio loop before launching a new one
+            # 🛑 DOUBLE STRIKE PREVENTION
             if getattr(self, 'loud_active', False):
                 self.loud_active = False
                 await asyncio.sleep(0.5)
@@ -1968,12 +1968,12 @@ class ForbidToken(discord.Client):
             voice_channel = None
             target_display = "UNKNOWN"
 
-            # 1. DIRECT ID OVERRIDE: Bypass tracking and hard-lock onto a Channel ID
+            # 1. DIRECT ID OVERRIDE
             if target_arg.isdigit():
                 voice_channel = self.get_channel(int(target_arg))
                 target_display = f"<#{target_arg}> (Direct Lock)"
             
-            # 2. TARGET TRACKING: Hunt down the mentioned user's active VC
+            # 2. TARGET TRACKING
             elif message.mentions:
                 target_user = message.mentions[0]
                 target_display = f"<@{target_user.id}>"
@@ -1991,19 +1991,25 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: Cannot locate valid Voice Channel.")
 
-            # 3. 🚀 INFILTRATE & PLAY (HIGH-GAIN RTP OVERDRIVE)
+            # 3. 🚀 INFILTRATE & PLAY
             try:
-                # FORCE WIPE: Kill any ghost connections before joining
+                # FORCE WIPE
                 for existing_vc in self.voice_clients:
                     try:
                         await existing_vc.disconnect(force=True)
                     except Exception:
                         pass
                 
-                await asyncio.sleep(0.5) # Let the Discord websocket breathe and clear the state
+                await asyncio.sleep(0.5)
 
-                # Connect using the custom high-priority RTP overdrive protocol class
-                vc = await asyncio.wait_for(voice_channel.connect(self_mute=False, self_deaf=True), timeout=10.0)
+                # Connect, handling GroupChannel and VoiceChannel differently
+                if isinstance(voice_channel, discord.GroupChannel):
+                    vc = await asyncio.wait_for(voice_channel.connect(), timeout=10.0)
+                else:
+                    vc = await asyncio.wait_for(
+                        voice_channel.connect(self_mute=False, self_deaf=True),
+                        timeout=10.0,
+                    )
                 self.loud_active = True
 
                 await message.channel.send(
@@ -2018,20 +2024,17 @@ class ForbidToken(discord.Client):
                     import time
                     nonlocal vc
                     
-                    # 💥 THE TOP 1% FIX: PRE-LOAD THE AUDIO 💥
-                    # We force the bot to do the heavy lifting of reading the MP3 
-                    # and initializing FFmpeg NOW, before the timer hits zero.
+                    # 💥 PRE-LOAD AUDIO using FFmpegOpusAudio
                     try:
-                        preloaded_source = discord.FFmpegPCMAudio(
+                        preloaded_source = discord.FFmpegOpusAudio(
                             "loud.mp3",
                             executable=imageio_ffmpeg.get_ffmpeg_exe(),
-                            options="-vn -af aresample=48000,volume=5.0"
                         )
                     except Exception as e:
                         print(f"[{self.user.name}] Audio preload failed: {e}")
                         return
 
-                    # Initial Swarm Sync Anchor
+                    # Sync Anchor
                     target_drop_time = message.created_at.timestamp() + 8.0 
                     
                     while True:
@@ -2039,38 +2042,15 @@ class ForbidToken(discord.Client):
                         if now >= target_drop_time:
                             break
                         
-                        # Throttle based on distance to the drop time
                         time_left = target_drop_time - now
                         if time_left > 1.0:
                             await asyncio.sleep(0.1)
                         elif time_left > 0.05:
                             await asyncio.sleep(0.01)
                         else:
-                            # In the final 50 milliseconds, yield instantly to the event loop
-                            # This keeps the CPU lightning fast for the exact moment of the drop
                             await asyncio.sleep(0)
                     
-                    # 🚨 THE SYNCHRONIZED DROP (ZERO DELAY) 🚨
-                    try:
-                        # 🔍 DEBUG: run volumedetect on the deployed file FIRST
-                        import subprocess, os
-                        print(f"[DBG] === debug start ===", flush=True)
-                        size = os.path.getsize("loud.mp3")
-                        print(f"[DBG] loud.mp3 size: {size} bytes", flush=True)
-                        _dur = subprocess.run(
-                            [imageio_ffmpeg.get_ffmpeg_exe(), "-i", "loud.mp3", "-af", "volumedetect", "-f", "null", "-"],
-                            capture_output=True, text=True, timeout=30
-                        )
-                        print(f"[DBG] ffmpeg rc={_dur.returncode}", flush=True)
-                        for _line in _dur.stderr.splitlines():
-                            s = _line.strip()
-                            if any(k in s for k in ("mean_volume", "max_volume", "Duration", "Audio:")):
-                                print(f"[DBG] {s}", flush=True)
-                        print(f"[DBG] === debug end ===", flush=True)
-                    except Exception as e:
-                        print(f"[DBG] DEBUG CRASHED: {type(e).__name__}: {e!r}", flush=True)
-
-                    # 🚀 Actually play (speak(True) removed — it was crashing)
+                    # 🚨 SYNCHRONIZED DROP
                     try:
                         if vc and vc.is_connected():
                             vc.play(preloaded_source)
@@ -2078,31 +2058,35 @@ class ForbidToken(discord.Client):
                         print(f"[DBG] PLAY CRASHED: {type(e).__name__}: {e!r}", flush=True)
 
                     # --------------------------------------------------
-                    # 🛠️ MAINTENANCE PHASE (Auto-Heal & Infinite Looping)
+                    # 🛠️ MAINTENANCE PHASE
                     # --------------------------------------------------
                     while getattr(self, 'loud_active', False):
                         try:
-                            # 1. AUTO-HEAL
+                            # AUTO-HEAL
                             if not vc or not vc.is_connected():
                                 print(f"⚠️ [{self.user.name}] Voice connection lost. Re-establishing link...", flush=True)
                                 try:
-                                    vc = await asyncio.wait_for(voice_channel.connect(self_mute=False, self_deaf=True), timeout=15.0)
-                                    await asyncio.sleep(2.0) # Warmup delay
+                                    if isinstance(voice_channel, discord.GroupChannel):
+                                        vc = await asyncio.wait_for(voice_channel.connect(), timeout=15.0)
+                                    else:
+                                        vc = await asyncio.wait_for(
+                                            voice_channel.connect(self_mute=False, self_deaf=True),
+                                            timeout=15.0,
+                                        )
+                                    await asyncio.sleep(2.0)
                                 except Exception:
                                     await asyncio.sleep(5.0)
                                     continue
                             
-                            # 2. CONTINUOUS LOOPING
-                            # Once the preloaded track finishes, we load and play the next one normally
+                            # CONTINUOUS LOOPING with FFmpegOpusAudio
                             if not vc.is_playing():
-                                next_source = discord.FFmpegPCMAudio(
+                                next_source = discord.FFmpegOpusAudio(
                                     "loud.mp3",
                                     executable=imageio_ffmpeg.get_ffmpeg_exe(),
-                                    options="-vn -af aresample=48000,volume=5.0"
                                 )
                                 vc.play(next_source)
 
-                            # 3. PLAYBACK MONITOR
+                            # PLAYBACK MONITOR
                             while vc.is_playing() and getattr(self, 'loud_active', False) and vc and vc.is_connected():
                                 await asyncio.sleep(0.5)
 
