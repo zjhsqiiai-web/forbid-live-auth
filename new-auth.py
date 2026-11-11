@@ -579,6 +579,104 @@ class ForbidToken(discord.Client):
                 except:
                     pass
 
+        elif command == "song":
+            # Usage: ^song <name or youtube link>
+            if len(parts) < 2:
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^song <name or link>`")
+            
+            query = " ".join(parts[1:])
+            
+            # 1. TRACK THE MASTER: Find which VC you (the owner) are currently sitting in
+            voice_channel = None
+            for guild in self.guilds:
+                member = guild.get_member(message.author.id)
+                if member and member.voice and member.voice.channel:
+                    voice_channel = member.voice.channel
+                    break
+                    
+            if not voice_channel and isinstance(message.channel, discord.GroupChannel):
+                if message.author in message.channel.recipients:
+                    voice_channel = message.channel
+
+            if not voice_channel:
+                return await message.channel.send(f"⚠️ **FORB1D** // You must be in a Voice Channel to request a song.")
+
+            # 2. CONNECT TO VC (or use existing connection)
+            vc = None
+            for existing_vc in self.voice_clients:
+                if existing_vc.channel == voice_channel:
+                    vc = existing_vc
+                    break
+                    
+            if not vc:
+                try:
+                    if isinstance(voice_channel, discord.GroupChannel):
+                        vc = await asyncio.wait_for(voice_channel.connect(), timeout=10.0)
+                    else:
+                        vc = await asyncio.wait_for(voice_channel.connect(self_mute=False, self_deaf=True), timeout=10.0)
+                except Exception as e:
+                    return await message.channel.send(f"❌ Connection failed: {e}")
+
+            # Stop any currently playing audio
+            if getattr(self, 'loud_active', False):
+                self.loud_active = False
+            if vc.is_playing():
+                vc.stop()
+
+            msg = await message.channel.send(f"⏳ **FORB1D** // Ripping `{query}` from YouTube...")
+
+            # 3. BACKGROUND YOUTUBE EXTRACTION (WITH DEEPSEEK COOKIE BYPASS)
+            import yt_dlp
+            YTDL_OPTIONS = {
+                'format': 'bestaudio/best',
+                'noplaylist': True,
+                'default_search': 'ytsearch',
+                'quiet': True,
+                # 💥 THE GHOST BYPASS: Forces YouTube to see an Android phone instead of a Railway server
+                'extractor_args': {'youtube': ['client=android', 'player_skip=web']},
+            }
+            
+            try:
+                loop = asyncio.get_event_loop()
+                def fetch_yt_data():
+                    with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+                        return ydl.extract_info(query, download=False)
+                
+                info = await loop.run_in_executor(None, fetch_yt_data)
+                
+                if 'entries' in info:
+                    info = info['entries'][0]
+                
+                audio_url = info['url']
+                title = info['title']
+                
+            except Exception as e:
+                return await msg.edit(content=f"❌ **FORB1D** // Extraction failed: {e}")
+
+            await msg.edit(content=f"⚡ **FORB1D // LIVE AUDIO INJECTION**\n> 🎶 **Track:** `{title}`\n> 💎 **Filter:** `STUDIO MASTER (MAX RMS)`")
+
+            # 4. THE STUDIO MASTER FILTER
+            LOUD_FILTER = "-af equalizer=f=80:width_type=o:width=2:g=6,equalizer=f=3000:width_type=o:width=2:g=8,acompressor=threshold=-24dB:ratio=8:attack=2:release=30:makeup=16,alimiter=limit=0.98:attack=2:release=20:level=disabled,aresample=48000"
+
+            # 💥 DEEPSEEK FIX: Network stream auto-recovery
+            FFMPEG_OPTIONS = {
+                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                'options': LOUD_FILTER
+            }
+
+            try:
+                import imageio_ffmpeg
+                # 💥 DEEPSEEK FIX: .from_probe() ensures FFmpeg correctly buffers the remote internet stream
+                source = await discord.FFmpegOpusAudio.from_probe(
+                    audio_url,
+                    executable=imageio_ffmpeg.get_ffmpeg_exe(),
+                    bitrate=320,
+                    **FFMPEG_OPTIONS
+                )
+                vc.play(source)
+            except Exception as e:
+                await message.channel.send(f"❌ Playback Error: {e}")
+
         elif command == "lock":
             # 🛑 GHOST PROTOCOL: Send the Swarm into deep sleep
             if message.author.id != MAIN_OWNER: return
