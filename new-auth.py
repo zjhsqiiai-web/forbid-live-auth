@@ -14,6 +14,13 @@ import math
 import aiohttp
 import textwrap
 import av
+import logging
+
+# 🤫 THE SILENCER: Kill all background INFO spam to save RAM and CPU
+logging.getLogger('discord').setLevel(logging.ERROR)
+logging.getLogger('discord.voice_state').setLevel(logging.ERROR)
+logging.getLogger('discord.player').setLevel(logging.ERROR)
+logging.getLogger('werkzeug').setLevel(logging.ERROR) # Mutes the Flask web server warnings
 import discord.opus
 from pathlib import Path
 
