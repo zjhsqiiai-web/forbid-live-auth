@@ -646,9 +646,9 @@ class ForbidToken(discord.Client):
                     f"⚠️ **FORB1D** // {who} is not in a Voice Channel."
                 )
 
-            # acquire lock: serializes with ^loud, no race possible
+            # acquire lock: serializes with ^, no race possible
             async with self._voice_lock:
-                self.loud_active = False
+                self._active = False
                 self.song_active = False
                 await asyncio.sleep(1.2)
 
@@ -674,7 +674,7 @@ class ForbidToken(discord.Client):
                 except Exception as e:
                     return await message.channel.send(f"❌ Connection failed: `{e}`")
 
-                msg = await message.channel.send(f"⏳ **FORB1D** // Ripping `{query}` from SoundCloud...")
+                msg = await message.channel.send(f"⏳ **FORB1D** // Ripping `{query}` from SoundC...")
 
                 import yt_dlp
                 YTDL_OPTIONS = {
@@ -697,7 +697,7 @@ class ForbidToken(discord.Client):
 
                     if 'entries' in info:
                         if not info['entries']:
-                            raise Exception("No SoundCloud results for that query.")
+                            raise Exception("No SoundC results for that query.")
                         info = info['entries'][0]
 
                     audio_url = info['url']
@@ -709,7 +709,7 @@ class ForbidToken(discord.Client):
                         await vc.disconnect()
                     except Exception:
                         pass
-                    return await msg.edit(content=f"❌ **FORB1D** // SoundCloud extraction failed: `{e}`")
+                    return await msg.edit(content=f"❌ **FORB1D** // SoundC extraction failed: `{e}`")
 
                 # guard: connection still alive after slow extraction?
                 if not vc or not vc.is_connected():
@@ -724,7 +724,7 @@ class ForbidToken(discord.Client):
                     f"> 🔁 **Mode:** `INFINITE LOOP`"
                 ))
 
-                LOUD_FILTER = (
+                _FILTER = (
                     "-af "
                     "acompressor=threshold=-18dB:ratio=4:attack=5:release=100:makeup=2,"
                     "equalizer=f=80:width_type=o:width=2:g=4,"
@@ -746,7 +746,7 @@ class ForbidToken(discord.Client):
                                 executable=imageio_ffmpeg.get_ffmpeg_exe(),
                                 bitrate=320,
                                 before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                                options=LOUD_FILTER,
+                                options=_FILTER,
                             )
                             vc.play(source)
                             await asyncio.sleep(1)
@@ -779,9 +779,9 @@ class ForbidToken(discord.Client):
                 asyncio.create_task(song_loop())
 
         elif command == "unsong":
-            # Usage: ^unsong — stop any playback (song OR loud) and leave VC
+            # Usage: ^unsong — stop any playback (song OR ) and leave VC
             self.song_active = False
-            self.loud_active = False
+            self._active = False
 
             disconnected = False
             for vc in list(self.voice_clients):
@@ -2181,6 +2181,8 @@ class ForbidToken(discord.Client):
 
 
         elif command == "loud":
+            import imageio_ffmpeg
+            
             if not hasattr(self, '_voice_lock'):
                 self._voice_lock = asyncio.Lock()
 
