@@ -1,7 +1,8 @@
 FROM python:3.13-slim
 
-# Install system dependencies required for voice
+# Install system dependencies required for voice + git (for pip to clone discord.py-self)
 RUN apt-get update && apt-get install -y \
+    git \
     ffmpeg \
     libopus0 \
     libsodium23 \
@@ -13,10 +14,9 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 COPY . .
 
-# Use the system libsodium for PyNaCl to avoid silent audio
+# Use system libsodium for PyNaCl (avoids silent voice on some Railway builds)
 ENV SODIUM_INSTALL=system
 
-# Install Python dependencies (your requirements.txt stays untouched)
 RUN pip install --no-cache-dir -r requirements.txt
 
 CMD ["python", "new-auth.py"]
