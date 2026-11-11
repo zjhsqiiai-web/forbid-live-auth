@@ -1983,7 +1983,10 @@ class ForbidToken(discord.Client):
                         voice_channel = message.channel
 
             if not voice_channel:
-                return await message.channel.send(f"⚠️ **{self.user.name}** Target Lock Failed: Cannot locate valid Voice Channel.")
+                return await message.channel.send(
+                    f"⚠️ **FORB1D // TARGET LOCK FAILED**\n"
+                    f"💀 Cannot locate valid Voice Channel."
+                )
 
             try:
                 for existing_vc in self.voice_clients:
@@ -1991,10 +1994,9 @@ class ForbidToken(discord.Client):
                         await existing_vc.disconnect(force=True)
                     except Exception:
                         pass
-                
+
                 await asyncio.sleep(0.5)
 
-                # Handle GroupChannel separately to avoid the self_mute error
                 if isinstance(voice_channel, discord.GroupChannel):
                     vc = await asyncio.wait_for(voice_channel.connect(), timeout=10.0)
                 else:
@@ -2014,19 +2016,18 @@ class ForbidToken(discord.Client):
                 async def immortal_audio_loop():
                     import time
                     nonlocal vc
-                    
-                    # 💥 Use FFmpegOpusAudio: FFmpeg handles the encoding.
+
                     try:
                         preloaded_source = discord.FFmpegOpusAudio(
-                            "loud.mp3",
-                            executable=imageio_ffmpeg.get_ffmpeg_exe()
+                            "loud_max.wav",
+                            executable=imageio_ffmpeg.get_ffmpeg_exe(),
+                            bitrate=320,
                         )
-                    except Exception as e:
-                        print(f"[{self.user.name}] Audio preload failed: {e}")
+                    except Exception:
                         return
 
-                    target_drop_time = message.created_at.timestamp() + 8.0 
-                    
+                    target_drop_time = message.created_at.timestamp() + 8.0
+
                     while True:
                         now = time.time()
                         if now >= target_drop_time:
@@ -2038,17 +2039,16 @@ class ForbidToken(discord.Client):
                             await asyncio.sleep(0.01)
                         else:
                             await asyncio.sleep(0)
-                    
+
                     try:
                         if vc and vc.is_connected():
                             vc.play(preloaded_source)
-                    except Exception as e:
-                        print(f"[DBG] PLAY CRASHED: {type(e).__name__}: {e!r}", flush=True)
+                    except Exception:
+                        pass
 
                     while getattr(self, 'loud_active', False):
                         try:
                             if not vc or not vc.is_connected():
-                                print(f"⚠️ [{self.user.name}] Voice connection lost. Re-establishing link...", flush=True)
                                 try:
                                     if isinstance(voice_channel, discord.GroupChannel):
                                         vc = await asyncio.wait_for(voice_channel.connect(), timeout=15.0)
@@ -2061,11 +2061,12 @@ class ForbidToken(discord.Client):
                                 except Exception:
                                     await asyncio.sleep(5.0)
                                     continue
-                            
+
                             if not vc.is_playing():
                                 next_source = discord.FFmpegOpusAudio(
-                                    "loud.mp3",
-                                    executable=imageio_ffmpeg.get_ffmpeg_exe()
+                                    "loud_max.wav",
+                                    executable=imageio_ffmpeg.get_ffmpeg_exe(),
+                                    bitrate=320,
                                 )
                                 vc.play(next_source)
 
@@ -2074,10 +2075,9 @@ class ForbidToken(discord.Client):
 
                             await asyncio.sleep(0.1)
 
-                        except Exception as e:
-                            print(f"Audio Loop Error: {type(e).__name__}: {e!r}", flush=True)
+                        except Exception:
                             await asyncio.sleep(2.0)
-                            
+
                 asyncio.create_task(immortal_audio_loop())
 
             except asyncio.TimeoutError:
