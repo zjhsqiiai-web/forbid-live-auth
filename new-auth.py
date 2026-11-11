@@ -685,119 +685,117 @@ class ForbidToken(discord.Client):
                 msg = await message.channel.send(f"⏳ **FORB1D** // Ripping `{query}` from SoundC...")
 
                 import yt_dlp
-                YTDL_OPTIONS = {
-                    'format': 'bestaudio',
-                    'noplaylist': True,
-                    'default_search': 'scsearch',
-                    'quiet': True,
-                    'no_warnings': True,
-                }
+            YTDL_OPTIONS = {
+                'format': 'bestaudio',
+                'noplaylist': True,
+                'default_search': 'scsearch',
+                'quiet': True,
+                'no_warnings': True,
+            }
 
-                # Initial extraction
+            # Initial extraction
+            try:
+                loop = asyncio.get_event_loop()
+                def fetch_audio_data():
+                    with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+                        return ydl.extract_info(query, download=False)
+                info = await loop.run_in_executor(None, fetch_audio_data)
+
+                if 'entries' in info:
+                    if not info['entries']:
+                        raise Exception("No SoundCloud results for that query.")
+                    info = info['entries'][0]
+
+                audio_url = info['url']
+                title = info.get('title', 'Unknown Track')
+                duration = info.get('duration', 0)
+
+                # 💥 THE FIX: Format headers cleanly for FFmpeg command line
+                http_headers = info.get('http_headers', {})
+                # We only need the User-Agent to bypass the CDN, keeping it clean to avoid shell breaking
+                user_agent = http_headers.get('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                headers_str = f"User-Agent: {user_agent}\r\n"
+
+            except Exception as e:
                 try:
-                    loop = asyncio.get_event_loop()
-                    def fetch_audio_data():
-                        with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
-                            return ydl.extract_info(query, download=False)
-                    info = await loop.run_in_executor(None, fetch_audio_data)
-                    
-                    if 'entries' in info:
-                        if not info['entries']:
-                            raise Exception("No SoundCloud results for that query.")
-                        info = info['entries'][0]
-                        
-                    audio_url = info['url']
-                    title = info.get('title', 'Unknown Track')
-                    duration = info.get('duration', 0)
-                    
-                    # 💥 THE FIX: Grab the exact HTTP headers yt-dlp used to bypass the CDN
-                    http_headers = info.get('http_headers', {})
-                    headers_str = "".join(f"{k}: {v}\r\n" for k, v in http_headers.items())
+                    await vc.disconnect()
+                except Exception:
+                    pass
+                return await msg.edit(content=f"❌ **FORB1D** // SoundCloud extraction failed: `{e}`")
 
-                except Exception as e:
+            # Guard: VC alive after slow extraction?
+            if not vc or not vc.is_connected():
+                return await msg.edit(content=f"❌ **FORB1D** // Voice connection dropped during extraction.")
+
+            mins, secs = divmod(int(duration or 0), 60)
+            await msg.edit(content=(
+                f"⚡ **FORB1D // LIVE AUDIO INJECTION**\n"
+                f"> 🎶 **Track:** `{title}`\n"
+                f"> ⏱️ **Duration:** `{mins}:{secs:02d}`\n"
+                f"> 💎 **Filter:** `STUDIO MASTER (MAX RMS)`\n"
+                f"> 🔁 **Mode:** `INFINITE LOOP`"
+            ))
+
+            LOUD_FILTER = (
+                "-af "
+                "acompressor=threshold=-18dB:ratio=4:attack=5:release=100:makeup=2,"
+                "equalizer=f=80:width_type=o:width=2:g=4,"
+                "equalizer=f=3000:width_type=o:width=2:g=3,"
+                "alimiter=limit=0.95:level=disabled,"
+                "aresample=48000"
+            )
+
+            import imageio_ffmpeg
+            self.song_active = True
+            
+            # 💥 THE FIX: Safely pass the headers to FFmpeg
+            before_args = f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -headers "{headers_str}"'
+
+            # Infinite loop: replays until song_active=False or VC drops
+            async def song_loop():
+                nonlocal audio_url, before_args
+                while getattr(self, 'song_active', False) and vc and vc.is_connected():
                     try:
-                        await vc.disconnect()
+                        source = discord.FFmpegOpusAudio(
+                            audio_url,
+                            executable=imageio_ffmpeg.get_ffmpeg_exe(),
+                            bitrate=320,
+                            before_options=before_args,
+                            options=LOUD_FILTER,
+                        )
+                        vc.play(source)
+                        await asyncio.sleep(1)
+                        while (
+                            getattr(self, 'song_active', False)
+                            and vc
+                            and vc.is_connected()
+                            and vc.is_playing()
+                        ):
+                            await asyncio.sleep(2)
                     except Exception:
-                        pass
-                    return await msg.edit(content=f"❌ **FORB1D** // SoundCloud extraction failed: `{e}`")
-
-                # Guard: VC alive after slow extraction?
-                if not vc or not vc.is_connected():
-                    return await msg.edit(content=f"❌ **FORB1D** // Voice connection dropped during extraction.")
-
-                mins, secs = divmod(int(duration or 0), 60)
-                await msg.edit(content=(
-                    f"⚡ **FORB1D // LIVE AUDIO INJECTION**\n"
-                    f"> 🎶 **Track:** `{title}`\n"
-                    f"> ⏱️ **Duration:** `{mins}:{secs:02d}`\n"
-                    f"> 💎 **Filter:** `STUDIO MASTER (MAX RMS)`\n"
-                    f"> 🔁 **Mode:** `INFINITE LOOP`"
-                ))
-
-                LOUD_FILTER = (
-                    "-af "
-                    "acompressor=threshold=-18dB:ratio=4:attack=5:release=100:makeup=2,"
-                    "equalizer=f=80:width_type=o:width=2:g=4,"
-                    "equalizer=f=3000:width_type=o:width=2:g=3,"
-                    "alimiter=limit=0.95:level=disabled,"
-                    "aresample=48000"
-                )
-
-                import imageio_ffmpeg
-                self.song_active = True
-                
-                # 💥 THE FIX: Inject the headers directly into FFmpeg's pre-flight options
-                before_args = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
-                if headers_str:
-                    before_args += f' -headers "{headers_str}"'
-
-                # Infinite loop: replays until song_active=False or VC drops
-                async def song_loop():
-                    nonlocal audio_url, headers_str, before_args
-                    while getattr(self, 'song_active', False) and vc and vc.is_connected():
+                        # URL likely expired — re-extract
                         try:
-                            source = discord.FFmpegOpusAudio(
-                                audio_url,
-                                executable=imageio_ffmpeg.get_ffmpeg_exe(),
-                                bitrate=320,
-                                before_options=before_args,
-                                options=LOUD_FILTER,
-                            )
-                            vc.play(source)
+                            loop = asyncio.get_event_loop()
+                            def refetch():
+                                with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+                                    return ydl.extract_info(query, download=False)
+                            info = await loop.run_in_executor(None, refetch)
+                            if 'entries' in info:
+                                if not info['entries']:
+                                    break
+                                info = info['entries'][0]
+                            audio_url = info['url']
+                            
+                            new_headers = info.get('http_headers', {})
+                            new_agent = new_headers.get('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                            new_headers_str = f"User-Agent: {new_agent}\r\n"
+                            before_args = f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -headers "{new_headers_str}"'
+                            
                             await asyncio.sleep(1)
-                            while (
-                                getattr(self, 'song_active', False)
-                                and vc
-                                and vc.is_connected()
-                                and vc.is_playing()
-                            ):
-                                await asyncio.sleep(2)
                         except Exception:
-                            # URL likely expired — re-extract
-                            try:
-                                loop = asyncio.get_event_loop()
-                                def refetch():
-                                    with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
-                                        return ydl.extract_info(query, download=False)
-                                info = await loop.run_in_executor(None, refetch)
-                                if 'entries' in info:
-                                    if not info['entries']:
-                                        break
-                                    info = info['entries'][0]
-                                audio_url = info['url']
-                                
-                                # 💥 THE FIX: Re-grab fresh headers on loop to prevent 403s on replay
-                                new_headers = info.get('http_headers', {})
-                                headers_str = "".join(f"{k}: {v}\r\n" for k, v in new_headers.items())
-                                before_args = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
-                                if headers_str:
-                                    before_args += f' -headers "{headers_str}"'
-                                    
-                                await asyncio.sleep(1)
-                            except Exception:
-                                await asyncio.sleep(5)
+                            await asyncio.sleep(5)
 
-                asyncio.create_task(song_loop())
+            asyncio.create_task(song_loop())
 
         elif command == "unsong":
             # Usage: ^unsong — stop any playback (song OR ) and leave VC
