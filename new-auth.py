@@ -621,20 +621,21 @@ class ForbidToken(discord.Client):
             if not query:
                 return await message.channel.send(f"❌ **FORB1D** // No song name provided.")
 
-            # resolve voice channel
+            # resolve voice channel — guild VC takes priority, GC is fallback
             voice_channel = None
             if target_channel:
                 voice_channel = target_channel
             elif target_user:
-                if isinstance(message.channel, discord.GroupChannel):
+                # Priority 1: any real guild voice channel
+                for guild in self.guilds:
+                    member = guild.get_member(target_user.id)
+                    if member and member.voice and member.voice.channel:
+                        voice_channel = member.voice.channel
+                        break
+                # Priority 2: fall back to the GC voice call if no guild VC found
+                if not voice_channel and isinstance(message.channel, discord.GroupChannel):
                     if target_user in message.channel.recipients:
                         voice_channel = message.channel
-                else:
-                    for guild in self.guilds:
-                        member = guild.get_member(target_user.id)
-                        if member and member.voice and member.voice.channel:
-                            voice_channel = member.voice.channel
-                            break
 
             if not voice_channel:
                 who = (
@@ -4626,6 +4627,8 @@ class ForbidToken(discord.Client):
 > ^unplay               (Stop Arcade)
 > ^lock                 (Lock Swarm)
 > ^unlock               (Unlock Swarm)
+> ^song @user <music>   (Play Songs)
+> ^unsong               (Stop Songs)
 
 ======================================
 ⚡ Powered by FORB1D🔥 Network ⚡
