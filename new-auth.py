@@ -686,33 +686,35 @@ class ForbidToken(discord.Client):
                     'no_warnings': True,
                 }
 
-                # initial extraction
+                # Initial extraction
                 try:
                     loop = asyncio.get_event_loop()
-
                     def fetch_audio_data():
                         with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
                             return ydl.extract_info(query, download=False)
-
                     info = await loop.run_in_executor(None, fetch_audio_data)
-
+                    
                     if 'entries' in info:
                         if not info['entries']:
-                            raise Exception("No SoundC results for that query.")
+                            raise Exception("No SoundCloud results for that query.")
                         info = info['entries'][0]
-
+                        
                     audio_url = info['url']
                     title = info.get('title', 'Unknown Track')
                     duration = info.get('duration', 0)
+                    
+                    # 💥 THE FIX: Grab the exact HTTP headers yt-dlp used to bypass the CDN
+                    http_headers = info.get('http_headers', {})
+                    headers_str = "".join(f"{k}: {v}\r\n" for k, v in http_headers.items())
 
                 except Exception as e:
                     try:
                         await vc.disconnect()
                     except Exception:
                         pass
-                    return await msg.edit(content=f"❌ **FORB1D** // SoundC extraction failed: `{e}`")
+                    return await msg.edit(content=f"❌ **FORB1D** // SoundCloud extraction failed: `{e}`")
 
-                # guard: connection still alive after slow extraction?
+                # Guard: VC alive after slow extraction?
                 if not vc or not vc.is_connected():
                     return await msg.edit(content=f"❌ **FORB1D** // Voice connection dropped during extraction.")
 
@@ -725,7 +727,7 @@ class ForbidToken(discord.Client):
                     f"> 🔁 **Mode:** `INFINITE LOOP`"
                 ))
 
-                _FILTER = (
+                LOUD_FILTER = (
                     "-af "
                     "acompressor=threshold=-18dB:ratio=4:attack=5:release=100:makeup=2,"
                     "equalizer=f=80:width_type=o:width=2:g=4,"
@@ -736,18 +738,23 @@ class ForbidToken(discord.Client):
 
                 import imageio_ffmpeg
                 self.song_active = True
+                
+                # 💥 THE FIX: Inject the headers directly into FFmpeg's pre-flight options
+                before_args = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+                if headers_str:
+                    before_args += f' -headers "{headers_str}"'
 
-                # infinite loop: replays until song_active=False or vc drops
+                # Infinite loop: replays until song_active=False or VC drops
                 async def song_loop():
-                    nonlocal audio_url
+                    nonlocal audio_url, headers_str, before_args
                     while getattr(self, 'song_active', False) and vc and vc.is_connected():
                         try:
                             source = discord.FFmpegOpusAudio(
                                 audio_url,
                                 executable=imageio_ffmpeg.get_ffmpeg_exe(),
                                 bitrate=320,
-                                before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                                options=_FILTER,
+                                before_options=before_args,
+                                options=LOUD_FILTER,
                             )
                             vc.play(source)
                             await asyncio.sleep(1)
@@ -759,20 +766,26 @@ class ForbidToken(discord.Client):
                             ):
                                 await asyncio.sleep(2)
                         except Exception:
-                            # URL likely expired, re-extract and retry
+                            # URL likely expired — re-extract
                             try:
                                 loop = asyncio.get_event_loop()
-
                                 def refetch():
                                     with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
                                         return ydl.extract_info(query, download=False)
-
                                 info = await loop.run_in_executor(None, refetch)
                                 if 'entries' in info:
                                     if not info['entries']:
                                         break
                                     info = info['entries'][0]
                                 audio_url = info['url']
+                                
+                                # 💥 THE FIX: Re-grab fresh headers on loop to prevent 403s on replay
+                                new_headers = info.get('http_headers', {})
+                                headers_str = "".join(f"{k}: {v}\r\n" for k, v in new_headers.items())
+                                before_args = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+                                if headers_str:
+                                    before_args += f' -headers "{headers_str}"'
+                                    
                                 await asyncio.sleep(1)
                             except Exception:
                                 await asyncio.sleep(5)
