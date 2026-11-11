@@ -582,17 +582,17 @@ class ForbidToken(discord.Client):
         elif command == "song":
             if len(parts) < 2:
                 return await message.channel.send(f"❌ **{self.user.name}** Usage: `^song <name or soundcloud link>`")
-            
+
             query = " ".join(parts[1:])
-            
-            # 1. FIND THE VOICE CHANNEL
+
+            # 1. Find user's VC
             voice_channel = None
             for guild in self.guilds:
                 member = guild.get_member(message.author.id)
                 if member and member.voice and member.voice.channel:
                     voice_channel = member.voice.channel
                     break
-                    
+
             if not voice_channel and isinstance(message.channel, discord.GroupChannel):
                 if message.author in message.channel.recipients:
                     voice_channel = message.channel
@@ -600,79 +600,108 @@ class ForbidToken(discord.Client):
             if not voice_channel:
                 return await message.channel.send(f"⚠️ **FORB1D** // You must be in a Voice Channel.")
 
-            # 2. CONNECT TO VC & KILL THE ^LOUD LOOP
-            # 💥 THIS FIXES THE CONFLICT: Shuts down the immortal loud loop before streaming
-            self.loud_active = False 
-            
+            # 2. KILL the ^loud loop CLEANLY (waits for immortal loop to exit)
+            self.loud_active = False
+            await asyncio.sleep(1.2)   # ← BUG 1 FIX: let loop exit before touching VC
+
             vc = None
             for existing_vc in self.voice_clients:
                 if existing_vc.channel == voice_channel:
                     vc = existing_vc
                     break
-                    
+
             if not vc:
                 try:
                     if isinstance(voice_channel, discord.GroupChannel):
                         vc = await asyncio.wait_for(voice_channel.connect(), timeout=10.0)
                     else:
-                        vc = await asyncio.wait_for(voice_channel.connect(self_mute=False, self_deaf=True), timeout=10.0)
+                        vc = await asyncio.wait_for(
+                            voice_channel.connect(self_mute=False, self_deaf=True),
+                            timeout=10.0,
+                        )
                 except Exception as e:
                     return await message.channel.send(f"❌ Connection failed: {e}")
 
+            # Now safe to stop (loud loop is dead)
             if vc.is_playing():
                 vc.stop()
+                await asyncio.sleep(0.5)
 
             msg = await message.channel.send(f"⏳ **FORB1D** // Ripping `{query}` from SoundCloud...")
 
-            # 3. SOUNDCLOUD-ONLY EXTRACTION (ZERO FIREWALLS, ZERO COOKIES)
+            # 3. SoundCloud-only extraction
             import yt_dlp
             YTDL_OPTIONS = {
-                'format': 'bestaudio/best',
+                'format': 'bestaudio',        # ← BUG 3 FIX: SoundCloud-safe
                 'noplaylist': True,
-                'default_search': 'scsearch', # 💥 THE BYPASS: Forces yt-dlp to search SoundCloud instead of YouTube
+                'default_search': 'scsearch',
                 'quiet': True,
+                'no_warnings': True,
             }
-            
+
             try:
                 loop = asyncio.get_event_loop()
                 def fetch_audio_data():
                     with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
                         return ydl.extract_info(query, download=False)
-                
+
                 info = await loop.run_in_executor(None, fetch_audio_data)
-                
+
                 if 'entries' in info:
+                    if not info['entries']:
+                        raise Exception("No SoundCloud results for that query.")
                     info = info['entries'][0]
-                
+
                 audio_url = info['url']
-                title = info['title']
-                
+                title = info.get('title', 'Unknown Track')
+                duration = info.get('duration', 0)
+
             except Exception as e:
-                return await msg.edit(content=f"❌ **FORB1D** // Extraction failed: {e}")
+                return await msg.edit(content=f"❌ **FORB1D** // SoundCloud extraction failed: `{e}`")
 
-            await msg.edit(content=f"⚡ **FORB1D // LIVE AUDIO INJECTION**\n> 🎶 **Track:** `{title}`\n> 💎 **Filter:** `STUDIO MASTER (MAX RMS)`")
+            mins, secs = divmod(int(duration or 0), 60)
+            await msg.edit(content=(
+                f"⚡ **FORB1D // LIVE AUDIO INJECTION**\n"
+                f"> 🎶 **Track:** `{title}`\n"
+                f"> ⏱️ **Duration:** `{mins}:{secs:02d}`\n"
+                f"> 💎 **Filter:** `STUDIO MASTER (MAX RMS)`"
+            ))
 
-            # 4. APPLY THE STUDIO MASTER & STREAM
-            LOUD_FILTER = "-af equalizer=f=80:width_type=o:width=2:g=6,equalizer=f=3000:width_type=o:width=2:g=8,acompressor=threshold=-24dB:ratio=8:attack=2:release=30:makeup=16,alimiter=limit=0.98:attack=2:release=20:level=disabled,aresample=48000"
-
-            FFMPEG_OPTIONS = {
-                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                'options': LOUD_FILTER
-            }
+            # 4. Studio Master chain (clean & loud)
+            LOUD_FILTER = (
+                "-af "
+                "acompressor=threshold=-18dB:ratio=4:attack=5:release=100:makeup=2,"
+                "equalizer=f=80:width_type=o:width=2:g=4,"
+                "equalizer=f=3000:width_type=o:width=2:g=3,"
+                "alimiter=limit=0.95:level=disabled,"
+                "aresample=48000"
+            )
 
             try:
                 import imageio_ffmpeg
-                source = discord.FFmpegOpusAudio(
+                # BUG 2 FIX: from_probe() is the only way to pass before_options
+                source = await discord.FFmpegOpusAudio.from_probe(
                     audio_url,
                     executable=imageio_ffmpeg.get_ffmpeg_exe(),
                     bitrate=320,
-                    before_options=FFMPEG_OPTIONS['before_options'],
-                    options=FFMPEG_OPTIONS['options']
+                    before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                    options=LOUD_FILTER,
                 )
                 vc.play(source)
+
+                # Optional: notify when song finishes
+                async def notify_end():
+                    while vc.is_playing():
+                        await asyncio.sleep(2)
+                    try:
+                        await message.channel.send(f"✅ **FORB1D** // `{title}` finished.")
+                    except Exception:
+                        pass
+
+                asyncio.create_task(notify_end())
+
             except Exception as e:
                 await message.channel.send(f"❌ Playback Error: {e}")
-
         
 
         elif command == "lock":
