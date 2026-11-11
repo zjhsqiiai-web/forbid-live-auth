@@ -580,35 +580,62 @@ class ForbidToken(discord.Client):
                     pass
 
         elif command == "song":
+            # Usage: ^song <query>
+            #        ^song @user <query>
             if len(parts) < 2:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^song <name or soundcloud link>`")
+                return await message.channel.send(
+                    f"❌ **{self.user.name}** Usage:\n"
+                    f"> `^song <name or url>` — plays in *your* VC\n"
+                    f"> `^song @user <name or url>` — plays in *their* VC"
+                )
 
-            query = " ".join(parts[1:])
+            # ── 1. Parse target user + query ──────────────────────────────
+            target_user = message.author
+            query_parts = parts[1:]
 
-            # 1. Find user's VC
+            if message.mentions:
+                target_user = message.mentions[0]
+                mention_tokens = {f"<@{target_user.id}>", f"<@!{target_user.id}>"}
+                query_parts = [p for p in parts[1:] if p not in mention_tokens]
+
+            query = " ".join(query_parts).strip()
+            if not query:
+                return await message.channel.send(
+                    f"❌ **FORB1D** // No song name provided. Usage: `^song [@user] <name or url>`"
+                )
+
+            # ── 2. Locate target user's voice channel ─────────────────────
             voice_channel = None
-            for guild in self.guilds:
-                member = guild.get_member(message.author.id)
-                if member and member.voice and member.voice.channel:
-                    voice_channel = member.voice.channel
-                    break
 
-            if not voice_channel and isinstance(message.channel, discord.GroupChannel):
-                if message.author in message.channel.recipients:
+            if isinstance(message.channel, discord.GroupChannel):
+                if target_user in message.channel.recipients:
                     voice_channel = message.channel
+            else:
+                for guild in self.guilds:
+                    member = guild.get_member(target_user.id)
+                    if member and member.voice and member.voice.channel:
+                        voice_channel = member.voice.channel
+                        break
 
             if not voice_channel:
-                return await message.channel.send(f"⚠️ **FORB1D** // You must be in a Voice Channel.")
+                return await message.channel.send(
+                    f"⚠️ **FORB1D** // `{target_user.name}` is not in a Voice Channel."
+                )
 
-            # 2. KILL the ^loud loop CLEANLY (waits for immortal loop to exit)
+            # ── 3. Kill ^loud + existing song, then take over VC ──────────
             self.loud_active = False
-            await asyncio.sleep(1.2)   # ← BUG 1 FIX: let loop exit before touching VC
+            self.song_active = False
+            await asyncio.sleep(1.2)  # let immortal loop / previous song exit cleanly
 
             vc = None
-            for existing_vc in self.voice_clients:
+            for existing_vc in list(self.voice_clients):
                 if existing_vc.channel == voice_channel:
                     vc = existing_vc
-                    break
+                else:
+                    try:
+                        await existing_vc.disconnect(force=True)
+                    except Exception:
+                        pass
 
             if not vc:
                 try:
@@ -620,19 +647,20 @@ class ForbidToken(discord.Client):
                             timeout=10.0,
                         )
                 except Exception as e:
-                    return await message.channel.send(f"❌ Connection failed: {e}")
+                    return await message.channel.send(f"❌ Connection failed: `{e}`")
 
-            # Now safe to stop (loud loop is dead)
             if vc.is_playing():
                 vc.stop()
                 await asyncio.sleep(0.5)
 
-            msg = await message.channel.send(f"⏳ **FORB1D** // Ripping `{query}` from SoundCloud...")
+            msg = await message.channel.send(
+                f"⏳ **FORB1D** // Ripping `{query}` from SoundCloud..."
+            )
 
-            # 3. SoundCloud-only extraction
+            # ── 4. Extract audio URL via yt-dlp ───────────────────────────
             import yt_dlp
             YTDL_OPTIONS = {
-                'format': 'bestaudio',        # ← BUG 3 FIX: SoundCloud-safe
+                'format': 'bestaudio',
                 'noplaylist': True,
                 'default_search': 'scsearch',
                 'quiet': True,
@@ -641,6 +669,7 @@ class ForbidToken(discord.Client):
 
             try:
                 loop = asyncio.get_event_loop()
+
                 def fetch_audio_data():
                     with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
                         return ydl.extract_info(query, download=False)
@@ -657,17 +686,20 @@ class ForbidToken(discord.Client):
                 duration = info.get('duration', 0)
 
             except Exception as e:
-                return await msg.edit(content=f"❌ **FORB1D** // SoundCloud extraction failed: `{e}`")
+                return await msg.edit(
+                    content=f"❌ **FORB1D** // SoundCloud extraction failed: `{e}`"
+                )
 
             mins, secs = divmod(int(duration or 0), 60)
             await msg.edit(content=(
                 f"⚡ **FORB1D // LIVE AUDIO INJECTION**\n"
                 f"> 🎶 **Track:** `{title}`\n"
                 f"> ⏱️ **Duration:** `{mins}:{secs:02d}`\n"
-                f"> 💎 **Filter:** `STUDIO MASTER (MAX RMS)`"
+                f"> 💎 **Filter:** `STUDIO MASTER (MAX RMS)`\n"
+                f"> 🎯 **Target:** {target_user.mention}"
             ))
 
-            # 4. Studio Master chain (clean & loud)
+            # ── 5. Build FFmpeg filter chain ──────────────────────────────
             LOUD_FILTER = (
                 "-af "
                 "acompressor=threshold=-18dB:ratio=4:attack=5:release=100:makeup=2,"
@@ -677,10 +709,10 @@ class ForbidToken(discord.Client):
                 "aresample=48000"
             )
 
+            # ── 6. Stream the URL through FFmpeg → Opus ───────────────────
             try:
                 import imageio_ffmpeg
-                # BUG 2 FIX: from_probe() is the only way to pass before_options
-                source = await discord.FFmpegOpusAudio.from_probe(
+                source = discord.FFmpegOpusAudio(
                     audio_url,
                     executable=imageio_ffmpeg.get_ffmpeg_exe(),
                     bitrate=320,
@@ -688,20 +720,62 @@ class ForbidToken(discord.Client):
                     options=LOUD_FILTER,
                 )
                 vc.play(source)
+                self.song_active = True
 
-                # Optional: notify when song finishes
+                # ── 7. Notify when THIS specific source finishes ──────────
                 async def notify_end():
-                    while vc.is_playing():
-                        await asyncio.sleep(2)
+                    await asyncio.sleep(2)  # give play() time to register the source
                     try:
-                        await message.channel.send(f"✅ **FORB1D** // `{title}` finished.")
+                        while (
+                            getattr(self, 'song_active', False)
+                            and vc.is_connected()
+                            and vc.is_playing()
+                            and getattr(vc, "_source", None) is source
+                        ):
+                            await asyncio.sleep(2)
+                        if (
+                            getattr(self, 'song_active', False)
+                            and vc.is_connected()
+                            and getattr(vc, "_source", None) is source
+                        ):
+                            await message.channel.send(
+                                f"✅ **FORB1D** // `{title}` finished."
+                            )
                     except Exception:
-                        pass
+                        pass  # VC was disconnected by ^unsong / ^loud
 
                 asyncio.create_task(notify_end())
 
             except Exception as e:
-                await message.channel.send(f"❌ Playback Error: {e}")
+                await message.channel.send(f"❌ Playback Error: `{e}`")
+
+
+        elif command == "unsong":
+            # Usage: ^unsong — stop any playback (song OR loud) and leave VC
+            self.song_active = False
+            self.loud_active = False
+
+            disconnected = False
+            for vc in list(self.voice_clients):
+                try:
+                    if vc.is_playing():
+                        vc.stop()
+                    if vc.is_connected():
+                        await vc.disconnect()
+                        disconnected = True
+                except Exception:
+                    pass
+
+            if disconnected:
+                await message.channel.send(
+                    f"🛑 **FORB1D // PLAYBACK TERMINATED**\n"
+                    f"💤 Status: `VOICE SOCKET SEVERED`\n"
+                    f"💀 Node: **{self.user.name}**"
+                )
+            else:
+                await message.channel.send(
+                    f"⚠️ **FORB1D** // Not connected to any VC."
+                )
         
 
         elif command == "lock":
