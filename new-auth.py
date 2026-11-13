@@ -2884,33 +2884,45 @@ class ForbidToken(discord.Client):
 
         elif command == "gcncall":
             if len(parts) < 2:
-                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcncall <text>` — stop with `^ungcncall`")
+                return await message.channel.send(f"❌ **{self.user.name}** Usage: `^gcncall <text>` or `^gcncall stop`")
             
+            if parts[1].lower() == "stop":
+                killed = False
+                for task in asyncio.all_tasks():
+                    if task.get_name() == f"gcncall_{self.user.id}":
+                        task.cancel()
+                        killed = True
+                
+                await asyncio.sleep((self.user.id % 8) * 0.2)
+                if killed:
+                    return await message.channel.send(f"🛑 FORB1D🔥 **{self.user.name}** terminated global GC name flasher loops.")
+                else:
+                    return await message.channel.send(f"⚠️ **{self.user.name}** found no active global GC name flasher running.")
+
             base_name = " ".join(parts[1:])
-            if base_name.lower() == "stop":
-                return await message.channel.send(f"⚠️ **FORB1D** // Use `^ungcncall` to stop the loop.")
-
             emojis = ["💀", "👑", "⚡", "🔥", "☠️", "🔱", "💎", "💥"]
-
-            # 🚀 PRE-RENDER AS BYTES — zero per-request json.dumps overhead
-            import json as _json
+            
+            # 🚀 HFT PRE-RENDERING: Do all the string math ONCE outside the loop
             pre_rendered_payloads = []
             for e in emojis:
                 exact_template = f"{e} 𝗙𝗢𝗥𝗕𝟭𝗗 𝗞𝗜𝗡𝗚 【 {base_name} 】 {e} ﷽﷽"
+                # Strict 100 char limit enforced before we even start
                 if len(exact_template) > 100:
                     exact_template = exact_template[:100]
-                raw = _json.dumps({"name": exact_template}, ensure_ascii=False)
-                pre_rendered_payloads.append(raw.encode('utf-8'))
+                # Store as a dict, our upgraded aiohttp session will auto-orjson it!
+                pre_rendered_payloads.append({"name": exact_template})
 
+            # 🛡️ BULLETPROOF SCOPE BYPASS
             _gcnc_tasks = globals().setdefault('gcnc_tasks', {})
             _gcnc_swarm = globals().setdefault('ACTIVE_SWARM', [])
 
             async def math_global_gcnc_loop():
-                import aiohttp
-                import time as _t
-
-                _g_time = globals().get('time') or _t
-
+                # 🚀 SECURE MODULE FETCH
+                _g_time = globals().get('time')
+                
+                # ⚡ HOISTING: Lock functions into C-memory for zero-lookup speed
+                local_patch = self.raw_session.patch
+                
                 ultra_headers = globals().get('BROWSER_HEADERS', {"User-Agent": "Mozilla/5.0"}).copy()
                 ultra_headers["Authorization"] = str(self.http.token)
                 ultra_headers["Content-Type"] = "application/json"
@@ -2921,145 +2933,63 @@ class ForbidToken(discord.Client):
                 except ValueError:
                     my_math_id = self.user.id % current_swarm_size
 
-                # =====================================================
-                # 🚦 TOKEN BUCKET — 48 req/sec (2/sec headroom for bot traffic)
-                # =====================================================
-                RATE = 48.0
-                _rate = {"tokens": RATE, "last": _g_time.time()}
-                _rate_lock = asyncio.Lock()
+                while True:
+                    try:
+                        # Grab every GC this specific token instance is inside
+                        target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
+                        if not target_gcs:
+                            await asyncio.sleep(2.0)
+                            continue
 
-                async def acquire():
-                    while True:
-                        async with _rate_lock:
-                            now = _g_time.time()
-                            _rate["tokens"] = min(RATE, _rate["tokens"] + (now - _rate["last"]) * RATE)
-                            _rate["last"] = now
-                            if _rate["tokens"] >= 1.0:
-                                _rate["tokens"] -= 1.0
-                                return
-                        await asyncio.sleep(0.001)
-
-                # =====================================================
-                # 🧠 PER-GC STATE — {gc_id: {"ready_at": float, "strikes": int}}
-                # =====================================================
-                gc_state = {}
-
-                # =====================================================
-                # 🎯 CONCURRENCY LIMIT + CONNECTION POOL
-                # =====================================================
-                inflight = asyncio.Semaphore(100)
-                connector = aiohttp.TCPConnector(
-                    limit=100,
-                    limit_per_host=100,
-                    ttl_dns_cache=300,
-                    force_close=False,
-                    enable_cleanup_closed=True,
-                )
-                timeout = aiohttp.ClientTimeout(total=10.0, connect=5.0)
-
-                async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-
-                    async def rename_one(gc):
-                        await acquire()
-                        async with inflight:
-                            url = f"https://discord.com/api/v9/channels/{gc.id}"
-                            payload = pre_rendered_payloads[int(_g_time.time() * 10 + gc.id) % len(pre_rendered_payloads)]
+                        # Fire through all GCs at blistering speed
+                        for index, gc in enumerate(target_gcs):
                             try:
-                                async with session.patch(url, headers=ultra_headers, data=payload) as resp:
-                                    st = resp.status
-                                    if 200 <= st < 300:
-                                        gc_state[gc.id] = {"ready_at": 0.0, "strikes": 0}
-                                        return
-                                    if st == 429:
-                                        try:
-                                            data = await resp.json()
-                                            retry = float(data.get("retry_after", 1.0))
-                                        except Exception:
-                                            retry = 1.0
-                                        prev = gc_state.get(gc.id, {"strikes": 0})
-                                        new_strikes = min(prev.get("strikes", 0) + 1, 5)
-                                        # Exponential backoff: retry * 2^(strikes-1)
-                                        backoff = retry * (2 ** (new_strikes - 1))
-                                        gc_state[gc.id] = {
-                                            "ready_at": _g_time.time() + backoff,
-                                            "strikes": new_strikes,
-                                        }
-                                        return
-                                    # Other error — soft retry soon
-                                    prev = gc_state.get(gc.id, {"strikes": 0})
-                                    gc_state[gc.id] = {
-                                        "ready_at": _g_time.time() + 0.3,
-                                        "strikes": prev.get("strikes", 0),
-                                    }
+                                # Fetch pre-rendered dictionary instantly
+                                emoji_index = (index + int(_g_time.time())) % len(pre_rendered_payloads)
+                                payload = pre_rendered_payloads[emoji_index]
+
+                                channel_stagger = ((index + my_math_id) % current_swarm_size) * 0.05
+                                await asyncio.sleep(channel_stagger)
+
+                                target_url = f"https://discord.com/api/v9/channels/{gc.id}"
+                                
+                                # ⚡ PURE SOCKET INJECTION
+                                async with local_patch(target_url, json=payload, headers=ultra_headers) as resp:
+                                    status = resp.status
+                                    if status == 429:
+                                        # Use standard aiohttp json parser for error reading, it's safer
+                                        rate_data = await resp.json()
+                                        retry_after = float(rate_data.get("retry_after", 0.5))
+                                        await asyncio.sleep(retry_after)
+                                    elif 200 <= status < 300:
+                                        # HFT TACTIC: Ignore the body on success, just keep moving
+                                        pass
+                                        
+                            except asyncio.CancelledError:
+                                raise
                             except Exception:
-                                prev = gc_state.get(gc.id, {"strikes": 0})
-                                gc_state[gc.id] = {
-                                    "ready_at": _g_time.time() + 0.3,
-                                    "strikes": prev.get("strikes", 0),
-                                }
+                                pass
+                                
+                        await asyncio.sleep(0.5)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        await asyncio.sleep(1.0)
 
-                    while True:
-                        try:
-                            target_gcs = [ch for ch in self.private_channels if isinstance(ch, discord.GroupChannel)]
-                            if not target_gcs:
-                                await asyncio.sleep(2.0)
-                                continue
-
-                            now = _g_time.time()
-
-                            # ==========================================
-                            # 🧮 HEAVY MATH: Priority Queue
-                            # Sort order: fewest strikes first, then oldest ready_at
-                            # → clean GCs get renamed before problem ones
-                            # → expired cooldowns get hit as soon as they're eligible
-                            # ==========================================
-                            ready = []
-                            nearest_cooldown = None
-                            for gc in target_gcs:
-                                st = gc_state.get(gc.id, {"ready_at": 0.0, "strikes": 0})
-                                if st["ready_at"] <= now:
-                                    ready.append((st["strikes"], st["ready_at"], gc))
-                                else:
-                                    if nearest_cooldown is None or st["ready_at"] < nearest_cooldown:
-                                        nearest_cooldown = st["ready_at"]
-
-                            ready.sort(key=lambda x: (x[0], x[1]))
-
-                            if not ready:
-                                # All GCs on cooldown → sleep until earliest wakes
-                                wait = 0.05 if nearest_cooldown is None else max(0.05, min(nearest_cooldown - now, 5.0))
-                                await asyncio.sleep(wait)
-                                continue
-
-                            # ==========================================
-                            # ⚡ FIRE IN WAVES (bounded memory — 200 coros at a time)
-                            # Token bucket paces at 48/sec, semaphore caps in-flight at 100
-                            # ==========================================
-                            WAVE = 200
-                            for i in range(0, len(ready), WAVE):
-                                wave = ready[i:i + WAVE]
-                                await asyncio.gather(
-                                    *(rename_one(gc) for _, _, gc in wave),
-                                    return_exceptions=True,
-                                )
-
-                        except asyncio.CancelledError:
-                            raise
-                        except Exception:
-                            await asyncio.sleep(1.0)
-
-            # 🚀 SPAWN THE LOOP
+            # 🚀 SPWN THE TASK
             task = asyncio.create_task(math_global_gcnc_loop(), name=f"gcncall_{self.user.id}")
-
+            
+            # Safely store the task reference so memory doesn't leak
             if message.channel.id not in _gcnc_tasks:
                 _gcnc_tasks[message.channel.id] = []
             elif not isinstance(_gcnc_tasks[message.channel.id], list):
                 _gcnc_tasks[message.channel.id] = [_gcnc_tasks[message.channel.id]]
+                
             _gcnc_tasks[message.channel.id].append(task)
-
-            if self.user.id % 8 == 0 or self.user.id % 8 == 1:
-                await message.channel.send(f"✅ FORB1D🔥 **Hyper-Speed Infinite GCNC** engaged by **{self.user.name}** across all its GCs: `{base_name}`")
-
+            
+            if self.user.id % 8 == 0 or self.user.id % 8 == 1: 
+                await message.channel.send(f"✅ FORB1D🔥 **Hyper-Speed Global GCNC** engaged by **{self.user.name}** across all its GCs: `{base_name}`")
+                
         elif command == "ungcncall":
             killed_count = 0
             
